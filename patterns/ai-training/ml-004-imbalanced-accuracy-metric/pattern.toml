@@ -1,0 +1,71 @@
+# Pattern: ml-004-imbalanced-accuracy-metric
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "ml-004"
+name = "imbalanced-accuracy-metric"
+category = "ai-training"
+severity = "critical"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Using accuracy as an evaluation metric on imbalanced classification problems is misleading. When classes are imbalanced (e.g., 95% negative, 5% positive), a model that always predicts the majority class achieves high accuracy while being completely useless. Appropriate metrics include precision, recall, F1-score, or AUC-ROC.
+"""
+
+explanation = """
+Wrong metric: accuracy on imbalanced classes is misleading. A model predicting the majority class gets high accuracy while being useless. Use AUC-ROC, precision-recall, or F1.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Is accuracy used as the evaluation metric while the data appears to have imbalanced classes (e.g., stratify parameter is used, or class distribution is visibly skewed)?
+
+"""
+
+warning_message = """
+Wrong metric: accuracy on imbalanced classes is misleading. A model predicting the majority class gets high accuracy while being useless. Use AUC-ROC, precision-recall, or F1.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+# Test cases for ml-004-imbalanced-accuracy-metric
+
+[[tests.positive]]
+file = "test_positive/accuracy_on_imbalanced.py"
+description = "Using accuracy metric on imbalanced classes"
+expected_issue = "Wrong metric: accuracy on imbalanced classes is misleading"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "evaluate_with_accuracy_imbalanced"
+snippet = "accuracy_score(y_test, y_pred)"
+
+[[tests.negative]]
+file = "test_negative/appropriate_metrics_imbalanced.py"
+description = "Using appropriate metrics on imbalanced data"
+max_false_positives = 0
+
+[[tests.context_dependent]]
+file = "test_context_dependent/accuracy_moderate_imbalance.py"
+description = "Accuracy on moderately imbalanced data"
+context_notes = "Moderate imbalance (70/30): some accept accuracy, others prefer F1/AUC for consistency"
+allow_detection = true
+allow_skip = true
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

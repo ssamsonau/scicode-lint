@@ -1,0 +1,76 @@
+# Pattern: pt-003-inplace-leaf-variable
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "pt-003"
+name = "inplace-leaf-variable"
+category = "ai-training"
+severity = "critical"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Are there in-place operations on leaf variables (tensors that require gradients) or input tensors during the forward pass?
+"""
+
+explanation = """
+In-place operations on leaf variables modify tensors that require gradients, which breaks PyTorch's autograd graph. This causes a runtime error: 'a leaf Variable that requires grad is being used in an in-place operation'. Avoid in-place operations (add_, sub_, mul_, div_, etc.) on inputs or parameters that need gradients.
+"""
+
+tags = ["pytorch", "gradients", "autograd", "in-place-operations"]
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Are there in-place modifications being performed on tensors that are leaf variables in the computation graph and have gradient tracking enabled? This includes direct modifications to input tensors or model parameters during the forward pass.
+"""
+
+warning_message = """
+In-place operation on leaf variable: In-place operations modify tensors with requires_grad=True, breaking the autograd graph. This will cause a runtime error during backward(). Use non-in-place operations instead (e.g., x = x + y instead of x.add_(y)).
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/inplace_on_parameter.py"
+description = "Direct in-place modification of model parameters using += operator after loss computation"
+expected_issue = "In-place operation on parameter that requires gradients"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "train_with_inplace_modification"
+snippet = "param.data += noise"
+
+[[tests.positive]]
+file = "test_positive/inplace_input_modification.py"
+description = "In-place operations (-=, /=) on input tensor in forward pass that requires gradients"
+expected_issue = "In-place operations on input tensor in forward method"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "method"
+name = "forward"
+snippet = "x -= mean_val"
+
+[[tests.negative]]
+file = "test_negative/correct_gradient_computation.py"
+description = "Correct usage: standard non-in-place operations throughout training"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/safe_tensor_operations.py"
+description = "Correct usage: non-in-place tensor operations for normalization"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

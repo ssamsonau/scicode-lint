@@ -1,0 +1,88 @@
+# Pattern: pt-007-inference-without-eval
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "pt-007"
+name = "inference-without-eval"
+category = "ai-inference"
+severity = "high"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Is model evaluation (validation or test) performed without calling model
+"""
+
+explanation = """
+Missing model.eval() disables dropout incorrectly and changes batchnorm behavior. Missing torch.no_grad() wastes memory storing activations. Both are needed during evaluation.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Look for evaluation or inference operations missing either eval mode or gradient disabling.
+
+Answer YES ONLY if you see EXPLICIT evidence of:
+1. Validation/test loop with "with torch.no_grad():" but NO "model.eval()" call
+2. Evaluation function with "model.eval()" but NO "torch.no_grad()" or "@torch.inference_mode()"
+3. Model forward pass for inference but missing BOTH "model.eval()" AND gradient disabling
+
+Answer NO if:
+- BOTH "model.eval()" AND "torch.no_grad()" (or "@torch.inference_mode()") are present before evaluation
+- Function is training-only (optimizer.step() present, no validation/test context)
+- Context suggests this is a training forward pass (loss.backward() follows)
+"""
+
+warning_message = """
+Missing model.eval() disables dropout incorrectly and changes batchnorm behavior. Missing torch.no_grad() wastes memory storing activations. Both are needed during evaluation.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/validation_missing_eval.py"
+description = "Validation functions that use torch.no_grad() but forget to call model.eval(), leaving dropout and batchnorm in training mode"
+expected_issue = "The validate_epoch and run_evaluation functions wrap inference in no_grad but don't call model.eval(), so dropout remains active and batchnorm uses batch statistics"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "validate_epoch"
+snippet = "with torch.no_grad():"
+
+[[tests.positive]]
+file = "test_positive/missing_no_grad.py"
+description = "Evaluation functions that call model.eval() but don't use torch.no_grad(), wasting memory on gradient tracking"
+expected_issue = "The evaluate_test_set and compute_test_accuracy functions set eval mode but don't disable gradient tracking, causing unnecessary memory usage"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "evaluate_test_set"
+snippet = "model.eval()"
+
+[[tests.negative]]
+file = "test_negative/proper_evaluation.py"
+description = "Correctly implemented evaluation with both model.eval() and torch.no_grad()"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/complete_inference_setup.py"
+description = "Properly configured inference that sets eval mode and disables gradients"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

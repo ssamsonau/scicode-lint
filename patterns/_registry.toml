@@ -1,0 +1,314 @@
+# Pattern Registry - Auto-generated
+# Generated: 2026-03-03T09:10:12.565240
+# Total patterns: 44
+
+version = "1.0"
+total_patterns = 44
+
+[patterns."ml-001"]
+path = "ai-training/ml-001-scaler-leakage"
+name = "scaler-leakage"
+category = "ai-training"
+severity = "critical"
+version = "1.0.0"
+
+[patterns."ml-002"]
+path = "ai-training/ml-002-target-leakage"
+name = "target-leakage"
+category = "ai-training"
+severity = "critical"
+version = "1.0.0"
+
+[patterns."ml-003"]
+path = "ai-training/ml-003-temporal-leakage"
+name = "temporal-leakage"
+category = "ai-training"
+severity = "critical"
+version = "1.0.0"
+
+[patterns."ml-004"]
+path = "ai-training/ml-004-transform-test-only"
+name = "transform-test-only"
+category = "ai-training"
+severity = "critical"
+version = "1.0.0"
+
+[patterns."ml-005"]
+path = "ai-training/ml-005-transform-order"
+name = "transform-order"
+category = "ai-training"
+severity = "critical"
+version = "1.0.0"
+
+[patterns."ml-006"]
+path = "ai-training/ml-006-duplicate-preprocessing"
+name = "duplicate-preprocessing"
+category = "ai-training"
+severity = "critical"
+version = "1.0.0"
+
+[patterns."ml-007"]
+path = "ai-training/ml-007-test-set-preprocessing"
+name = "test-set-preprocessing"
+category = "ai-training"
+severity = "critical"
+version = "1.0.0"
+
+[patterns."ml-008"]
+path = "ai-training/ml-008-validation-leakage"
+name = "validation-leakage"
+category = "ai-training"
+severity = "high"
+version = "1.0.0"
+
+[patterns."np-001"]
+path = "scientific-numerical/np-001-pattern"
+name = "pattern"
+category = "scientific-numerical"
+severity = "high"
+version = "1.0.0"
+
+[patterns."np-002"]
+path = "scientific-numerical/np-002-pattern"
+name = "pattern"
+category = "scientific-numerical"
+severity = "high"
+version = "1.0.0"
+
+[patterns."num-001"]
+path = "scientific-numerical/num-001-pattern"
+name = "pattern"
+category = "scientific-numerical"
+severity = "critical"
+version = "1.0.0"
+
+[patterns."num-002"]
+path = "scientific-numerical/num-002-pattern"
+name = "pattern"
+category = "scientific-numerical"
+severity = "high"
+version = "1.0.0"
+
+[patterns."num-003"]
+path = "scientific-numerical/num-003-pattern"
+name = "pattern"
+category = "scientific-numerical"
+severity = "high"
+version = "1.0.0"
+
+[patterns."num-004"]
+path = "scientific-numerical/num-004-pattern"
+name = "pattern"
+category = "scientific-numerical"
+severity = "high"
+version = "1.0.0"
+
+[patterns."num-005"]
+path = "scientific-numerical/num-005-pattern"
+name = "pattern"
+category = "scientific-numerical"
+severity = "high"
+version = "1.0.0"
+
+[patterns."num-006"]
+path = "scientific-numerical/num-006-pattern"
+name = "pattern"
+category = "scientific-numerical"
+severity = "medium"
+version = "1.0.0"
+
+[patterns."par-001"]
+path = "scientific-performance/par-001-pattern"
+name = "pattern"
+category = "scientific-performance"
+severity = "high"
+version = "1.0.0"
+
+[patterns."par-002"]
+path = "scientific-performance/par-002-pattern"
+name = "pattern"
+category = "scientific-performance"
+severity = "high"
+version = "1.0.0"
+
+[patterns."par-003"]
+path = "scientific-performance/par-003-pattern"
+name = "pattern"
+category = "scientific-performance"
+severity = "high"
+version = "1.0.0"
+
+[patterns."par-004"]
+path = "scientific-performance/par-004-pattern"
+name = "pattern"
+category = "scientific-performance"
+severity = "high"
+version = "1.0.0"
+
+[patterns."par-005"]
+path = "scientific-performance/par-005-pattern"
+name = "pattern"
+category = "scientific-performance"
+severity = "high"
+version = "1.0.0"
+
+[patterns."par-006"]
+path = "scientific-performance/par-006-pattern"
+name = "pattern"
+category = "scientific-performance"
+severity = "medium"
+version = "1.0.0"
+
+[patterns."perf-001"]
+path = "scientific-performance/perf-001-pattern"
+name = "pattern"
+category = "scientific-performance"
+severity = "high"
+version = "1.0.0"
+
+[patterns."perf-002"]
+path = "scientific-performance/perf-002-pattern"
+name = "pattern"
+category = "scientific-performance"
+severity = "high"
+version = "1.0.0"
+
+[patterns."perf-003"]
+path = "scientific-performance/perf-003-pattern"
+name = "pattern"
+category = "scientific-performance"
+severity = "high"
+version = "1.0.0"
+
+[patterns."perf-004"]
+path = "scientific-performance/perf-004-pattern"
+name = "pattern"
+category = "scientific-performance"
+severity = "high"
+version = "1.0.0"
+
+[patterns."perf-005"]
+path = "scientific-performance/perf-005-pattern"
+name = "pattern"
+category = "scientific-performance"
+severity = "medium"
+version = "1.0.0"
+
+[patterns."pt-001"]
+path = "ai-training/pt-001-missing-train-mode"
+name = "missing-train-mode"
+category = "ai-training"
+severity = "critical"
+version = "1.0.0"
+
+[patterns."pt-002"]
+path = "ai-training/pt-002-missing-eval-mode"
+name = "missing-eval-mode"
+category = "ai-training"
+severity = "critical"
+version = "1.0.0"
+
+[patterns."pt-003"]
+path = "ai-training/pt-003-inplace-leaf-variable"
+name = "inplace-leaf-variable"
+category = "ai-training"
+severity = "critical"
+version = "1.0.0"
+
+[patterns."pt-004"]
+path = "ai-training/pt-004-missing-zero-grad"
+name = "missing-zero-grad"
+category = "ai-training"
+severity = "critical"
+version = "1.0.0"
+
+[patterns."pt-005"]
+path = "ai-training/pt-005-detached-loss-backward"
+name = "detached-loss-backward"
+category = "ai-training"
+severity = "critical"
+version = "1.0.0"
+
+[patterns."pt-006"]
+path = "ai-inference/pt-006-inference-without-no-grad"
+name = "inference-without-no-grad"
+category = "ai-inference"
+severity = "high"
+version = "1.0.0"
+
+[patterns."pt-007"]
+path = "ai-inference/pt-007-inference-without-eval"
+name = "inference-without-eval"
+category = "ai-inference"
+severity = "high"
+version = "1.0.0"
+
+[patterns."pt-008"]
+path = "ai-training/pt-008-optimizer-before-backward"
+name = "optimizer-before-backward"
+category = "ai-training"
+severity = "high"
+version = "1.0.0"
+
+[patterns."pt-009"]
+path = "ai-training/pt-009-multiple-backward-calls"
+name = "multiple-backward-calls"
+category = "ai-training"
+severity = "high"
+version = "1.0.0"
+
+[patterns."pt-010"]
+path = "ai-data/pt-010-dataloader-no-workers"
+name = "dataloader-no-workers"
+category = "ai-data"
+severity = "high"
+version = "1.0.0"
+
+[patterns."pt-011"]
+path = "ai-inference/pt-011-model-device-mismatch"
+name = "model-device-mismatch"
+category = "ai-inference"
+severity = "high"
+version = "1.0.0"
+
+[patterns."py-001"]
+path = "scientific-numerical/py-001-pattern"
+name = "pattern"
+category = "scientific-numerical"
+severity = "medium"
+version = "1.0.0"
+
+[patterns."py-002"]
+path = "scientific-numerical/py-002-pattern"
+name = "pattern"
+category = "scientific-numerical"
+severity = "medium"
+version = "1.0.0"
+
+[patterns."rep-001"]
+path = "scientific-reproducibility/rep-001-pattern"
+name = "pattern"
+category = "scientific-reproducibility"
+severity = "high"
+version = "1.0.0"
+
+[patterns."rep-002"]
+path = "scientific-reproducibility/rep-002-pattern"
+name = "pattern"
+category = "scientific-reproducibility"
+severity = "high"
+version = "1.0.0"
+
+[patterns."rep-003"]
+path = "scientific-reproducibility/rep-003-pattern"
+name = "pattern"
+category = "scientific-reproducibility"
+severity = "medium"
+version = "1.0.0"
+
+[patterns."rep-004"]
+path = "scientific-reproducibility/rep-004-pattern"
+name = "pattern"
+category = "scientific-reproducibility"
+severity = "medium"
+version = "1.0.0"

@@ -1,0 +1,89 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "scicode-lint"
+version = "0.1.0"
+description = "AI-powered linter for ML code written for scientific applications. Catches methodology bugs — data leakage, missing seeds, silent numerical errors — that traditional linters miss. Runs locally, no cloud APIs."
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "Sergey Samsonau"}
+]
+keywords = ["linting", "scientific-computing", "machine-learning", "pytorch", "research", "vllm", "local-first", "self-hosted"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Quality Assurance",
+    "Typing :: Typed",
+]
+
+dependencies = [
+    "pyyaml>=6.0",
+    "requests>=2.31.0",
+    "loguru>=0.7.0",
+    "httpx>=0.24.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "openai>=1.0.0",
+    "tomli>=2.0.0; python_version<'3.11'",
+]
+
+[project.urls]
+Homepage = "https://github.com/ssamsonau/scicode-lint"
+Repository = "https://github.com/ssamsonau/scicode-lint"
+"Bug Tracker" = "https://github.com/ssamsonau/scicode-lint/issues"
+Documentation = "https://github.com/ssamsonau/scicode-lint#readme"
+
+[project.scripts]
+scicode-lint = "scicode_lint.cli:main"
+
+[project.optional-dependencies]
+vllm-server = [
+    "vllm>=0.16.0",  # vLLM server for local GPU hosting (optional - can use remote server)
+]
+eval = [
+    "pyyaml>=6.0",
+    "pytest>=7.0",
+    "pytest-xdist>=3.0",
+]
+dev = [
+    "ruff>=0.15.0",
+    "mypy>=1.19.0",
+    "types-PyYAML>=6.0",
+    "pytest>=7.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/scicode_lint"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+# Exclude test files (pytest fixtures don't need type hints)
+exclude = [
+    "evals/test_.*\\.py$",
+    "evals/conftest\\.py$",
+    "tests/.*\\.py$",
+]

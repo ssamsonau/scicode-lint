@@ -1,0 +1,72 @@
+# Pattern: ml-007-test-set-preprocessing
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "ml-007"
+name = "test-set-preprocessing"
+category = "ai-training"
+severity = "critical"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Data leakage occurs when fit_transform() is called on test data instead of transform(). This causes the test set to compute and use its own statistics (mean, std, min, max) rather than applying the statistics learned from the training set. This leads to overly optimistic performance estimates and models that fail in production where test statistics are unknown.
+"""
+
+explanation = """
+Data leakage: fit_transform on test data means the test set uses its own statistics instead of training statistics. Use transform() on test data.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Does the code call fit_transform(X_test) or fit(X_test) where X_test is test data from train_test_split?
+
+This is data leakage because the test set should not be used to fit preprocessing - only transform() should be applied to test data using statistics learned from training data.
+"""
+
+warning_message = """
+Data leakage: fit_transform on test data means the test set uses its own statistics instead of training statistics. Use transform() on test data.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+# Test cases for ml-007-test-set-preprocessing
+
+[[tests.positive]]
+file = "test_positive/fit_transform_on_test.py"
+description = "Calling fit_transform() on test data (3 variations: direct fit_transform, separate scalers, refit on test)"
+expected_issue = "Data leakage: fit_transform on test uses test statistics"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "preprocess_test_with_fit_transform"
+snippet = "scaler.fit_transform(X_test)"
+
+[[tests.negative]]
+file = "test_negative/transform_only_on_test.py"
+description = "Correct preprocessing with transform() only on test"
+max_false_positives = 0
+
+[[tests.context_dependent]]
+file = "test_context_dependent/fit_transform_on_validation.py"
+description = "fit_transform() on validation set"
+context_notes = "Debatable: less severe than test set but validation should ideally use transform() only"
+allow_detection = true
+allow_skip = true
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

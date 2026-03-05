@@ -1,0 +1,71 @@
+# Pattern: ml-002-target-leakage
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "ml-002"
+name = "target-leakage"
+category = "ai-training"
+severity = "critical"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Data leakage occurs when feature selection (e.g., SelectKBest, mutual information, correlation filtering) is performed on the full dataset before cross-validation or train/test splitting. This causes the model to use information from the test set to choose features, leading to overly optimistic performance estimates.
+"""
+
+explanation = """
+Data leakage: features are selected using information from the test set. Move feature selection inside each CV fold or after the split.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Is feature selection (e.g., SelectKBest, mutual_info, correlation filtering) performed on the full dataset before cross-validation or train/test splitting?
+
+"""
+
+warning_message = """
+Data leakage: features are selected using information from the test set. Move feature selection inside each CV fold or after the split.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+# Test cases for ml-002-target-leakage
+
+[[tests.positive]]
+file = "test_positive/feature_selection_before_split.py"
+description = "Feature selection on full dataset before split"
+expected_issue = "Data leakage: features selected using test set information"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "select_features_before_split"
+snippet = "selector.fit_transform(X, y)"
+
+[[tests.negative]]
+file = "test_negative/feature_selection_after_split.py"
+description = "Correct feature selection after split"
+max_false_positives = 0
+
+[[tests.context_dependent]]
+file = "test_context_dependent/feature_selection_on_train_val.py"
+description = "Feature selection on train+val but not test"
+context_notes = "Debatable: val is part of development, some accept train+val feature selection"
+allow_detection = true
+allow_skip = true
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

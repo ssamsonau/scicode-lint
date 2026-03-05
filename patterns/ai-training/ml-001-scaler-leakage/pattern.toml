@@ -1,0 +1,77 @@
+# Pattern: ml-001-scaler-leakage
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "ml-001"
+name = "scaler-leakage"
+category = "ai-training"
+severity = "critical"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Data leakage occurs when a scaler, normalizer, or encoder is fit on the full dataset (including test data) before splitting into train/test sets. This causes the model's validation metrics to be overly optimistic because test set information leaked into the preprocessing step.
+"""
+
+explanation = """
+Data leakage: scaler/encoder is fit on full data including test set. Model performance will be inflated. Use sklearn.pipeline.Pipeline so fitting happens inside each fold.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Look for data leakage from scalers/normalizers. Answer YES ONLY if you see EXPLICIT evidence of:
+1. torch.cat([train, test]) or np.concatenate([train, test]) or pd.concat() combining train and test, THEN fitting on the combined data, OR
+2. fit() or fit_transform() called on data BEFORE train_test_split() is called, OR
+3. all_data = ... combining train+test, followed by all_data.mean(), all_data.std(), etc.
+
+Answer NO if:
+- scaler.fit(train_data) or train_data.mean() (fitting/stats on train data only)
+- Function parameters suggest already-split data (train_data, test_data parameters) with no combining operations visible in the function
+"""
+
+warning_message = """
+Data leakage: scaler/encoder is fit on full data including test set. Model performance will be inflated. Use sklearn.pipeline.Pipeline so fitting happens inside each fold.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+# Test cases for ml-001-scaler-leakage
+
+[[tests.positive]]
+file = "test_positive/scaler_before_split.py"
+description = "Scaler fit on train+test combined before split (3 variations: torch stats, sklearn before split, numpy concatenate)"
+expected_issue = "Data leakage: scaler statistics include test set"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "normalize_with_test_stats"
+snippet = "all_data = torch.cat([train_data, test_data])"
+
+[[tests.negative]]
+file = "test_negative/scaler_after_split.py"
+description = "Correct scaler usage after split"
+max_false_positives = 0
+
+[[tests.context_dependent]]
+file = "test_context_dependent/scaler_on_train_val.py"
+description = "Scaler on train+val combined, test separate"
+context_notes = "Debatable: some accept train+val combined for preprocessing"
+allow_detection = true
+allow_skip = true
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

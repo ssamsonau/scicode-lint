@@ -1,0 +1,73 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Apptainer
+*.sif
+*.simg
+
+
+.ruff_cache/
+
+# Benchmarking results and temporary files
+benchmark_results.json
+benchmark_results.txt
+benchmark_test.py
+benchmark_test_file.py
+
+# Evaluation reports (volatile, regenerated on each run)
+evals/reports/
+evals/eval_run.log
+evals/reports/*
+evals/integration/integration_report.md
+
+# Session notes and dated evaluation status documents
+evals/*_2026-*.md
+evals/SESSION_SUMMARY.md
+evals/ML_PATTERNS_TEST_STATUS.md

@@ -1,0 +1,2 @@
+# Enforce code review for scenario files to prevent data leakage
+scenarios/*.py merge=ours

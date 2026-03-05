@@ -1,0 +1,76 @@
+# Pattern: ml-006-temporal-shift-leakage
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "ml-006"
+name = "temporal-shift-leakage"
+category = "ai-training"
+severity = "critical"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Is there a shift(-1), shift(-N), or rolling/expanding window operation that could pull future values into the current row as a feature?
+
+"""
+
+explanation = """
+Temporal leakage: shift or rolling operation may use future data as a feature. Verify the direction — the model may literally see the answer.
+
+"""
+
+tags = []
+related_patterns = ["ml-003-temporal-leakage", "ml-005-cv-temporal-shuffle"]
+references = []
+
+[detection]
+question = """
+Look for future data leakage from shift operations. Answer YES only if you see:
+1. shift() with NEGATIVE values (shift(-1), shift(-N)), OR
+2. diff() with NEGATIVE values (diff(-1)), OR
+3. rolling() with center=True which uses future values
+
+Answer NO if shift/diff use POSITIVE values (shift(1), shift(N)) or if rolling has center=False or is not specified.
+"""
+
+warning_message = """
+Temporal leakage: shift or rolling operation may use future data as a feature. Verify the direction — the model may literally see the answer.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+# Test cases for ml-006-temporal-shift-leakage
+
+[[tests.positive]]
+file = "test_positive/shift_negative_leakage.py"
+description = "Using shift(-1) that pulls future data"
+expected_issue = "Temporal leakage: shift or rolling uses future data as features"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "create_features_with_future_shift"
+snippet = "df['price'].shift(-1)"
+
+[[tests.negative]]
+file = "test_negative/shift_positive_correct.py"
+description = "Correct use of shift with positive values"
+max_false_positives = 0
+
+[[tests.context_dependent]]
+file = "test_context_dependent/rolling_with_min_periods.py"
+description = "Rolling window with min_periods"
+context_notes = "Edge case behavior with min_periods can be confusing but not necessarily leakage"
+allow_detection = true
+allow_skip = true
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

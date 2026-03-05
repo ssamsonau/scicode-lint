@@ -1,0 +1,87 @@
+# Pattern: pt-004-missing-zero-grad
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "pt-004"
+name = "missing-zero-grad"
+category = "ai-training"
+severity = "critical"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Is there a training loop where optimizer.zero_grad() is missing or not called before each backward pass?
+"""
+
+explanation = """
+Missing optimizer.zero_grad() causes gradients to accumulate across batches instead of being reset. This leads to incorrect gradient updates, exploding gradients, and NaN losses. Always call optimizer.zero_grad() before each loss.backward().
+"""
+
+tags = ["pytorch", "gradients", "optimizer", "training"]
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Look for training loops with missing or incorrectly placed optimizer.zero_grad().
+
+Answer YES ONLY if you see EXPLICIT evidence of:
+1. Training loop with "loss.backward()" and "optimizer.step()" BUT no "optimizer.zero_grad()" anywhere in the same loop scope
+2. "optimizer.zero_grad()" or "p.grad.zero_()" called OUTSIDE the batch loop (before all epochs start) BUT not called INSIDE the loop before each backward()
+3. Loop contains "loss.backward()" with "optimizer.step()" but gradient clearing appears after backward() instead of before it
+
+Answer NO if:
+- "optimizer.zero_grad()" appears in the batch loop BEFORE "loss.backward()"
+- Proper sequence visible: "optimizer.zero_grad()" then "loss.backward()" then "optimizer.step()"
+- Code is for inference only (no backward() or optimizer.step())
+- Using gradient accumulation intentionally (comment or code structure indicates deliberate accumulation)
+"""
+
+warning_message = """
+Missing optimizer.zero_grad(): Gradients accumulate across batches instead of being reset. This causes incorrect updates, exploding gradients, and NaN losses. Call optimizer.zero_grad() before each backward() in your training loop.
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/no_zero_grad_in_loop.py"
+description = "Training loop with backward() and step() but no zero_grad() call - gradients accumulate"
+expected_issue = "Training loop missing optimizer.zero_grad()"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "train"
+snippet = "loss.backward()"
+
+[[tests.positive]]
+file = "test_positive/zero_grad_outside_loop.py"
+description = "Manual gradient zeroing called once before all epochs instead of before each backward - gradients accumulate within loop"
+expected_issue = "Gradient clearing called outside training loop instead of before each backward"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "training_procedure"
+snippet = "p.grad.zero_()"
+
+[[tests.negative]]
+file = "test_negative/correct_zero_grad.py"
+description = "Correct usage: optimizer.zero_grad() called before backward() in each iteration"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/zero_grad_before_backward.py"
+description = "Correct usage: proper sequence of zero_grad(), backward(), step() in training loop"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

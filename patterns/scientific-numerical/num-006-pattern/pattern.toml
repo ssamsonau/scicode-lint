@@ -1,0 +1,99 @@
+# Pattern: num-006-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "num-006"
+name = "pattern"
+category = "scientific-numerical"
+severity = "medium"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Are assert statements or assertEqual used to test floating point values instead of np
+"""
+
+explanation = """
+Use np.testing.assert_allclose(actual, expected, rtol, atol) for float comparisons in tests. Exact equality assertions on floats are unreliable.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Answer YES ONLY if you see EXPLICIT evidence of:
+1. Test assertions with == on computed floating point results:
+   - assert result == 1.0 where result is from sin²+cos² or similar
+   - assert total == expected where total is computed from floats
+   - assert (result == expected).all() on float arrays from matrix operations
+
+2. unittest.TestCase methods with exact equality on floats:
+   - self.assertEqual(mean, 3.0) where mean is computed
+   - self.assertEqual(result, expected) where result is a float computation
+   - assert value == 0.3 where value is 0.1 + 0.2 or similar
+
+Answer NO if:
+- Using np.testing.assert_allclose() or np.testing.assert_array_almost_equal()
+- Asserting on integer values (assert count == 5, assert rows == 10)
+- Asserting on array shapes, indices, or boolean flags
+- Comparing string values, object types, or non-numeric data
+- Using math.isclose() or tolerance-based comparisons
+
+Context exclusions:
+- Skip assertions on len(), shape attributes, argmax/argmin indices
+- Skip assertions comparing integer dtype values or counters
+- Skip boolean comparisons (assert flag == True)
+"""
+
+warning_message = """
+Use np.testing.assert_allclose(actual, expected, rtol, atol) for float comparisons in tests. Exact equality assertions on floats are unreliable.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/exact_float_assertions.py"
+description = "Test code using assert with == on float results (sin^2+cos^2==1.0, sqrt(2)*sqrt(2)==2.0) or assertEqual() on computed floats"
+expected_issue = "Exact equality assertion on floating point test results"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "test_optimization_result"
+snippet = "assert total == 1.0"
+
+[[tests.positive]]
+file = "test_positive/test_assertions.py"
+description = "Unit tests with assert or .all() on float array equality, or != assertions on computed floating point values"
+expected_issue = "Float comparison in tests without tolerance"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "test_optimization_result"
+snippet = "assert total == 1.0"
+
+[[tests.negative]]
+file = "test_negative/proper_test_assertions.py"
+description = "Tests using np.testing.assert_allclose() with rtol/atol parameters for all floating point comparisons"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/integer_assertions.py"
+description = "Assertions on integers, shapes, indices, counts, and boolean flags where exact equality is appropriate"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

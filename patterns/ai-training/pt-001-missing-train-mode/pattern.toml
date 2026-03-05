@@ -1,0 +1,76 @@
+# Pattern: pt-001-missing-train-mode
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "pt-001"
+name = "missing-train-mode"
+category = "ai-training"
+severity = "critical"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Is there a training loop where model.train() is missing before training, or where model.train() is not called after model.eval() to resume training?
+"""
+
+explanation = """
+Missing model.train() causes dropout and batch normalization to remain in evaluation mode during training. This leads to incorrect behavior: dropout layers won't drop units, and batch norm uses running statistics instead of batch statistics, resulting in poor model performance.
+"""
+
+tags = ["pytorch", "training", "dropout", "batch-normalization"]
+related_patterns = ["pt-002"]
+references = []
+
+[detection]
+question = """
+Does the code perform PyTorch model training (has optimizer.step() and loss.backward()) but never calls model.train() in the visible code?
+"""
+
+warning_message = """
+Missing model.train(): Dropout and batch normalization layers remain in evaluation mode during training. Dropout won't drop units and batch norm uses running statistics instead of batch statistics. Call model.train() before training and after any evaluation blocks.
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/training_without_train_mode.py"
+description = "Training loop without any call to model.train() - dropout and batch norm will be in eval mode"
+expected_issue = "Model training without setting train mode"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "train_model"
+snippet = "for epoch in range(epochs):"
+
+[[tests.positive]]
+file = "test_positive/no_train_after_eval.py"
+description = "Training resumes after validation without calling model.train() - model remains in eval mode"
+expected_issue = "Training continues after model.eval() without calling model.train()"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "training_loop"
+snippet = "for inputs, labels in train_loader:"
+
+[[tests.negative]]
+file = "test_negative/correct_train_mode.py"
+description = "Correct usage: model.train() is called before training loop"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/train_after_validation.py"
+description = "Correct usage: model.train() is called after each validation block before resuming training"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

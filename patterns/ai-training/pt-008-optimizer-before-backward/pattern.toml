@@ -1,0 +1,76 @@
+# Pattern: pt-008-optimizer-before-backward
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "pt-008"
+name = "optimizer-before-backward"
+category = "ai-training"
+severity = "high"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Is optimizer.step() called before loss.backward(), reversing the correct order of gradient computation and parameter update?
+"""
+
+explanation = """
+Calling optimizer.step() before loss.backward() updates parameters before gradients are computed. This means the optimizer updates with stale or zero gradients from the previous iteration, preventing the model from learning correctly. The correct order is: zero_grad(), forward pass, loss computation, backward(), then step().
+"""
+
+tags = ["pytorch", "optimizer", "gradients", "training"]
+related_patterns = ["pt-004"]
+references = []
+
+[detection]
+question = """
+In the training loop, is the sequence of operations correct? Specifically, are model parameters being updated before the gradients for the current loss have been computed? This would mean performing the optimization step before the backward pass.
+"""
+
+warning_message = """
+Optimizer step before backward: Calling optimizer.step() before loss.backward() updates parameters with old/zero gradients instead of current gradients. The correct sequence is: optimizer.zero_grad(), compute loss, loss.backward(), then optimizer.step().
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/step_before_backward.py"
+description = "optimizer.step() called before loss.backward() - parameters updated with wrong gradients"
+expected_issue = "Optimizer step called before backward pass"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "incorrect_training_order"
+snippet = "optimizer.step()"
+
+[[tests.positive]]
+file = "test_positive/update_without_gradients.py"
+description = "optimizer.step() called first, then model.zero_grad() and backward - parameters updated before gradients computed"
+expected_issue = "Parameter update before gradient computation"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "train_rnn"
+snippet = "model.zero_grad()"
+
+[[tests.negative]]
+file = "test_negative/correct_optimization_order.py"
+description = "Correct usage: zero_grad(), forward, loss, backward(), step() in proper order"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/proper_gradient_descent.py"
+description = "Correct usage: proper training sequence for complex model (VAE)"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

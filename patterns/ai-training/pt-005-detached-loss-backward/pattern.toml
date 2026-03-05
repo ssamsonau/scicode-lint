@@ -1,0 +1,76 @@
+# Pattern: pt-005-detached-loss-backward
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "pt-005"
+name = "detached-loss-backward"
+category = "ai-training"
+severity = "critical"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Is backward() called on a detached loss tensor or after loss.item() is called, disconnecting it from the computation graph?
+"""
+
+explanation = """
+Calling backward() on a detached tensor or after calling .item() breaks the gradient computation because the tensor is disconnected from the autograd graph. This results in no gradients being computed and the model not learning. Always call backward() on the original loss tensor before detaching or converting to scalar.
+"""
+
+tags = ["pytorch", "gradients", "autograd", "loss"]
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Is the backward pass being performed on a loss tensor that has been disconnected from the computation graph? This includes scenarios where the loss tensor has been converted to a scalar value before gradient computation, or where the tensor has been separated from its gradient history.
+"""
+
+warning_message = """
+Backward on detached loss: Calling backward() on a detached loss or after .item() prevents gradient computation. The model parameters won't be updated. Call backward() on the original loss tensor before detaching or converting to scalar with .item().
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/backward_on_detached.py"
+description = "Calling backward() on a tensor created from loss.data without gradient history - no gradients will be computed"
+expected_issue = "backward() called on disconnected loss tensor"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "train_iteration"
+snippet = "loss_disconnected.backward()"
+
+[[tests.positive]]
+file = "test_positive/item_then_backward.py"
+description = "Converting loss to Python float before backward - suspicious pattern that could indicate misunderstanding"
+expected_issue = "loss converted to scalar but loss tensor still used for backward"
+min_confidence = 0.70
+
+[tests.positive.expected_location]
+type = "function"
+name = "training_step"
+snippet = "scalar_loss = float(loss)"
+
+[[tests.negative]]
+file = "test_negative/correct_backward.py"
+description = "Correct usage: backward() called on original loss, then item() used for logging"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/proper_loss_handling.py"
+description = "Correct usage: multiple loss components properly accumulated and backward called on combined loss"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

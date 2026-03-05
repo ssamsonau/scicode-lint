@@ -1,0 +1,74 @@
+# Pattern: ml-005-cv-temporal-shuffle
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "ml-005"
+name = "cv-temporal-shuffle"
+category = "ai-training"
+severity = "critical"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Temporal leakage occurs when KFold or cross-validation with shuffle=True is used on time-series data. Shuffling breaks temporal ordering, causing the model to train on future data to predict the past, leading to unrealistic performance estimates. Use TimeSeriesSplit for time-series data to respect temporal ordering.
+"""
+
+explanation = """
+Temporal leakage: shuffled cross-validation on time-series data trains on future to predict past. Use TimeSeriesSplit.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Look for temporal leakage in cross-validation. Answer YES only if you see:
+1. KFold(shuffle=True) or cross_val_score with shuffle=True, AND
+2. Evidence of temporal/time-series data such as: date columns ('date', 'timestamp'), time-based features ('open', 'close', 'price'), sort_values('date'), or sequential data
+
+Answer NO if TimeSeriesSplit is used, or if shuffle=False, or if data is clearly not temporal (images, independent samples).
+"""
+
+warning_message = """
+Temporal leakage: shuffled cross-validation on time-series data trains on future to predict past. Use TimeSeriesSplit.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+# Test cases for ml-005-cv-temporal-shuffle
+
+[[tests.positive]]
+file = "test_positive/shuffled_cv_timeseries.py"
+description = "Shuffled cross-validation on time-series data"
+expected_issue = "Temporal leakage: shuffled CV trains on future to predict past"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "cross_validate_with_shuffle"
+snippet = "KFold(n_splits=5, shuffle=True"
+
+[[tests.negative]]
+file = "test_negative/timeseries_split_correct.py"
+description = "Correct time-series cross-validation"
+max_false_positives = 0
+
+[[tests.context_dependent]]
+file = "test_context_dependent/shuffle_quasi_temporal.py"
+description = "Shuffled CV on quasi-temporal data"
+context_notes = "Depends on independence: OK if samples truly independent, problematic if temporal correlation exists"
+allow_detection = true
+allow_skip = true
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

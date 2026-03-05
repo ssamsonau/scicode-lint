@@ -1,0 +1,86 @@
+# Pattern: pt-002-missing-eval-mode
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "pt-002"
+name = "missing-eval-mode"
+category = "ai-training"
+severity = "critical"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Is there a validation or inference operation where model.eval() is missing? This affects dropout and batch normalization behavior during evaluation.
+"""
+
+explanation = """
+Missing model.eval() causes dropout and batch normalization to remain in training mode during evaluation/inference. Dropout will randomly drop units during inference, and batch norm will update running statistics instead of using them, leading to inconsistent and incorrect predictions.
+"""
+
+tags = ["pytorch", "evaluation", "inference", "dropout", "batch-normalization"]
+related_patterns = ["pt-001", "pt-006", "pt-007"]
+references = []
+
+[detection]
+question = """
+Look for validation, testing, or inference operations without proper eval mode.
+
+Answer YES ONLY if you see EXPLICIT evidence of:
+1. Validation loop with "torch.no_grad()" or ".detach_()" but NO "model.eval()" call
+2. Test/inference function with "@torch.inference_mode()" decorator but missing "model.eval()"
+3. Model forward pass for evaluation/inference (model(data)) but "model.eval()" never called before it
+
+Answer NO if:
+- "model.eval()" appears before validation/inference operations
+- Function is training-only (optimizer.step() present, no validation/test context)
+- Context suggests model already in eval mode (function parameter, docstring)
+"""
+
+warning_message = """
+Missing model.eval(): Dropout and batch normalization layers remain in training mode during evaluation. Dropout will randomly drop units and batch norm will update running statistics, causing non-deterministic and incorrect predictions. Call model.eval() before validation/inference.
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/validation_without_eval.py"
+description = "Validation loop using detach_() for gradient disabling but missing model.eval() - dropout and batch norm still in training mode"
+expected_issue = "Validation performed without setting eval mode"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "evaluate_model"
+snippet = "outputs.detach_()"
+
+[[tests.positive]]
+file = "test_positive/inference_in_train_mode.py"
+description = "Inference function using @torch.inference_mode() decorator but doesn't call model.eval()"
+expected_issue = "Inference performed without setting eval mode"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "predict_batch"
+snippet = "@torch.inference_mode()"
+
+[[tests.negative]]
+file = "test_negative/correct_eval_mode.py"
+description = "Correct usage: model.eval() is called before testing with torch.no_grad()"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/validation_with_eval.py"
+description = "Correct usage: model.eval() is called before validation loop"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

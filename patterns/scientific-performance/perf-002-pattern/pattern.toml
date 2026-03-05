@@ -1,0 +1,100 @@
+# Pattern: perf-002-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "perf-002"
+name = "pattern"
+category = "scientific-performance"
+severity = "high"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Is a DataLoader created with num_workers=0 or without specifying num_workers?
+
+"""
+
+explanation = """
+DataLoader with num_workers=0: GPU sits idle between batches waiting for data. Set num_workers > 0 and pin_memory=True.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Answer YES ONLY if you see EXPLICIT evidence of:
+1. DataLoader explicitly setting num_workers=0:
+   - DataLoader(dataset, batch_size=128, num_workers=0)
+   - loader = DataLoader(..., num_workers=0, ...) in training pipeline
+   - Training code using DataLoader with explicit num_workers=0
+
+2. DataLoader created without num_workers parameter (defaults to 0):
+   - loader = DataLoader(dataset, batch_size=128, shuffle=True)
+   - DataLoader(train_dataset, batch_size=64) missing num_workers specification
+   - No num_workers parameter in DataLoader initialization for training
+
+Answer NO if:
+- DataLoader specifies num_workers > 0 (num_workers=4, num_workers=6, etc.)
+- Using num_workers=0 only in debug mode with conditional logic
+- DataLoader is for small inference/validation workloads, not training
+- Context clearly indicates debugging or small-scale testing
+
+Context exclusions:
+- Skip if num_workers=0 is conditional on debug flag with production using workers
+- Skip if dataset is demonstrably small (< 100 samples) or for quick testing
+- Skip if there's explicit comment that num_workers=0 is intentional for debugging
+- Skip validation/test DataLoaders on small batches where multiprocessing overhead exceeds benefit
+"""
+
+warning_message = """
+DataLoader with num_workers=0: GPU sits idle between batches waiting for data. Set num_workers > 0 and pin_memory=True.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/zero_workers.py"
+description = "DataLoader explicitly set with num_workers=0 - GPU will idle waiting for data between batches"
+expected_issue = "DataLoader created with num_workers=0"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "setup_training_loader"
+snippet = "num_workers=0"
+
+[[tests.positive]]
+file = "test_positive/no_workers_specified.py"
+description = "DataLoader created without specifying num_workers - defaults to 0 causing GPU starvation"
+expected_issue = "DataLoader created without num_workers parameter"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "module"
+name = "DataLoader"
+snippet = "loader = DataLoader(dataset, batch_size=128, shuffle=True)"
+
+[[tests.negative]]
+file = "test_negative/with_workers.py"
+description = "DataLoader properly configured with num_workers=4 and pin_memory for efficient data loading"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/parallel_loading.py"
+description = "DataLoader with num_workers=6 and prefetch_factor - optimized for GPU utilization"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

@@ -1,0 +1,99 @@
+# Pattern: par-003-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "par-003"
+name = "pattern"
+category = "scientific-performance"
+severity = "high"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Is parallelism being added (multiprocessing, threading) to code that iterates over NumPy arrays with Python loops, where vectorization would be more effective?
+
+"""
+
+explanation = """
+Parallelizing before vectorizing: the code is slow because of Python loops, not because it needs more cores. Vectorize first, parallelize second.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Answer YES ONLY if you see EXPLICIT evidence of:
+1. Pool.map() or ThreadPoolExecutor parallelizing element-wise array operations:
+   - pool.map(process_element, arr.tolist()) converting array to list for parallel processing
+   - futures = [executor.submit(transform, x) for x in array]
+   - Parallelizing simple operations (square, multiply, add) that could vectorize
+
+2. Multiprocessing/threading applied to loops over array elements with simple operations:
+   - pool.map(square_if_positive, array_elements) where logic is just conditionals
+   - Threading over array elements for operations like np.where() or broadcasting
+   - Parallelizing element-wise conditionals instead of using vectorized np.where()
+
+Answer NO if:
+- Using vectorized operations without parallelism (np.where, broadcasting, fancy indexing)
+- Parallelizing already-vectorized chunk processing (chunks are processed with numpy operations)
+- Threading/multiprocessing for I/O-bound tasks, not array computations
+- Parallelizing complex per-element operations (file I/O, API calls, heavy computation)
+
+Context exclusions:
+- Skip if chunks are processed with vectorized numpy operations inside workers
+- Skip if parallelizing truly independent complex tasks (not simple element-wise math)
+- Skip if the operation inside the loop is too complex to vectorize easily
+"""
+
+warning_message = """
+Parallelizing before vectorizing: the code is slow because of Python loops, not because it needs more cores. Vectorize first, parallelize second.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/parallel_element_processing.py"
+description = "Multiprocessing applied to element-wise array operations with Python loop - vectorization would be much faster than parallelizing slow loop"
+expected_issue = "Parallelizing element-wise array processing instead of vectorizing"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "parallel_transform"
+snippet = "result = pool.map(process_element, arr.tolist())"
+
+[[tests.positive]]
+file = "test_positive/threading_loop_over_array.py"
+description = "ThreadPoolExecutor used to parallelize loop over array elements - should vectorize with np.where instead"
+expected_issue = "Threading applied to element-wise conditional on NumPy array"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "parallel_conditional_square"
+snippet = "futures = [executor.submit(square_if_positive, x) for x in array]"
+
+[[tests.negative]]
+file = "test_negative/vectorized_operation.py"
+description = "Properly uses vectorized np.where for conditional transformation - no unnecessary parallelism"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/parallel_vectorized_chunks.py"
+description = "Correctly parallelizes already-vectorized chunk processing - good use of both vectorization and parallelism"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

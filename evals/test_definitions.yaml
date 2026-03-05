@@ -1,0 +1,118 @@
+# Master test configuration for scicode-lint evaluation framework
+
+# Global settings
+linter:
+  command: ["python", "-m", "scicode_lint", "check"]
+  timeout: 300  # seconds
+  format: "json"
+
+# Quality metric thresholds
+thresholds:
+  # Overall metrics across all patterns
+  overall_precision: 0.90  # Minimize false positives
+  overall_recall: 0.80     # Catch most real bugs
+
+  # Severity-specific thresholds
+  critical_precision: 0.95  # Very high confidence for critical findings
+
+  # Per-pattern thresholds (same as overall by default)
+  pattern_precision: 0.90
+  pattern_recall: 0.80
+
+# Location matching configuration
+location_matcher:
+  name_exact_threshold: 1.0
+  name_fuzzy_threshold: 0.85
+  snippet_threshold: 0.70
+
+# Reporting configuration
+reporting:
+  output_dir: "reports"
+  formats:
+    - "json"
+    - "markdown"
+  json_indent: 2
+
+# Pattern categories and their descriptions
+categories:
+  ml-correctness:
+    description: "Machine learning correctness issues"
+    severity: "critical"
+  pytorch:
+    description: "PyTorch-specific issues"
+    severity: "high"
+  numerical:
+    description: "Numerical precision issues"
+    severity: "high"
+  reproducibility:
+    description: "Reproducibility issues"
+    severity: "medium"
+  performance:
+    description: "Performance anti-patterns"
+    severity: "medium"
+  parallelization:
+    description: "Parallel computing issues"
+    severity: "high"
+  python:
+    description: "Python-specific issues"
+    severity: "medium"
+  numpy:
+    description: "NumPy-specific issues"
+    severity: "medium"
+
+# Pattern registry
+# Each pattern should have a directory in patterns/ with evaluation.yaml
+patterns:
+  # ML Correctness patterns (8 total)
+  - id: ml-001-scaler-leakage
+    category: ml-correctness
+    severity: critical
+    enabled: true
+
+  - id: ml-002-target-leakage
+    category: ml-correctness
+    severity: critical
+    enabled: true
+
+  - id: ml-003-temporal-leakage
+    category: ml-correctness
+    severity: critical
+    enabled: true
+
+  - id: ml-004-imbalanced-accuracy-metric
+    category: ml-correctness
+    severity: critical
+    enabled: true
+
+  - id: ml-005-cv-temporal-shuffle
+    category: ml-correctness
+    severity: critical
+    enabled: true
+
+  - id: ml-006-temporal-shift-leakage
+    category: ml-correctness
+    severity: critical
+    enabled: true
+
+  - id: ml-007-test-set-preprocessing
+    category: ml-correctness
+    severity: critical
+    enabled: true
+
+  - id: ml-008-unstratified-split
+    category: ml-correctness
+    severity: high
+    enabled: true
+
+  # PyTorch patterns (11 total) - to be added
+  # Numerical patterns (6 total) - to be added
+  # Reproducibility patterns (4 total) - to be added
+  # Performance, Parallelization, Python, NumPy patterns - to be added
+
+# Pattern-specific overrides (optional)
+pattern_overrides:
+  # Example: Override thresholds for specific pattern
+  # ml-001-scaler-leakage:
+  #   thresholds:
+  #     precision: 0.95
+  #     recall: 0.90

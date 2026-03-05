@@ -1,0 +1,88 @@
+# Pattern: rep-002-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "rep-002"
+name = "pattern"
+category = "scientific-reproducibility"
+severity = "high"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Does the code use PyTorch with CUDA but not set torch
+"""
+
+explanation = """
+CUDA non-determinism: some GPU ops are non-deterministic by default. Set torch.use_deterministic_algorithms(True) and torch.backends.cudnn.benchmark = False.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Look for CUDA/GPU usage without deterministic algorithm configuration.
+
+Answer YES ONLY if you see EXPLICIT evidence of:
+1. "torch.device('cuda')" or ".to(device)" or "torch.cuda" BUT no "torch.use_deterministic_algorithms(True)"
+2. CUDA device usage BUT no "torch.backends.cudnn.benchmark = False"
+3. "if torch.cuda.is_available()" with GPU code path BUT missing both deterministic flags
+
+Answer NO if:
+- BOTH "torch.use_deterministic_algorithms(True)" AND "torch.backends.cudnn.benchmark = False" are set before CUDA usage
+- No CUDA/GPU usage in the code (CPU-only)
+- Code only checks for CUDA availability without actually using it
+"""
+
+warning_message = """
+CUDA non-determinism: some GPU ops are non-deterministic by default. Set torch.use_deterministic_algorithms(True) and torch.backends.cudnn.benchmark = False.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/cuda_without_deterministic.py"
+description = "CNN model moved to CUDA device without setting deterministic algorithms or disabling cudnn benchmark."
+expected_issue = "Code uses CUDA/GPU but doesn't set torch.use_deterministic_algorithms(True) or torch.backends.cudnn.benchmark = False"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "class"
+name = "ConvNet"
+snippet = "model = ConvNet().to(device)"
+
+[[tests.positive]]
+file = "test_positive/gpu_training_no_flags.py"
+description = "GPU training loop that checks for CUDA availability but doesn't configure deterministic behavior."
+expected_issue = "Training uses CUDA device without deterministic flags, results may vary between runs"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "train_on_gpu"
+snippet = "device = torch.device(\"cuda\")"
+
+[[tests.negative]]
+file = "test_negative/deterministic_cuda.py"
+description = "Properly sets both torch.use_deterministic_algorithms(True) and torch.backends.cudnn.benchmark = False before CUDA usage."
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/reproducible_gpu_setup.py"
+description = "Complete deterministic setup for GPU training with both required flags set."
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

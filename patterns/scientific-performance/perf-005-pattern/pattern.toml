@@ -1,0 +1,69 @@
+# Pattern: perf-005-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "perf-005"
+name = "pattern"
+category = "scientific-performance"
+severity = "medium"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Is 
+"""
+
+explanation = """
+Unnecessary .copy() wastes memory. Only copy when you need mutation independence from the original array.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Is .copy() called on NumPy arrays unnecessarily (where a view would be safe)?
+
+"""
+
+warning_message = """
+Unnecessary .copy() wastes memory. Only copy when you need mutation independence from the original array.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+# Test cases to be added from existing test files
+# Positive tests (should detect): positive/
+# Negative tests (should NOT detect): negative/
+# Context-dependent tests (either is OK): context_dependent/
+
+[[tests.positive]]
+# Example positive test - replace with actual tests
+file = "positive/example.py"
+description = "Example positive test case"
+expected_issue = "TODO: Add expected issue description"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "example_function"
+snippet = "# Add code snippet here"
+
+[[tests.negative]]
+# Example negative test - replace with actual tests
+file = "negative/example.py"
+description = "Example negative test case"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

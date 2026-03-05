@@ -1,0 +1,150 @@
+# Integration Test Expected Findings
+# Defines what bugs should be detected in each scenario
+#
+# IMPORTANT: Scenario files (scenarios/*.py) MUST NOT contain bug annotations!
+# No "BUG", "FIXME", "TODO", "wrong", "missing" comments that leak information to the LLM.
+
+scenarios:
+  ml_pipeline_complete:
+    description: "Complete ML pipeline with 5 different bugs"
+    file: "scenarios/ml_pipeline_complete.py"
+
+    # Expected pattern detections (pattern_id: expected_count)
+    expected_patterns:
+      ml-001: 1        # Line 53: scaler.fit(all_data) - scaler leakage
+      ml-002: 1        # Line 40: price_category = (y > y.mean()) - target leakage
+      pt-001: 1        # Line 69-77: train_model without model.train() - missing train mode
+      pt-004: 1        # Line 70-74: missing optimizer.zero_grad() - missing zero grad
+      rep-001: 1       # Line 43: train_test_split without random_state - missing seed
+
+    # Overall expectations
+    min_total_findings: 5
+    max_total_findings: 5
+    max_false_positives: 0
+
+    # Comments on expected bugs
+    bugs:
+      - line: 40
+        pattern: ml-002
+        description: "Using target variable 'y' to create feature 'price_category'"
+
+      - line: 43
+        pattern: rep-001
+        description: "train_test_split without random_state parameter"
+
+      - line: 53
+        pattern: ml-001
+        description: "Fitting scaler on combined train+test data"
+
+      - line: 69
+        pattern: pt-001
+        description: "Training loop without model.train() call"
+
+      - line: 70
+        pattern: pt-004
+        description: "Training loop missing optimizer.zero_grad()"
+
+  pytorch_training_issues:
+    description: "PyTorch training loop with 4 common mistakes"
+    file: "scenarios/pytorch_training_issues.py"
+
+    expected_patterns:
+      pt-001: 1   # Line 41-48: train_epoch without model.train() - missing train mode
+      pt-002: 1   # Line 52-71: validate without model.eval() - missing eval mode
+      pt-004: 1   # Line 42-46: missing optimizer.zero_grad() - missing zero grad
+      pt-007: 1   # Line 74-80: predict_batch without model.eval() - inference without eval
+
+    min_total_findings: 4
+    max_total_findings: 4
+    max_false_positives: 0
+
+    bugs:
+      - line: 41
+        pattern: pt-001
+        description: "train_epoch function missing model.train()"
+
+      - line: 42
+        pattern: pt-004
+        description: "Training loop missing optimizer.zero_grad()"
+
+      - line: 52
+        pattern: pt-002
+        description: "validate function missing model.eval()"
+
+      - line: 74
+        pattern: pt-007
+        description: "predict_batch function missing model.eval()"
+
+  data_preprocessing_bugs:
+    description: "Data preprocessing with 4 leakage issues"
+    file: "scenarios/data_preprocessing_bugs.py"
+
+    expected_patterns:
+      ml-001: 1   # Line 59: scaler.fit(X_test) - scaler leakage
+      ml-003: 1   # Line 50: shuffle=True on time-series - temporal leakage
+      ml-006: 1   # Line 36: shift(-1) for future info - temporal shift leakage
+      rep-001: 1  # Line 50: train_test_split without random_state - missing seed
+
+    min_total_findings: 4
+    max_total_findings: 4
+    max_false_positives: 0
+
+    bugs:
+      - line: 36
+        pattern: ml-006
+        description: "Using shift(-1) to create features from future data"
+
+      - line: 50
+        pattern: ml-003
+        description: "Using shuffle=True on time-series data"
+
+      - line: 50
+        pattern: rep-001
+        description: "train_test_split without random_state"
+
+      - line: 59
+        pattern: ml-001
+        description: "Fitting scaler on test data instead of train data"
+
+  repeated_bugs:
+    description: "Multiple instances of same bugs - tests multi-detection"
+    file: "scenarios/repeated_bugs.py"
+
+    # DESIGN NOTE: Each pattern returns ONE finding per file, even with multiple instances.
+    # The finding's 'lines' array contains all problematic line numbers.
+    # So pt-004 with 3 instances = 1 finding with lines: [54, 70, 87]
+
+    expected_patterns:
+      ml-001: 1   # One finding containing lines: [30, 40] - two scaler leakage instances
+      pt-004: 1   # One finding containing lines: [54, 70, 87] - three zero_grad instances
+      rep-001: 1  # One finding containing lines: [98, 106] - two missing seed instances
+
+    min_total_findings: 3
+    max_total_findings: 3
+    max_false_positives: 0
+
+    bugs:
+      - lines: [30, 40]
+        pattern: ml-001
+        description: "Two preprocessing functions with scaler leakage (lines 30 and 40)"
+
+      - lines: [54, 70, 87]
+        pattern: pt-004
+        description: "Three training functions missing optimizer.zero_grad() (lines 54, 70, 87)"
+
+      - lines: [98, 106]
+        pattern: rep-001
+        description: "Two data splits without random_state (lines 98 and 106)"
+
+# Global thresholds for integration tests
+thresholds:
+  min_coverage: 0.90        # Must detect at least 90% of injected bugs
+  max_false_positive_rate: 0.0  # No false positives allowed
+  min_precision: 1.0        # All findings should be correct
+  min_recall: 0.90          # Should find at least 90% of bugs
+
+# Evaluation settings
+evaluation:
+  run_all_patterns: true    # Run linter with all patterns enabled
+  verbose: true             # Show detailed output
+  stop_on_first_failure: false  # Continue even if one scenario fails

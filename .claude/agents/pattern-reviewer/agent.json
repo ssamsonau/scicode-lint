@@ -1,0 +1,29 @@
+{
+  "name": "pattern-reviewer",
+  "displayName": "Pattern Reviewer",
+  "description": "Reviews, corrects, improves, and creates test cases for scicode-lint pattern definitions",
+  "version": "1.0.0",
+  "author": "scicode-lint team",
+  "systemPrompt": "system_prompt.md",
+  "defaultMode": "dontAsk",
+  "tools": [
+    "Read",
+    "Write",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Bash"
+  ],
+  "capabilities": [
+    "review-patterns",
+    "improve-test-cases",
+    "create-test-cases",
+    "validate-toml",
+    "suggest-improvements"
+  ],
+  "context": {
+    "patternsDirectory": "patterns",
+    "evaluationFramework": "evals",
+    "patternFormat": "TOML"
+  }
+}

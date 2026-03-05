@@ -1,0 +1,89 @@
+# Pattern: np-002-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "np-002"
+name = "pattern"
+category = "scientific-numerical"
+severity = "high"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Are two arrays with potentially incompatible semantic shapes being operated on in a way that NumPy broadcasting could silently produce a wrong-shaped result without raising an error?
+
+"""
+
+explanation = """
+Broadcasting silent error: shapes are numerically compatible but semantically wrong. Verify array shapes explicitly before operations.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Look for NumPy broadcasting silent errors where shapes are numerically compatible but semantically wrong.
+
+Answer YES ONLY if you see EXPLICIT evidence of:
+1. "images * weights" where shapes like (100,64,64,3) and (64,1) broadcast incorrectly without validation
+2. "data - means" or "points - centers" with mismatched shapes like (32,128) and (32,1) or (1000,3) and (10,3)
+3. Array operations without shape assertions where semantic dimensions could be wrong despite numerical compatibility
+
+Answer NO if:
+- "assert images.shape[-1] == weights.shape[0]" or explicit shape checks before operations
+- "keepdims=True" or explicit "reshape()" to ensure correct broadcasting dimensions
+- Operations where shapes are clearly semantically compatible (e.g., broadcasting scalar or 1D array to match last dimension)
+"""
+
+warning_message = """
+Broadcasting silent error: shapes are numerically compatible but semantically wrong. Verify array shapes explicitly before operations.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/shape_mismatch.py"
+description = "Arrays with semantically incompatible shapes are broadcast together (e.g., (100,64,64,3) with (64,1) or (32,128) with (32,1)) producing wrong-shaped results silently"
+expected_issue = "Broadcasting produces semantically incorrect shape without error"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "apply_weights"
+snippet = "weighted = images * weights"
+
+[[tests.positive]]
+file = "test_positive/broadcasting_confusion.py"
+description = "Operations like subtraction or matrix multiplication on arrays with potentially incompatible semantic dimensions that broadcast without validation"
+expected_issue = "Shape mismatch silently handled by broadcasting rules"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "compute_distances"
+snippet = "diffs = points - centers"
+
+[[tests.negative]]
+file = "test_negative/explicit_shape_check.py"
+description = "Explicit shape assertions or checks before array operations to verify semantic compatibility"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/correct_broadcasting.py"
+description = "Proper use of keepdims and reshape to ensure broadcasting happens along intended dimensions with correct semantic meaning"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

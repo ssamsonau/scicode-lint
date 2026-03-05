@@ -1,0 +1,15 @@
+# Requirements for scicode-lint evaluation framework
+
+# Core dependencies
+pyyaml>=6.0  # For loading YAML configuration files
+
+# Testing dependencies
+pytest>=7.0  # Test framework integration
+pytest-xdist>=3.0  # Optional: parallel test execution
+
+# Type checking
+mypy>=1.19.0  # Static type checker
+types-PyYAML>=6.0  # Type stubs for PyYAML
+
+# Code quality
+ruff>=0.15.0  # Fast Python linter and formatter

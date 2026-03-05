@@ -1,0 +1,90 @@
+# Pattern: par-005-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "par-005"
+name = "pattern"
+category = "scientific-performance"
+severity = "high"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Is CUDA initialized (e
+"""
+
+explanation = """
+CUDA before fork: initializing CUDA then forking can deadlock. Use mp.set_start_method('spawn') and initialize CUDA inside each worker.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Look for CUDA initialization before multiprocessing spawn.
+
+Answer YES ONLY if you see EXPLICIT evidence of:
+1. "data = torch.randn(...).to(device)" or ".cuda()" BEFORE "mp.Process" or "Pool(processes=...)" creation
+2. "model = model.cuda()" at module level or before "Pool" creation
+3. CUDA tensor/model creation BEFORE multiprocessing spawn, WITHOUT "mp.set_start_method('spawn')"
+
+Answer NO if:
+- "mp.set_start_method('spawn')" is set AND CUDA initialization happens inside worker functions
+- "device = torch.device('cuda')" inside worker function (after spawn)
+- "model = model.to(device)" happens within worker function, not in main process
+- No multiprocessing used in the code
+- CPU-only code with no CUDA usage
+"""
+
+warning_message = """
+CUDA before fork: initializing CUDA then forking can deadlock. Use mp.set_start_method('spawn') and initialize CUDA inside each worker.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/cuda_before_fork.py"
+description = "CUDA initialized with .to(device) before spawning multiprocessing processes - can cause deadlocks"
+expected_issue = "CUDA tensor created before multiprocessing.Process spawn"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "module"
+name = "__main__"
+snippet = "data = torch.randn(1000, 1000).to(device)"
+
+[[tests.positive]]
+file = "test_positive/model_cuda_then_mp.py"
+description = "Model moved to CUDA before multiprocessing Pool creation - forking after CUDA init causes issues"
+expected_issue = "Model moved to CUDA before multiprocessing Pool"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "module"
+name = "module_level"
+snippet = "model = model.cuda()"
+
+[[tests.negative]]
+file = "test_negative/spawn_method_cuda.py"
+description = "Correctly uses spawn method and initializes CUDA inside each worker process"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/cuda_in_worker.py"
+description = "Properly initializes CUDA within worker function after spawn - safe pattern"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

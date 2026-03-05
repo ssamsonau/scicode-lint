@@ -1,0 +1,39 @@
+# scicode-lint configuration
+
+[llm]
+# Model name (auto-detected from vLLM server if not specified)
+# Example: "RedHatAI/gemma-3-12b-it-FP8-dynamic"
+model = ""
+
+# API base URL (auto-detected if not specified)
+# vLLM typically runs on http://localhost:5001 or http://localhost:8000
+base_url = ""
+
+# Request timeout in seconds
+timeout = 120
+
+# Temperature for sampling (0.0 = deterministic, 0.3 = slight randomness)
+temperature = 0.3
+
+# Note: All patterns are checked concurrently (no limit)
+# vLLM handles batching and queuing internally
+
+[llm.prompts]
+# System prompt for vLLM (short version to avoid concurrent request issues)
+vllm_system = """You are a code analyzer. Analyze the code and answer the detection question.
+Be conservative - only report bugs you're confident about (confidence >= 0.7).
+Use function/class/method names for locations, not line numbers."""
+
+[linter]
+# Path to detection catalog YAML
+catalog_path = "src/scicode_lint/detection_catalog.yaml"
+
+# Minimum confidence threshold (0.0-1.0)
+min_confidence = 0.7
+
+# Enabled severity levels
+enabled_severities = ["critical", "high", "medium"]
+
+[performance]
+# Process multiple files in parallel (not yet implemented)
+max_concurrent_files = 1

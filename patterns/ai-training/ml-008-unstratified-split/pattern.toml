@@ -1,0 +1,70 @@
+# Pattern: ml-008-unstratified-split
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "ml-008"
+name = "unstratified-split"
+category = "ai-training"
+severity = "high"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Missing stratification in train/test splits or cross-validation can cause skewed class distributions across folds, especially with imbalanced datasets. This leads to unreliable performance estimates and potentially biased models. Best practice is to use stratify parameter in train_test_split() or StratifiedKFold for classification tasks.
+"""
+
+explanation = """
+Unstratified split on imbalanced data can produce folds with skewed class distributions. Use StratifiedKFold or train_test_split(stratify=y).
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Is train_test_split or KFold used without stratification (missing stratify parameter or not using StratifiedKFold) in code that appears to be doing classification (uses classifiers like LogisticRegression, RandomForestClassifier, or metrics like 'roc_auc', 'precision', 'recall', 'f1')?
+"""
+
+warning_message = """
+Unstratified split on imbalanced data can produce folds with skewed class distributions. Use StratifiedKFold or train_test_split(stratify=y).
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+# Test cases for ml-008-unstratified-split
+
+[[tests.positive]]
+file = "test_positive/unstratified_imbalanced_split.py"
+description = "Unstratified split on imbalanced data"
+expected_issue = "Unstratified split on imbalanced data produces skewed folds"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "split_imbalanced_without_stratify"
+snippet = "train_test_split"
+
+[[tests.negative]]
+file = "test_negative/stratified_split_correct.py"
+description = "Correct stratified split on imbalanced data"
+max_false_positives = 0
+
+[[tests.context_dependent]]
+file = "test_context_dependent/unstratified_moderate_imbalance.py"
+description = "Unstratified split on moderate imbalance"
+context_notes = "Moderate imbalance with large samples: may be acceptable but stratification is still best practice"
+allow_detection = true
+allow_skip = true
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

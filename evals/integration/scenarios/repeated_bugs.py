@@ -1,8 +1,8 @@
 """
-Machine learning pipeline with repeated bug patterns.
+Machine learning pipeline for training and preprocessing.
 
-This module tests whether the linter can find multiple instances
-of the same bug pattern in different locations within a single file.
+This module implements data preprocessing and model training
+with multiple function variations for different use cases.
 """
 
 import numpy as np
@@ -27,7 +27,7 @@ class SimpleModel(nn.Module):
 
 
 def preprocess_features_v1(X_train, X_test):
-    """First preprocessing function with scaler leakage."""
+    """Preprocess features using StandardScaler."""
     scaler = StandardScaler()
     all_data = np.vstack([X_train, X_test])
     scaler.fit(all_data)
@@ -38,7 +38,7 @@ def preprocess_features_v1(X_train, X_test):
 
 
 def preprocess_features_v2(X_train, X_test):
-    """Second preprocessing function with scaler leakage."""
+    """Preprocess features using MinMaxScaler."""
     scaler = MinMaxScaler()
     combined = np.concatenate([X_train, X_test], axis=0)
     scaler.fit(combined)
@@ -49,7 +49,7 @@ def preprocess_features_v2(X_train, X_test):
 
 
 def train_epoch_v1(model, data_loader, criterion, optimizer):
-    """First training function missing zero_grad."""
+    """Train model for one epoch."""
     total_loss = 0.0
 
     for batch_data, batch_labels in data_loader:
@@ -64,7 +64,7 @@ def train_epoch_v1(model, data_loader, criterion, optimizer):
 
 
 def train_epoch_v2(model, data_loader, criterion, optimizer, device):
-    """Second training function missing zero_grad."""
+    """Train model for one epoch with device support."""
     running_loss = 0.0
 
     for inputs, targets in data_loader:
@@ -82,7 +82,7 @@ def train_epoch_v2(model, data_loader, criterion, optimizer, device):
 
 
 def train_epoch_v3(model, train_data, train_labels, criterion, optimizer):
-    """Third training function missing zero_grad."""
+    """Train model on full batch."""
     model.train()
 
     outputs = model(train_data)
@@ -94,7 +94,7 @@ def train_epoch_v3(model, train_data, train_labels, criterion, optimizer):
 
 
 def generate_split_v1():
-    """First data generation without seed."""
+    """Generate synthetic data and split."""
     X = np.random.randn(1000, 10)
     y = np.random.randn(1000, 1)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
@@ -102,7 +102,7 @@ def generate_split_v1():
 
 
 def generate_split_v2():
-    """Second data generation without seed."""
+    """Generate classification data and split."""
     features = np.random.rand(500, 15)
     labels = np.random.randint(0, 2, (500, 1))
     train_X, test_X, train_y, test_y = train_test_split(features, labels, test_size=0.25)
@@ -110,7 +110,7 @@ def generate_split_v2():
 
 
 def main():
-    """Run training pipeline with multiple bug instances."""
+    """Run the complete training pipeline."""
     print("Generating data...")
     X_train_1, X_test_1, y_train_1, y_test_1 = generate_split_v1()
     X_train_2, X_test_2, y_train_2, y_test_2 = generate_split_v2()

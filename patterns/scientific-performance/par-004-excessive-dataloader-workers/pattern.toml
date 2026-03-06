@@ -1,0 +1,82 @@
+# Pattern: par-004-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "par-004"
+name = "excessive-dataloader-workers"
+category = "scientific-performance"
+severity = "high"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Setting DataLoader num_workers too high (e.g., >8 or more than CPU cores) causes each worker to duplicate the dataset in memory, leading to OOM errors or thrashing. Start with num_workers=4 and increase while monitoring memory usage.
+"""
+
+explanation = """
+num_workers too high: each worker duplicates the dataset in memory. Too many workers causes OOM or thrashing. Start with 4 and increase while monitoring memory.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Find DataLoader with num_workers parameter in the code.
+Is num_workers > 8 or > cpu_count()?
+
+YES = excessive num_workers found (BUG)
+NO = no excessive num_workers exists
+"""
+
+warning_message = """
+num_workers too high: each worker duplicates the dataset in memory. Too many workers causes OOM or thrashing. Start with 4 and increase while monitoring memory.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/excessive_workers.py"
+description = "DataLoader with num_workers=32 - excessive workers duplicate dataset in memory and cause thrashing"
+expected_issue = "num_workers set to 32, which is excessively high and causes memory duplication"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "module"
+name = "DataLoader"
+snippet = "num_workers=32"
+
+[[tests.positive]]
+file = "test_positive/high_workers_count.py"
+description = "DataLoader num_workers set to 2x CPU count - will cause OOM from dataset duplication in each worker"
+expected_issue = "num_workers set to cpu_count * 2, exceeding safe threshold"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "create_dataloader"
+snippet = "num_workers=num_cores * 2"
+
+[[tests.negative]]
+file = "test_negative/reasonable_workers.py"
+description = "DataLoader with num_workers=4 - reasonable value that balances parallelism and memory"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/adaptive_workers.py"
+description = "DataLoader with adaptive num_workers capped at safe value - properly manages memory usage"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

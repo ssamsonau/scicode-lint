@@ -1,0 +1,82 @@
+# Pattern: np-001-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "np-001"
+name = "slice-view-mutation"
+category = "scientific-numerical"
+severity = "high"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+NumPy basic slicing returns a view, not a copy. Modifying a slice (e.g., subset[:] = 0, subset += value) will silently modify the original array. This is a common source of bugs when the programmer expects an independent copy.
+"""
+
+explanation = """
+NumPy view mutation: basic slicing returns a view — modifying it modifies the original. Use .copy() if you need an independent array.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Find a slice assigned to a variable and then modified in-place.
+Is .copy() MISSING before modifying a NumPy slice?
+
+YES = .copy() is MISSING before modifying slice (BUG)
+NO = has .copy(), OR no slice is modified
+"""
+
+warning_message = """
+NumPy view mutation: basic slicing returns a view — modifying it modifies the original. Use .copy() if you need an independent array.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/slice_mutation.py"
+description = "Basic slicing creates view, then modifies it with assignment, *= operator, or element-wise operations, causing unintended mutation of original array"
+expected_issue = "Slice view is modified in-place, affecting original array"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "process_data"
+snippet = "subset[:] = 0"
+
+[[tests.positive]]
+file = "test_positive/advanced_slice.py"
+description = "2D array slicing creates view, then += or -= operations modify view, propagating changes to original matrix or vector"
+expected_issue = "Matrix/vector slice modified through view without .copy()"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "update_matrix_block"
+snippet = "block += 10"
+
+[[tests.negative]]
+file = "test_negative/proper_copy.py"
+description = "Slices explicitly use .copy() before modification, preventing mutation of original array"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/readonly_slice.py"
+description = "Slices used only for read operations (mean, std, argmax, sum) without any modification"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

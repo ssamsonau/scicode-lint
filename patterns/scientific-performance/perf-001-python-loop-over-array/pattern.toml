@@ -1,0 +1,82 @@
+# Pattern: perf-001-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "perf-001"
+name = "python-loop-over-array"
+category = "scientific-performance"
+severity = "high"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Python for loops over NumPy array elements (e.g., for i in range(len(arr))) are 100-1000x slower than vectorized operations. Use NumPy broadcasting, np.where(), or fancy indexing instead of element-wise Python loops.
+"""
+
+explanation = """
+Python loop over NumPy array: 100-1000x slower than vectorized operation. Use broadcasting, np.where, or fancy indexing.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Find Python for loops iterating over NumPy array elements using range(len(arr)) or nested index loops.
+Does the loop perform element-wise operations that could be vectorized with np.where() or broadcasting?
+
+YES = loop over array elements found (BUG)
+NO = no such loops exist
+"""
+
+warning_message = """
+Python loop over NumPy array: 100-1000x slower than vectorized operation. Use broadcasting, np.where, or fancy indexing.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/loop_over_array.py"
+description = "Python for loop with range(len(arr)) accessing array elements - should use np.where vectorization"
+expected_issue = "Python loop iterating over NumPy array with conditional logic"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "normalize_array"
+snippet = "for i in range(len(arr)):"
+
+[[tests.positive]]
+file = "test_positive/element_iteration.py"
+description = "Nested Python loops computing pairwise distances element-by-element - should use broadcasting"
+expected_issue = "Nested loops over NumPy array computing pairwise operations"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "compute_distances"
+snippet = "for i in range(n):"
+
+[[tests.negative]]
+file = "test_negative/vectorized_operation.py"
+description = "Properly uses np.where for conditional vectorized operation - no Python loops"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/broadcasting.py"
+description = "Uses NumPy broadcasting for pairwise distance computation - fully vectorized"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

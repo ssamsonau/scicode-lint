@@ -1,0 +1,82 @@
+# Pattern: pt-011-unbatched-gpu-inference
+# Fixed: Pattern was misnamed as "device-mismatch" but detects unbatched GPU inference.
+
+[meta]
+id = "pt-011"
+name = "unbatched-gpu-inference"
+category = "ai-inference"
+severity = "high"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-06"
+author = "scicode-lint"
+
+description = """
+Sending the entire test dataset to GPU in a single forward pass causes out-of-memory errors on large datasets. Process data in batches using a DataLoader to avoid OOM and enable efficient GPU utilization.
+"""
+
+explanation = """
+Sending the entire test set to GPU at once causes OOM on large datasets. Evaluate in batches.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Find model() calls on test/evaluation data.
+Is batching MISSING for GPU inference?
+
+YES = entire dataset passed to model WITHOUT batching (BUG)
+NO = has DataLoader or batch loop, OR no full-dataset inference exists
+"""
+
+warning_message = """
+Sending the entire test set to GPU at once causes OOM on large datasets. Evaluate in batches.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/entire_dataset_to_gpu.py"
+description = "Evaluation functions that move entire test dataset to GPU in a single operation without batching"
+expected_issue = "The evaluate_on_test_set and run_inference functions load all test data to GPU at once, which will cause OOM errors on large datasets"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "evaluate_on_test_set"
+snippet = "test_images = test_images.to(device)"
+
+[[tests.positive]]
+file = "test_positive/single_forward_pass.py"
+description = "Test functions that perform single forward pass on entire test set loaded to GPU"
+expected_issue = "The test_model and predict_all functions move complete datasets to GPU without batching, risking memory overflow"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "test_model"
+snippet = "X_test = X_test.cuda()"
+
+[[tests.negative]]
+file = "test_negative/batched_evaluation.py"
+description = "Properly batched evaluation using data loaders to process test set in chunks"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/proper_batch_processing.py"
+description = "Correct implementation using DataLoader for batch-wise GPU processing"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

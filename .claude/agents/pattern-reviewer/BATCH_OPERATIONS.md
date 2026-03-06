@@ -354,4 +354,4 @@ claude --agent pattern-reviewer "your custom batch request"
 - [README.md](README.md) - Complete agent documentation
 - [QUICK_START.md](QUICK_START.md) - Quick start guide
 - [examples.md](examples.md) - Detailed examples
-- [../../../specs/README.md](../../../specs/README.md) - Pattern specifications
+- [../../../patterns/README.md](../../../patterns/README.md) - Pattern specifications

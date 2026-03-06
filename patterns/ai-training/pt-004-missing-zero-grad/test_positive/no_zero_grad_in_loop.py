@@ -24,7 +24,6 @@ def train(model, train_loader, epochs):
 
     for epoch in range(epochs):
         for batch_data, batch_labels in train_loader:
-            # BUG: Missing gradient reset - gradients accumulate across batches
             outputs = model(batch_data)
             loss = criterion(outputs, batch_labels)
 

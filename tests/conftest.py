@@ -4,7 +4,7 @@ import pytest
 
 
 @pytest.fixture
-def sample_code_with_leakage():
+def sample_code_with_leakage() -> str:
     """Sample code with data leakage for testing."""
     return """
 import numpy as np
@@ -22,7 +22,7 @@ X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2)
 
 
 @pytest.fixture
-def sample_code_correct():
+def sample_code_correct() -> str:
     """Sample correct code for testing."""
     return """
 import numpy as np

@@ -37,14 +37,20 @@ Detects pitfalls across ML correctness, PyTorch, numerical precision, reproducib
 
 ## Architecture Overview
 
+**Core principle: Constrained-capacity local LLM by design.**
+
+scicode-lint uses Gemma 3 12B - a deliberate choice between grep-style matching and expensive SOTA models. This enables local execution, privacy, and no API costs, but requires detection questions to be simple and direct.
+
 **Two-phase design:**
-- **Build time:** Reasoning model generates detection prompts
-- **Runtime:** Local model (Gemma 3 12B via vLLM) runs prompts against code
+- **Build time:** Design detection questions that constrained models can reliably answer
+- **Runtime:** Local model (Gemma 3 12B via vLLM) runs focused checks against code
 
 **Philosophy:** Detection only, no automatic fixes.
 
-**⚠️ CRITICAL ARCHITECTURAL RULE:**
+**⚠️ CRITICAL ARCHITECTURAL RULES:**
 - Code MUST come before detection instructions in prompts (enables vLLM prefix caching)
+- Detection questions must be ultra-simple (one search, one check, binary answer)
+- No complex reasoning chains - if the model needs to "think," simplify the question
 
 **📖 Complete architecture:** [ARCHITECTURE.md](docs_dev_genai/ARCHITECTURE.md)
 
@@ -98,7 +104,7 @@ claude --agent pattern-reviewer "Review ml-001, ml-002, ml-003 in parallel"
 **Workflow:**
 1. Review pattern: `claude --agent pattern-reviewer "Review <pattern-id>"`
 2. Implement suggested fixes (update TOML, create test cases)
-3. Evaluate: `python specs/eval/run_eval.py --pattern <pattern-id>`
+3. Evaluate: `python evals/run_eval.py --pattern <pattern-id>`
 4. If metrics below target, iterate with agent
 
 **📖 Complete documentation:**
@@ -121,7 +127,7 @@ claude --agent pattern-reviewer "Review ml-001, ml-002, ml-003 in parallel"
 ### Mandatory Checks (RUN AFTER EVERY CODE CHANGE)
 ```bash
 ruff check . && ruff format .  # Code style
-mypy specs/ src/               # Type checking
+mypy src/                      # Type checking
 pytest                         # Tests
 ```
 
@@ -161,11 +167,16 @@ scicode-lint/
 │   └── output/                   # Output formatting
 │       └── 📖 See: IMPLEMENTATION.md#output-formatting
 │
-├── specs/                         # Pattern specs & evaluation
-│   ├── patterns/                 # Test cases: positive/, negative/, ambiguous/
-│   │   └── 📖 See: specs/README.md, CONTRIBUTING.md#adding-patterns
-│   └── eval/                     # Evaluation framework (precision/recall)
-│       └── 📖 See: specs/README.md#evaluation-framework
+├── patterns/                      # Pattern definitions and test cases
+│   ├── {category}/{pattern}/     # Test cases: test_positive/, test_negative/, test_context_dependent/
+│   │   └── 📖 See: patterns/README.md, CONTRIBUTING.md#adding-patterns
+│   └── _registry.toml            # Pattern registry
+│
+├── evals/                         # Evaluation framework (precision/recall)
+│   ├── run_eval.py               # Hardcoded ground truth evaluation
+│   ├── run_eval_llm_judge.py     # LLM-as-judge evaluation
+│   └── integration/              # Multi-pattern integration tests
+│       └── 📖 See: evals/README.md, evals/integration/README.md
 │
 ├── docs_use_genai/               # AI agents USING scicode-lint
 │   ├── GENAI_AGENT_GUIDE.md      # Complete usage guide
@@ -191,10 +202,10 @@ python -m scicode_lint check myfile.py
 # Tests & quality (RUN AFTER EVERY CODE CHANGE)
 pytest
 ruff check . && ruff format .
-mypy specs/ src/
+mypy src/
 
 # Pattern evaluation
-python specs/eval/run_eval.py --pattern <pattern-id>
+python evals/run_eval.py --pattern <pattern-id>
 ```
 
 ---
@@ -204,7 +215,7 @@ python specs/eval/run_eval.py --pattern <pattern-id>
 After writing code, **always** run:
 
 1. **Document** - Add docstrings + type hints to public APIs, update API_REFERENCE.md if in `__all__`
-2. **Quality** - `ruff check . && ruff format .` then `mypy specs/ src/`
+2. **Quality** - `ruff check . && ruff format .` then `mypy src/`
 3. **Test** - `pytest`
 4. **Docs** - Update docs to match current state (no "updated"/"changed" language)
 5. **Commit** - Only commit clean, type-safe, documented code

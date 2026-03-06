@@ -1,0 +1,82 @@
+# Pattern: num-004-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "num-004"
+name = "int32-overflow"
+category = "scientific-numerical"
+severity = "high"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Integer overflow in summations using int32 causes incorrect results. The int32 max is ~2.1 billion, so summing large arrays wraps silently. Use dtype=np.int64 or np.float64 for aggregations.
+"""
+
+explanation = """
+int32 overflow: max is ~2.1 billion. Summing large arrays wraps silently. Use dtype=np.int64 or np.float64 for aggregations.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Find np.sum() or np.cumsum() on large int32 arrays in the code.
+Is dtype upgrade MISSING for int32 aggregation (no dtype=int64, dtype=float64, or astype() before aggregation)?
+
+YES = dtype upgrade is MISSING for int32 aggregation (BUG)
+NO = has dtype parameter or astype(), OR no such aggregation exists, OR array is already int64/float64
+"""
+
+warning_message = """
+int32 overflow: max is ~2.1 billion. Summing large arrays wraps silently. Use dtype=np.int64 or np.float64 for aggregations.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/int32_overflow.py"
+description = "np.sum() or np.cumsum() on large int32 arrays (1M elements * 5000) without dtype parameter, causing silent overflow wraparound"
+expected_issue = "int32 aggregation overflow on large array without dtype=int64"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "compute_total"
+snippet = "total = np.sum(data)"
+
+[[tests.positive]]
+file = "test_positive/large_accumulation.py"
+description = "Products or cumulative sums on int32 matrices/streams where intermediate or final values exceed 2.1 billion"
+expected_issue = "Large int32 array accumulation risks overflow"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "sum_products"
+snippet = "total = products.sum()"
+
+[[tests.negative]]
+file = "test_negative/safe_dtype.py"
+description = "Aggregations using dtype=np.int64 or dtype=np.float64, or explicit astype() conversion before sum/cumsum"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/float_aggregation.py"
+description = "Small arrays where overflow is impossible, or arrays already using float64/int64 dtypes"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

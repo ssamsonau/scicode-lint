@@ -12,8 +12,7 @@ updated = "2026-03-03"
 author = "scicode-lint"
 
 description = """
-Is there a shift(-1), shift(-N), or rolling/expanding window operation that could pull future values into the current row as a feature?
-
+Negative shift operations (shift(-1), shift(-N)) or rolling/expanding windows with center=True pull future values into current rows as features, causing temporal data leakage. The model literally sees the answer it's trying to predict.
 """
 
 explanation = """
@@ -27,12 +26,11 @@ references = []
 
 [detection]
 question = """
-Look for future data leakage from shift operations. Answer YES only if you see:
-1. shift() with NEGATIVE values (shift(-1), shift(-N)), OR
-2. diff() with NEGATIVE values (diff(-1)), OR
-3. rolling() with center=True which uses future values
+Find shift(), diff(), or rolling() calls in the code.
+Do they use negative values or center=True?
 
-Answer NO if shift/diff use POSITIVE values (shift(1), shift(N)) or if rolling has center=False or is not specified.
+YES = shift(-N), diff(-N), or rolling(center=True) found (BUG)
+NO = only positive shift/diff values, OR no center=True, OR no such calls
 """
 
 warning_message = """

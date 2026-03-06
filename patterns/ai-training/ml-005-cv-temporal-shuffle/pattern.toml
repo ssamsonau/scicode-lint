@@ -26,11 +26,11 @@ references = []
 
 [detection]
 question = """
-Look for temporal leakage in cross-validation. Answer YES only if you see:
-1. KFold(shuffle=True) or cross_val_score with shuffle=True, AND
-2. Evidence of temporal/time-series data such as: date columns ('date', 'timestamp'), time-based features ('open', 'close', 'price'), sort_values('date'), or sequential data
+Find KFold() or cross_val_score() calls on time-series data.
+Is TimeSeriesSplit or shuffle=False MISSING for time-series CV?
 
-Answer NO if TimeSeriesSplit is used, or if shuffle=False, or if data is clearly not temporal (images, independent samples).
+YES = shuffled CV on temporal data WITHOUT TimeSeriesSplit (BUG)
+NO = uses TimeSeriesSplit, OR shuffle=False, OR no temporal data
 """
 
 warning_message = """

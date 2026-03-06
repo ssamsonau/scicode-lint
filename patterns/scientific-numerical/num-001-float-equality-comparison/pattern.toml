@@ -1,0 +1,82 @@
+# Pattern: num-001-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "num-001"
+name = "float-equality-comparison"
+category = "scientific-numerical"
+severity = "critical"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Floating point numbers should never be compared using == or != due to precision limitations. For example, 0.1 + 0.2 != 0.3 in floating point arithmetic. Use np.isclose() or np.allclose() with appropriate tolerance instead.
+"""
+
+explanation = """
+Never use == on floats. 0.1 + 0.2 != 0.3 in floating point. Use np.isclose() or np.allclose() with appropriate tolerance.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Find == or != comparisons on float values in the code.
+Is tolerance MISSING from float equality comparison (no np.isclose, np.allclose, math.isclose, or abs() with epsilon)?
+
+YES = tolerance is MISSING from float comparison (BUG)
+NO = has tolerance-based comparison, OR no float == or != exists, OR comparing integers/indices/shapes
+"""
+
+warning_message = """
+Never use == on floats. 0.1 + 0.2 != 0.3 in floating point. Use np.isclose() or np.allclose() with appropriate tolerance.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/float_equality.py"
+description = "Direct == or != comparisons on floating point values (0.1+0.2 == 0.3) or array elements, which fail due to floating point precision"
+expected_issue = "Floating point equality comparison using == or !="
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "check_convergence"
+snippet = "if current == target:"
+
+[[tests.positive]]
+file = "test_positive/array_comparison.py"
+description = "Array equality checks using == with .all() or != on floating point arrays, and sum comparisons that should use tolerance"
+expected_issue = "Float array compared with exact equality"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "compare_arrays"
+snippet = "if (arr1 == arr2).all():"
+
+[[tests.negative]]
+file = "test_negative/proper_tolerance.py"
+description = "Proper use of np.isclose(), np.allclose(), math.isclose(), or abs() with tolerance for float comparisons"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/integer_comparison.py"
+description = "Exact equality comparison on integers, indices, counters, and flags where == is appropriate"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

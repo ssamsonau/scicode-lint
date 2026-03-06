@@ -1,0 +1,87 @@
+# Pattern: perf-005-unnecessary-array-copy
+# Fixed: Pattern was a stub. Now complete with proper detection.
+
+[meta]
+id = "perf-005"
+name = "unnecessary-array-copy"
+category = "scientific-performance"
+severity = "medium"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-06"
+author = "scicode-lint"
+
+description = """
+Calling .copy() on NumPy arrays when the array is only read (not modified) wastes memory by creating duplicate data. Only use .copy() when you need to modify the array independently from the original.
+"""
+
+explanation = """
+Unnecessary .copy() wastes memory. Only copy when you need mutation independence from the original array.
+"""
+
+tags = ["numpy", "memory", "performance"]
+related_patterns = ["np-001"]
+references = []
+
+[detection]
+question = """
+Find .copy() calls on NumPy arrays.
+Is the copied array only used for read operations without any in-place modification?
+
+YES = unnecessary copy found (BUG)
+NO = no such copies exist
+"""
+
+warning_message = """
+Unnecessary .copy() wastes memory. Only copy when you need mutation independence from the original array.
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = ["Copy may be needed for thread safety or to prevent later modifications"]
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/copy_then_readonly.py"
+description = "Array copied but only read operations performed (.mean(), .sum(), iteration)"
+expected_issue = "Array is copied but only used for read-only operations"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "analyze_data"
+snippet = "data = arr.copy()"
+
+[[tests.positive]]
+file = "test_positive/copy_for_return.py"
+description = "Array copied and immediately returned without modification"
+expected_issue = "Array copied but not modified before return"
+min_confidence = 0.70
+
+[tests.positive.expected_location]
+type = "function"
+name = "get_subset"
+snippet = "return arr[start:end].copy()"
+
+[[tests.negative]]
+file = "test_negative/copy_then_modify.py"
+description = "Array copied then modified in-place - copy is necessary"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/copy_for_independence.py"
+description = "Copy needed to prevent caller's array from being modified"
+max_false_positives = 0
+
+[[tests.context_dependent]]
+file = "test_context_dependent/copy_before_external_call.py"
+description = "Copy before passing to external library - may or may not be necessary"
+context_notes = "Depends on whether the external function modifies its input"
+allow_detection = true
+allow_skip = true
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

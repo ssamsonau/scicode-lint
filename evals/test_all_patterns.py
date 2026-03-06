@@ -3,10 +3,19 @@
 Tests each pattern individually and validates overall metrics.
 """
 
+from typing import Any
+
 import pytest
 
+from evals.run_eval import EvalRunner
 
-def test_pattern_evaluation(eval_runner, enabled_patterns, thresholds, pattern_id):
+
+def test_pattern_evaluation(
+    eval_runner: EvalRunner,
+    enabled_patterns: list[str],
+    thresholds: dict[str, Any],
+    pattern_id: str,
+) -> None:
     """
     Test evaluation of a single pattern.
 
@@ -42,7 +51,7 @@ def test_pattern_evaluation(eval_runner, enabled_patterns, thresholds, pattern_i
     )
 
 
-def pytest_generate_tests(metafunc):
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     """Generate parametrized tests for each enabled pattern."""
     if (
         "pattern_id" in metafunc.fixturenames
@@ -56,7 +65,7 @@ def pytest_generate_tests(metafunc):
         metafunc.parametrize("pattern_id", enabled_patterns, ids=lambda x: x)
 
 
-def test_overall_metrics(eval_runner, thresholds):
+def test_overall_metrics(eval_runner: EvalRunner, thresholds: dict[str, Any]) -> None:
     """
     Test overall metrics across all patterns.
 
@@ -92,7 +101,9 @@ def test_overall_metrics(eval_runner, thresholds):
     print(f"  Patterns evaluated: {overall_metrics.overall.pattern_count}")
 
 
-def test_critical_severity_precision(eval_runner, thresholds):
+def test_critical_severity_precision(
+    eval_runner: EvalRunner, thresholds: dict[str, Any]
+) -> None:
     """
     Test that critical severity findings meet high precision threshold.
 
@@ -126,7 +137,7 @@ def test_critical_severity_precision(eval_runner, thresholds):
         pytest.skip("No critical severity patterns evaluated")
 
 
-def test_no_negative_false_positives(eval_runner):
+def test_no_negative_false_positives(eval_runner: EvalRunner) -> None:
     """
     Test that negative test cases produce zero false positives.
 

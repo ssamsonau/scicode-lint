@@ -1,0 +1,82 @@
+# Pattern: pt-006-logit-threshold-without-sigmoid
+# Fixed: Pattern was misnamed. Actual detection is about thresholding raw logits.
+
+[meta]
+id = "pt-006"
+name = "logit-threshold-without-sigmoid"
+category = "ai-inference"
+severity = "high"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-06"
+author = "scicode-lint"
+
+description = """
+Thresholding raw logits (e.g., logits > 0.5) is meaningless because logits are unbounded values. A logit of 0.5 does not mean 50% probability. Apply torch.sigmoid() to convert logits to probabilities before thresholding.
+"""
+
+explanation = """
+Thresholding raw logits is meaningless — logits are unbounded. Apply torch.sigmoid() first, then threshold.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Find threshold comparisons on model outputs (e.g., logits > 0.5, outputs > 0.5).
+Is sigmoid MISSING before threshold comparison?
+
+YES = threshold on raw logits WITHOUT sigmoid (BUG)
+NO = has sigmoid before threshold, OR no threshold comparison exists
+"""
+
+warning_message = """
+Thresholding raw logits is meaningless — logits are unbounded. Apply torch.sigmoid() first, then threshold.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/binary_classifier_threshold.py"
+description = "Binary classifier that thresholds raw logits without applying sigmoid first"
+expected_issue = "The predict_batch and evaluate_model functions apply threshold (> 0.5) directly to unbounded logits instead of probabilities"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "predict_batch"
+snippet = "predictions = (logits > 0.5).float()"
+
+[[tests.positive]]
+file = "test_positive/sentiment_classifier.py"
+description = "Sentiment classifier thresholding raw model output without sigmoid"
+expected_issue = "The classify_text and process_reviews functions threshold raw logits at 0.5 without converting to probabilities"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "classify_text"
+snippet = "is_positive = raw_output > 0.5"
+
+[[tests.negative]]
+file = "test_negative/binary_classifier_correct.py"
+description = "Binary classifier that correctly applies sigmoid before thresholding"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/sentiment_with_sigmoid.py"
+description = "Sentiment classifier that correctly converts logits to probabilities before thresholding"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

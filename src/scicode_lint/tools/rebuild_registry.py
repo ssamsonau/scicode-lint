@@ -92,7 +92,7 @@ class RegistryBuilder:
 
         return "\n".join(lines)
 
-    def write_registry(self, output_path: Path | None = None):
+    def write_registry(self, output_path: Path | None = None) -> None:
         """
         Write registry to _registry.toml.
 
@@ -115,20 +115,27 @@ class RegistryBuilder:
             dictionary with pattern counts by category
         """
         patterns = self.loader.load_all_patterns()
-        stats = {"total": len(patterns), "by_category": {}, "by_severity": {}}
+        stats: dict[str, Any] = {
+            "total": len(patterns),
+            "by_category": {},
+            "by_severity": {},
+        }
+
+        by_category: dict[str, int] = stats["by_category"]
+        by_severity: dict[str, int] = stats["by_severity"]
 
         for pattern in patterns:
             # Count by category
             cat = pattern.meta.category
-            stats["by_category"][cat] = stats["by_category"].get(cat, 0) + 1
+            by_category[cat] = by_category.get(cat, 0) + 1
 
             # Count by severity
             sev = pattern.meta.severity
-            stats["by_severity"][sev] = stats["by_severity"].get(sev, 0) + 1
+            by_severity[sev] = by_severity.get(sev, 0) + 1
 
         return stats
 
-    def print_stats(self):
+    def print_stats(self) -> None:
         """Print registry statistics."""
         stats = self.get_stats()
 
@@ -146,7 +153,7 @@ class RegistryBuilder:
         print("=" * 60)
 
 
-def main():
+def main() -> int:
     """CLI entry point."""
     parser = argparse.ArgumentParser(
         description="Build pattern registry from TOML patterns",

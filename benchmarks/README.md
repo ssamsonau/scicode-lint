@@ -56,7 +56,7 @@ Extrapolated for all 44 patterns:
 **What it measures:**
 - System information (CPU, memory, platform)
 - LLM backend detection
-- Full linting on 20 real Python files from specs/eval
+- Full linting on 20 real Python files from patterns/
 - Total time, average per file, throughput
 
 **Output files:**

@@ -1,0 +1,98 @@
+# Pattern: perf-002-array-allocation-in-loop
+# Detects repeated array allocation inside loops instead of pre-allocation
+
+[meta]
+id = "perf-002"
+name = "array-allocation-in-loop"
+category = "scientific-performance"
+severity = "high"
+version = "1.0.0"
+created = "2026-03-06"
+updated = "2026-03-06"
+author = "scicode-lint"
+
+description = """
+Allocating NumPy arrays inside a loop (e.g., np.zeros(), np.empty(), np.array()) causes repeated memory allocation and deallocation, which is much slower than pre-allocating a single array before the loop and filling it. This is especially costly for large arrays or many iterations.
+"""
+
+explanation = """
+Array allocation in loop: creating arrays inside loops causes repeated malloc/free operations. Pre-allocate the output array before the loop and fill it using indexing.
+"""
+
+tags = ["numpy", "performance", "memory", "loops"]
+related_patterns = ["perf-001", "perf-004"]
+references = ["https://numpy.org/doc/stable/user/basics.creation.html"]
+
+[detection]
+question = """
+Find loops containing np.zeros(), np.empty(), np.ones(), np.array(), or np.concatenate() calls.
+Does the loop allocate or grow arrays repeatedly instead of pre-allocating?
+
+YES = array allocation in loop found (BUG)
+NO = no such loops exist
+"""
+
+warning_message = """
+Array allocation in loop: creating arrays inside loops causes repeated malloc/free operations. Pre-allocate the output array before the loop and fill it using indexing.
+"""
+
+min_confidence = 0.85
+code_patterns = ["np.zeros", "np.empty", "np.ones", "np.array", "np.concatenate"]
+false_positive_risks = ["Truly variable-size output where pre-allocation is impossible"]
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/zeros_in_loop.py"
+description = "Creating np.zeros() inside a for loop instead of pre-allocating - causes repeated memory allocation"
+expected_issue = "Array allocation with np.zeros() inside loop iteration"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "process_batches"
+snippet = "result = np.zeros(batch_size)"
+
+[[tests.positive]]
+file = "test_positive/append_arrays.py"
+description = "Building list of arrays with append inside loop then stacking - inefficient memory pattern"
+expected_issue = "Arrays created and appended inside loop"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "compute_features"
+snippet = "features.append(np.array(row_features))"
+
+[[tests.positive]]
+file = "test_positive/concatenate_in_loop.py"
+description = "Repeated np.concatenate inside loop grows array incrementally - O(n²) memory operations"
+expected_issue = "np.concatenate called inside loop to grow array"
+min_confidence = 0.90
+
+[tests.positive.expected_location]
+type = "function"
+name = "accumulate_results"
+snippet = "all_results = np.concatenate([all_results, new_result])"
+
+[[tests.negative]]
+file = "test_negative/preallocated_array.py"
+description = "Array pre-allocated before loop and filled using indexing - efficient pattern"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/list_then_array.py"
+description = "Scalars appended to list then converted to array once at end - acceptable pattern"
+max_false_positives = 0
+
+[[tests.context_dependent]]
+file = "test_context_dependent/unknown_size.py"
+description = "Loop processes streaming data with unknown final size - pre-allocation not possible"
+context_notes = "When output size is truly unknown, appending may be the only option"
+allow_detection = true
+allow_skip = true
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

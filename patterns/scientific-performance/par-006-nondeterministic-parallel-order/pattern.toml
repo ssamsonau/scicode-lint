@@ -1,0 +1,82 @@
+# Pattern: par-006-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "par-006"
+name = "nondeterministic-parallel-order"
+category = "scientific-performance"
+severity = "medium"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Collecting results from parallel tasks using imap_unordered or as_completed() without tracking indices produces non-deterministic output order. If results must be in a specific order, use map() (which preserves order) or sort results by index after collection.
+"""
+
+explanation = """
+Non-deterministic parallel output: parallel tasks complete in arbitrary order. If results depend on order, sort by index after collection for reproducibility.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Find imap_unordered() or as_completed() in the code.
+Are results collected without sorting or index tracking?
+
+YES = non-deterministic result order (BUG)
+NO = no unordered result collection exists
+"""
+
+warning_message = """
+Non-deterministic parallel output: parallel tasks complete in arbitrary order. If results depend on order, sort by index after collection for reproducibility.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/unordered_results.py"
+description = "Using imap_unordered and appending results without sorting - output order is non-deterministic"
+expected_issue = "Results collected from imap_unordered without preserving order"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "parallel_compute"
+snippet = "for result in pool.imap_unordered(process_sample, data):"
+
+[[tests.positive]]
+file = "test_positive/concurrent_futures_unordered.py"
+description = "Using as_completed to collect results without tracking indices - non-deterministic output order"
+expected_issue = "Results from as_completed appended without index sorting"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "batch_process"
+snippet = "for future in as_completed(futures):"
+
+[[tests.negative]]
+file = "test_negative/sorted_results.py"
+description = "Results include indices and are sorted after collection - preserves deterministic order"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/ordered_map.py"
+description = "Using executor.map which preserves input order - deterministic results"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

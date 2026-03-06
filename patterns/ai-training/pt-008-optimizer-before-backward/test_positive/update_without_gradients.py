@@ -22,7 +22,6 @@ def train_rnn(model, sequences, labels, epochs):
         predictions = model(sequences)
         loss = loss_fn(predictions, labels)
 
-        # BUG: Step called first (updates with stale/no gradients)
         optimizer.step()
 
         # Then gradients cleared and computed

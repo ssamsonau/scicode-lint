@@ -8,7 +8,6 @@ class NormalizationLayer(nn.Module):
         self.scale = nn.Parameter(torch.ones(1))
 
     def forward(self, x):
-        # BUG: In-place operations on input tensor using -= and /=
         mean_val = x.mean()
         std_val = x.std() + 1e-8
         x -= mean_val  # In-place subtraction

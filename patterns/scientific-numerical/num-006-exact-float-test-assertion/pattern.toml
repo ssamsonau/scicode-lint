@@ -1,0 +1,82 @@
+# Pattern: num-006-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "num-006"
+name = "exact-float-test-assertion"
+category = "scientific-numerical"
+severity = "medium"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Using exact equality assertions (assert x == y, assertEqual) on floating point values in tests is unreliable due to floating point precision limitations. Use np.testing.assert_allclose() with rtol/atol parameters for robust float comparisons in tests.
+"""
+
+explanation = """
+Use np.testing.assert_allclose(actual, expected, rtol, atol) for float comparisons in tests. Exact equality assertions on floats are unreliable.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Find test assertions (assert ==, assertEqual) on computed float values in the code.
+Is tolerance MISSING from float test assertions (no np.testing.assert_allclose, assert_array_almost_equal, or math.isclose)?
+
+YES = tolerance is MISSING from float test assertions (BUG)
+NO = has tolerance-based assertion, OR no float assertions exist, OR asserting on integers/shapes/indices
+"""
+
+warning_message = """
+Use np.testing.assert_allclose(actual, expected, rtol, atol) for float comparisons in tests. Exact equality assertions on floats are unreliable.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/exact_float_assertions.py"
+description = "Test code using assert with == on float results (sin^2+cos^2==1.0, sqrt(2)*sqrt(2)==2.0) or assertEqual() on computed floats"
+expected_issue = "Exact equality assertion on floating point test results"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "test_optimization_result"
+snippet = "assert total == 1.0"
+
+[[tests.positive]]
+file = "test_positive/test_assertions.py"
+description = "Unit tests with assert or .all() on float array equality, or != assertions on computed floating point values"
+expected_issue = "Float comparison in tests without tolerance"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "test_matrix_multiplication"
+snippet = "assert (result == expected).all()"
+
+[[tests.negative]]
+file = "test_negative/proper_test_assertions.py"
+description = "Tests using np.testing.assert_allclose() with rtol/atol parameters for all floating point comparisons"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/integer_assertions.py"
+description = "Assertions on integers, shapes, indices, counts, and boolean flags where exact equality is appropriate"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

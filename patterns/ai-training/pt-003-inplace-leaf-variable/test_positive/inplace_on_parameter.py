@@ -22,7 +22,6 @@ def train_with_inplace_modification(model, data, target):
     optimizer.zero_grad()
     loss.backward()
 
-    # BUG: In-place modification of parameters using +=
     for param in model.parameters():
         noise = torch.randn_like(param) * 0.001
         param.data += noise  # In-place operation breaks autograd

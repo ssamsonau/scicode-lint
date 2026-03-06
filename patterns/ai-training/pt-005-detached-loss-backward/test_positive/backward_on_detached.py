@@ -20,7 +20,6 @@ def train_iteration(model, data, target):
     output = model(data)
     loss = nn.functional.mse_loss(output, target)
 
-    # BUG: Creating new tensor without gradient history
     loss_disconnected = torch.tensor(loss.data)
 
     optimizer.zero_grad()

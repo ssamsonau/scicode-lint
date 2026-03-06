@@ -11,9 +11,9 @@ import time
 from loguru import logger
 
 from scicode_lint.config import LLMConfig
-from scicode_lint.detectors.catalog import DetectionCatalog
+from scicode_lint.detectors.catalog import DetectionCatalog, DetectionPattern
 from scicode_lint.detectors.prompts import generate_detection_prompt, get_system_prompt
-from scicode_lint.llm.client import create_client
+from scicode_lint.llm.client import LLMClient, create_client
 from scicode_lint.llm.models import DetectionResult
 
 logger.remove()
@@ -22,7 +22,9 @@ logger.add(
 )
 
 
-async def run_sequential(patterns, code, llm, system_prompt):
+async def run_sequential(
+    patterns: list[DetectionPattern], code: str, llm: LLMClient, system_prompt: str
+) -> list[DetectionResult]:
     """Run patterns one at a time."""
     results = []
     for pattern in patterns:
@@ -32,15 +34,17 @@ async def run_sequential(patterns, code, llm, system_prompt):
     return results
 
 
-async def run_concurrent(patterns, code, llm, system_prompt):
+async def run_concurrent(
+    patterns: list[DetectionPattern], code: str, llm: LLMClient, system_prompt: str
+) -> list[DetectionResult]:
     """Run all patterns at once."""
     prompts = [generate_detection_prompt(code, pattern) for pattern in patterns]
     tasks = [llm.async_complete_structured(system_prompt, p, DetectionResult) for p in prompts]
     results = await asyncio.gather(*tasks)
-    return results
+    return list(results)
 
 
-async def main():
+async def main() -> None:
     logger.info("=" * 70)
     logger.info("SIMPLE BENCHMARK: Sequential vs Concurrent")
     logger.info("=" * 70)

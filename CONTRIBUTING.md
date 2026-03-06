@@ -67,15 +67,33 @@ See [INSTALLATION.md](INSTALLATION.md) for detailed setup.
 
 Patterns are the heart of scicode-lint. Each pattern detects a specific type of bug or anti-pattern in scientific Python code. This guide walks you through creating a new pattern from start to finish.
 
+### ⚠️ Critical: Two-Tier LLM Strategy
+
+scicode-lint uses **different models for different purposes**:
+
+**Runtime (Local 12B model)**: Bug detection runs on a constrained-capacity local LLM (Gemma 3 12B). This enables privacy, no API costs, and fast inference.
+
+**Development (SOTA cloud models)**: Pattern development should use the best available reasoning models (Claude, etc.) to ensure high-quality detection questions that the local model can execute reliably.
+
+Detection questions MUST be written FOR constrained-capacity models:
+- **Ask about the BUG directly** - "Is X MISSING?" not "Does it have X?"
+- **YES = BUG, NO = OK** - The answer directly indicates bug presence
+- **Simple and direct** - One search, one check, binary answer
+- **No complex reasoning** - If the model needs to "think about it," simplify
+
+**💡 Use the Pattern Reviewer agent** (SOTA model) to review and improve patterns before submission.
+
+See [ARCHITECTURE.md](docs_dev_genai/ARCHITECTURE.md) for the full rationale.
+
 **💡 Development tool available:** The [Pattern Reviewer agent](.claude/agents/pattern-reviewer/) can help review, improve, and create test cases for patterns. Requires [Claude Code CLI](https://github.com/anthropics/claude-code). See [docs_dev_genai/TOOLS.md](docs_dev_genai/TOOLS.md) for details.
 
 ### Overview
 
 Each pattern is a self-contained directory containing:
 - `pattern.toml` - Complete pattern definition (metadata, detection logic, test specs)
-- `positive/` - Example code that SHOULD trigger detection (bugs)
-- `negative/` - Example code that should NOT trigger detection (correct code)
-- `context_dependent/` - Edge cases where either outcome is acceptable
+- `test_positive/` - Example code that SHOULD trigger detection (bugs)
+- `test_negative/` - Example code that should NOT trigger detection (correct code)
+- `test_context_dependent/` - Edge cases where either outcome is acceptable
 
 ### Pattern Categories
 
@@ -118,11 +136,11 @@ This creates:
 ```
 patterns/ai-training/ml-050-temporal-split-leakage/
 ├── pattern.toml           # Template to fill out
-├── positive/
+├── test_positive/
 │   └── example_positive.py
-├── negative/
+├── test_negative/
 │   └── example_negative.py
-└── context_dependent/
+└── test_context_dependent/
     └── example_context.py
 ```
 
@@ -162,33 +180,41 @@ references = [
 ```
 
 **[detection] section** - LLM detection logic:
+
+**⚠️ Detection questions must be ultra-simple for constrained-capacity models:**
+
 ```toml
 [detection]
+# Use this format: Find X, check for Y, map to YES/NO
 question = """
-Is there a train/test split using random_state or shuffle=True on time-series data
-(indicated by temporal features like timestamps, dates, or sequential indices)?
+Find train_test_split() on time-series data (dates/timestamps in column names).
+Does it use shuffle=True?
+
+YES = train_test_split with shuffle=True on time-series (BUG)
+NO = shuffle=False, OR no train_test_split, OR not time-series data
 """
 
 warning_message = """
-Temporal leakage detected: time-series data is shuffled before splitting.
-This allows the model to learn from future data, inflating performance metrics.
-Use TimeSeriesSplit or chronological splitting without shuffle.
+Temporal leakage: time-series data shuffled before split. Use TimeSeriesSplit or shuffle=False.
 """
 
 min_confidence = 0.85
 ```
 
-**Key principles for detection questions:**
-- ✅ Specific and observable: "Is there X pattern in the code?"
-- ✅ Answerable from code context: Uses visible patterns
-- ❌ Too vague: "Is there a bug?" or "Is this code correct?"
-- ❌ Requires domain expertise: "Will this cause overfitting?"
+**Detection question principles (for 12B models):**
+- ✅ Ask about BUG directly: "Is X MISSING?" or "Is X done BEFORE Y?"
+- ✅ YES = BUG: The question should make YES mean "bug found"
+- ✅ One search, one check: Find X, check for Y
+- ✅ Binary decision: No "consider" or "might be"
+- ❌ Contradictory mapping: "Does it have X?" + "YES = without X (BUG)"
+- ❌ Complex reasoning: "Is there a pattern where X and then Y unless Z..."
+- ❌ Vague escape clauses: "Context suggests..." or "might be handled elsewhere"
 
 #### Step 4: Add Test Cases
 
 Create Python files demonstrating the bug and correct code:
 
-**positive/shuffled_timeseries.py** - Code that MUST trigger detection:
+**test_positive/shuffled_timeseries.py** - Code that MUST trigger detection:
 ```python
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -206,7 +232,7 @@ def prepare_timeseries_data(df):
     return X_train, X_test, y_train, y_test
 ```
 
-**negative/chronological_split.py** - Code that should NOT trigger:
+**test_negative/chronological_split.py** - Code that should NOT trigger:
 ```python
 import pandas as pd
 from sklearn.model_selection import TimeSeriesSplit
@@ -225,7 +251,7 @@ def prepare_timeseries_data(df):
     return X_train, X_test, y_train, y_test
 ```
 
-**context_dependent/manual_split.py** - Ambiguous case:
+**test_context_dependent/manual_split.py** - Ambiguous case:
 ```python
 import pandas as pd
 
@@ -246,7 +272,7 @@ Now reference these tests in `pattern.toml`:
 [tests]
 
 [[tests.positive]]
-file = "positive/shuffled_timeseries.py"
+file = "test_positive/shuffled_timeseries.py"
 description = "Time-series data split with shuffle=True"
 expected_issue = "Temporal leakage: shuffle=True on time-series data"
 min_confidence = 0.85
@@ -257,13 +283,13 @@ name = "prepare_timeseries_data"
 snippet = "shuffle=True"
 
 [[tests.negative]]
-file = "negative/chronological_split.py"
+file = "test_negative/chronological_split.py"
 description = "Correct time-series split using TimeSeriesSplit"
 max_false_positives = 0
 notes = "Uses sklearn's TimeSeriesSplit which maintains temporal order"
 
 [[tests.context_dependent]]
-file = "context_dependent/manual_split.py"
+file = "test_context_dependent/manual_split.py"
 description = "Manual split - chronological order unclear from code"
 allow_detection = true
 allow_skip = true

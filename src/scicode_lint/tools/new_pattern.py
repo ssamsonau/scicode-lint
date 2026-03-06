@@ -28,7 +28,7 @@ class PatternCreator:
         pattern_name: str,
         category: str,
         severity: str = "high",
-    ):
+    ) -> None:
         """
         Create a new pattern directory and template.
 
@@ -174,7 +174,7 @@ TODO: Notes for teaching/learning about this pattern.
         print(f"3. Validate: python -m scicode_lint.tools.validate_pattern {pattern_dir}")
         print("4. Rebuild registry: python -m scicode_lint.tools.rebuild_registry")
 
-    def _create_example_test_files(self, pattern_dir: Path):
+    def _create_example_test_files(self, pattern_dir: Path) -> None:
         """Create example test files with comments."""
 
         # Positive test example
@@ -233,7 +233,7 @@ depending on coding style, use case, or interpretation.
         )
 
 
-def main():
+def main() -> int:
     """CLI entry point."""
     parser = argparse.ArgumentParser(
         description="Create a new pattern from template",

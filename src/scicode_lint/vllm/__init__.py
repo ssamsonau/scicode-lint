@@ -43,6 +43,7 @@ Also includes start_vllm.sh bash script for manual server startup.
 
 import subprocess
 import time
+import types
 from dataclasses import dataclass
 from typing import Optional
 
@@ -175,7 +176,7 @@ def start_server(
     gpu_memory_utilization: Optional[float] = None,
     wait: bool = False,
     wait_timeout: int = 60,
-) -> subprocess.Popen:
+) -> subprocess.Popen[str]:
     """Start vLLM server as a subprocess.
 
     Args:
@@ -268,7 +269,7 @@ def start_server(
     return proc
 
 
-def stop_server(process: subprocess.Popen, timeout: int = 10) -> None:
+def stop_server(process: subprocess.Popen[str], timeout: int = 10) -> None:
     """Stop vLLM server process gracefully.
 
     Args:
@@ -305,8 +306,8 @@ class VLLMServer:
         port: Port to run on (only used for local servers)
         base_url: Full URL for remote server (e.g., "http://10.0.0.5:5001")
                   If provided, port is ignored and no start/stop attempted
-        max_model_len: Maximum context length (only used for local servers, default: 16000)
-        gpu_memory_utilization: GPU memory to use 0.0-1.0 (only used for local servers, default: 0.9)
+        max_model_len: Maximum context length (local servers only, default: 16000)
+        gpu_memory_utilization: GPU memory 0.0-1.0 (local servers only, default: 0.9)
         wait_timeout: Timeout for server startup/verification in seconds
 
     Example - Local server (auto-start):
@@ -357,7 +358,7 @@ class VLLMServer:
             )
 
         self.wait_timeout = wait_timeout
-        self.process: Optional[subprocess.Popen] = None
+        self.process: Optional[subprocess.Popen[str]] = None
         self.was_already_running = False
         self.is_remote = base_url is not None
 
@@ -411,12 +412,16 @@ class VLLMServer:
         )
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[types.TracebackType],
+    ) -> None:
         """Stop vLLM server only if we started it (local only)."""
         # Only stop if we started the server (don't kill existing/remote servers)
         if self.process and not self.was_already_running and not self.is_remote:
             stop_server(self.process)
-        return False
 
 
 @dataclass

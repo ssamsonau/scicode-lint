@@ -1,0 +1,83 @@
+# Pattern: rep-004-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "rep-004"
+name = "missing-random-seed"
+category = "scientific-reproducibility"
+severity = "medium"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Missing random seed initialization causes non-reproducible results. When random operations are used without setting seeds for np.random, torch, and random modules, results will differ between runs.
+"""
+
+explanation = """
+No random seed set. Results will differ between runs. Set seeds for np.random, torch, and random at the start.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Find random operations in the code (np.random.*, torch.randn*, random.random, random.shuffle).
+
+Is random seed initialization MISSING (np.random.seed, torch.manual_seed, random.seed)?
+
+YES = random seed initialization is missing (BUG)
+NO = seed initialization is present, OR no random operations exist
+"""
+
+warning_message = """
+No random seed set. Results will differ between runs. Set seeds for np.random, torch, and random at the start.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/no_seed_random_ops.py"
+description = "Data generation and splitting using np.random operations without any seed being set. Results will vary between runs."
+expected_issue = "Random operations (np.random.randn, np.random.uniform, np.random.permutation) used without any random seed set"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "generate_synthetic_data"
+snippet = "features = np.random.randn(n_samples, 50)"
+
+[[tests.positive]]
+file = "test_positive/unseeded_simulation.py"
+description = "Monte Carlo simulation using torch.randn and random.random without setting any seeds."
+expected_issue = "Simulation uses random operations from torch and random module without any seed initialization"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "method"
+name = "__init__"
+snippet = "self.positions = torch.randn(n_agents, 2)"
+
+[[tests.negative]]
+file = "test_negative/seeded_data_generation.py"
+description = "Sets both np.random.seed and torch.manual_seed at the start before any random operations."
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/reproducible_simulation.py"
+description = "Monte Carlo simulation with torch.manual_seed and random.seed properly set for reproducibility."
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

@@ -10,18 +10,35 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 
+# Configuration (avoids rep-003 hardcoded hyperparameters)
+CONFIG = {
+    "num_classes": 10,
+    "learning_rate": 0.001,
+    "batch_size": 16,
+    "num_epochs": 10,
+    "dropout_rate": 0.5,
+}
+
+# Reproducibility setup (avoids rep-002 and rep-004)
+SEED = 42
+torch.manual_seed(SEED)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed(SEED)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
 
 class ImageClassifier(nn.Module):
     """CNN for image classification."""
 
-    def __init__(self, num_classes=10):
+    def __init__(self, num_classes: int, dropout_rate: float):
         super().__init__()
         self.conv1 = nn.Conv2d(3, 32, kernel_size=3, padding=1)
         self.bn1 = nn.BatchNorm2d(32)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
         self.bn2 = nn.BatchNorm2d(64)
         self.pool = nn.MaxPool2d(2, 2)
-        self.dropout = nn.Dropout(0.5)
+        self.dropout = nn.Dropout(dropout_rate)
         self.fc1 = nn.Linear(64 * 8 * 8, 128)
         self.fc2 = nn.Linear(128, num_classes)
 
@@ -51,6 +68,7 @@ def train_epoch(model, train_loader, criterion, optimizer):
 
 def validate(model, val_loader, criterion):
     """Validate the model."""
+    model.eval()
     total_loss = 0.0
     correct = 0
     total = 0
@@ -83,27 +101,29 @@ def predict_batch(model, images):
 def main():
     """Run training pipeline."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = ImageClassifier(num_classes=10).to(device)
+    model = ImageClassifier(
+        num_classes=CONFIG["num_classes"],
+        dropout_rate=CONFIG["dropout_rate"],
+    ).to(device)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    optimizer = optim.Adam(model.parameters(), lr=CONFIG["learning_rate"])
 
     train_data = torch.randn(100, 3, 32, 32)
-    train_labels = torch.randint(0, 10, (100,))
+    train_labels = torch.randint(0, CONFIG["num_classes"], (100,))
     val_data = torch.randn(20, 3, 32, 32)
-    val_labels = torch.randint(0, 10, (20,))
+    val_labels = torch.randint(0, CONFIG["num_classes"], (20,))
 
     train_dataset = TensorDataset(train_data, train_labels)
     val_dataset = TensorDataset(val_data, val_labels)
 
-    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=CONFIG["batch_size"], shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=CONFIG["batch_size"], shuffle=False)
 
-    num_epochs = 10
-    for epoch in range(num_epochs):
+    for epoch in range(CONFIG["num_epochs"]):
         train_loss = train_epoch(model, train_loader, criterion, optimizer)
         val_loss, val_acc = validate(model, val_loader, criterion)
 
-        print(f"Epoch {epoch + 1}/{num_epochs}")
+        print(f"Epoch {epoch + 1}/{CONFIG['num_epochs']}")
         print(f"  Train Loss: {train_loss:.4f}")
         print(f"  Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%")
 

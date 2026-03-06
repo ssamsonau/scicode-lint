@@ -92,7 +92,7 @@ class IntegrationJudgeEvaluator:
     def _load_config(self) -> dict[str, Any]:
         """Load expected findings configuration."""
         with open(self.config_path) as f:
-            return yaml.safe_load(f)
+            return yaml.safe_load(f)  # type: ignore[no-any-return]
 
     async def evaluate_finding(
         self,
@@ -104,7 +104,7 @@ class IntegrationJudgeEvaluator:
         prompt = generate_judge_prompt(expected_bug, finding, code_context)
 
         try:
-            response = await self.judge_llm.generate(
+            response = await self.judge_llm.generate(  # type: ignore[attr-defined]
                 system_prompt=JUDGE_SYSTEM_PROMPT,
                 user_prompt=prompt,
                 temperature=0.0,
@@ -176,7 +176,7 @@ class IntegrationJudgeEvaluator:
         # In a real implementation, use asyncio.gather to evaluate all in parallel
         import asyncio
 
-        async def evaluate_all():
+        async def evaluate_all() -> None:
             for expected_bug in expected_bugs:
                 # Find best matching finding for this bug
                 best_match = None
@@ -185,9 +185,11 @@ class IntegrationJudgeEvaluator:
                 # Simple heuristic: match by pattern ID first
                 expected_pattern = expected_bug["pattern"]
                 for finding in findings:
+                    loc = finding.location
+                    loc_name = getattr(loc, "name", str(loc)) if loc else "unknown"
                     finding_dict = {
                         "id": finding.id,
-                        "location": finding.location.name if finding.location else "unknown",
+                        "location": loc_name,
                         "confidence": finding.confidence,
                         "explanation": finding.explanation,
                     }
@@ -260,17 +262,18 @@ class IntegrationJudgeEvaluator:
 
     def run_all_scenarios(self, verbose: bool = False) -> dict[str, Any]:
         """Run all integration test scenarios with LLM judge."""
-        results = {
+        overall: dict[str, Any] = {
+            "total_scenarios": 0,
+            "passed": 0,
+            "failed": 0,
+            "total_bugs": 0,
+            "correct": 0,
+            "partial": 0,
+            "incorrect": 0,
+        }
+        results: dict[str, Any] = {
             "scenarios": {},
-            "overall": {
-                "total_scenarios": 0,
-                "passed": 0,
-                "failed": 0,
-                "total_bugs": 0,
-                "correct": 0,
-                "partial": 0,
-                "incorrect": 0,
-            },
+            "overall": overall,
         }
 
         for scenario_name, scenario_config in self.config["scenarios"].items():
@@ -283,27 +286,27 @@ class IntegrationJudgeEvaluator:
             results["scenarios"][scenario_name] = result
 
             # Update overall stats
-            results["overall"]["total_scenarios"] += 1
+            overall["total_scenarios"] += 1
             if result["passed"]:
-                results["overall"]["passed"] += 1
+                overall["passed"] += 1
             else:
-                results["overall"]["failed"] += 1
+                overall["failed"] += 1
 
-            results["overall"]["total_bugs"] += result.get("expected_count", 0)
-            results["overall"]["correct"] += result.get("correct", 0)
-            results["overall"]["partial"] += result.get("partial", 0)
-            results["overall"]["incorrect"] += result.get("incorrect", 0)
+            overall["total_bugs"] += result.get("expected_count", 0)
+            overall["correct"] += result.get("correct", 0)
+            overall["partial"] += result.get("partial", 0)
+            overall["incorrect"] += result.get("incorrect", 0)
 
         # Calculate overall metrics
-        total = results["overall"]["total_bugs"]
+        total: int = overall["total_bugs"]
         if total > 0:
-            results["overall"]["recall"] = results["overall"]["correct"] / total
-            results["overall"]["partial_credit_recall"] = (
-                results["overall"]["correct"] + 0.5 * results["overall"]["partial"]
+            overall["recall"] = overall["correct"] / total
+            overall["partial_credit_recall"] = (
+                overall["correct"] + 0.5 * overall["partial"]
             ) / total
         else:
-            results["overall"]["recall"] = 0.0
-            results["overall"]["partial_credit_recall"] = 0.0
+            overall["recall"] = 0.0
+            overall["partial_credit_recall"] = 0.0
 
         return results
 
@@ -315,8 +318,11 @@ class IntegrationJudgeEvaluator:
         overall = results["overall"]
         lines.append("## Overall Summary\n")
         lines.append(f"- **Scenarios**: {overall['passed']}/{overall['total_scenarios']} passed")
+        correct = overall['correct']
+        total_bugs = overall['total_bugs']
         lines.append(
-            f"- **Recall**: {overall['recall']:.1%} ({overall['correct']}/{overall['total_bugs']} bugs detected)"
+            f"- **Recall**: {overall['recall']:.1%} "
+            f"({correct}/{total_bugs} bugs detected)"
         )
         lines.append(f"- **Partial Credit Recall**: {overall['partial_credit_recall']:.1%}")
         lines.append(f"- **Correct**: {overall['correct']} bugs")
@@ -352,7 +358,7 @@ class IntegrationJudgeEvaluator:
         print(f"\nReport written to: {output_path}")
 
 
-def main():
+def main() -> int:
     """Run integration evaluations with LLM judge."""
     parser = argparse.ArgumentParser(description="Run integration evaluations with LLM-as-judge")
     parser.add_argument(

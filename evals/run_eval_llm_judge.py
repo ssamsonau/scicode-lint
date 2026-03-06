@@ -9,9 +9,11 @@ import asyncio
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from loguru import logger
+
+from scicode_lint.llm.client import LLMClient
 
 # Handle both module and script execution
 if __name__ == "__main__" and __package__ is None:
@@ -90,8 +92,9 @@ class DocstringExtractor:
                             return stripped[3:-3].strip()
                         docstring_lines.append(stripped[3:])
                 # End of docstring
-                elif in_docstring and quote_type in stripped:
-                    docstring_lines.append(stripped.replace(quote_type, ""))
+                elif in_docstring and quote_type is not None and quote_type in stripped:
+                    replaced = stripped.replace(quote_type, "") if quote_type else stripped
+                    docstring_lines.append(replaced)
                     break
                 # Inside docstring
                 elif in_docstring:
@@ -107,7 +110,7 @@ class DocstringExtractor:
 class LLMJudgeEvaluator:
     """Evaluate linter outputs using LLM as judge."""
 
-    def __init__(self, llm_client, patterns_dir: Path):
+    def __init__(self, llm_client: LLMClient, patterns_dir: Path):
         """
         Initialize evaluator.
 
@@ -209,7 +212,10 @@ class LLMJudgeEvaluator:
             }
 
     async def evaluate_test_file(
-        self, test_file: Path, test_type: str, pattern_id: str
+        self,
+        test_file: Path,
+        test_type: Literal["positive", "negative", "context_dependent"],
+        pattern_id: str,
     ) -> TestCaseEvaluation:
         """
         Evaluate a single test file using LLM judge.
@@ -311,7 +317,8 @@ class LLMJudgeEvaluator:
         logger.debug(f"Pattern directory: {pattern_id}, actual ID: {actual_pattern_id}")
 
         # Collect all test files
-        test_files = []
+        TestType = Literal["positive", "negative", "context_dependent"]
+        test_files: list[tuple[Path, TestType]] = []
 
         # Positive tests
         positive_dir = pattern_dir / "positive"
@@ -423,14 +430,15 @@ class JudgeReportGenerator:
             f"Overall Accuracy: {metrics.overall_accuracy:.2%}",
             f"Avg Judge Confidence: {metrics.avg_judge_confidence:.2f}",
             "",
-            f"Patterns Above Threshold (≥85%): {metrics.patterns_above_threshold}/{metrics.total_patterns}",
+            f"Patterns Above Threshold (≥85%): "
+            f"{metrics.patterns_above_threshold}/{metrics.total_patterns}",
             "",
             "=" * 70,
         ]
         return "\n".join(lines)
 
     @staticmethod
-    def save_json_report(metrics: OverallJudgeMetrics, output_path: Path):
+    def save_json_report(metrics: OverallJudgeMetrics, output_path: Path) -> None:
         """Save metrics as JSON."""
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, "w") as f:
@@ -438,7 +446,7 @@ class JudgeReportGenerator:
         logger.info(f"JSON report saved to {output_path}")
 
     @staticmethod
-    def save_markdown_report(metrics: OverallJudgeMetrics, output_path: Path):
+    def save_markdown_report(metrics: OverallJudgeMetrics, output_path: Path) -> None:
         """Save metrics as Markdown."""
         lines = [
             "# LLM-as-Judge Evaluation Report",
@@ -474,7 +482,7 @@ class JudgeReportGenerator:
         logger.info(f"Markdown report saved to {output_path}")
 
 
-async def main():
+async def main() -> int:
     """Main evaluation runner."""
     parser = argparse.ArgumentParser(
         description="Run LLM-as-judge evaluation for scicode-lint patterns"
@@ -508,6 +516,11 @@ async def main():
         default="http://localhost:5001",
         help="LLM API base URL (without /v1 suffix)",
     )
+    parser.add_argument(
+        "--no-auto-server",
+        action="store_true",
+        help="Don't auto-start vLLM server (assume already running)",
+    )
 
     args = parser.parse_args()
 
@@ -515,107 +528,146 @@ async def main():
     logger.remove()
     logger.add(sys.stderr, level="INFO", format="<level>{message}</level>")
 
-    # Setup LLM client for judge
-    llm_config = LLMConfig(base_url=args.llm_base_url, temperature=0.0)
-    llm_client = create_client(llm_config)
+    # Auto-start vLLM server if needed
+    vllm_server = None
+    if not args.no_auto_server:
+        try:
+            from scicode_lint.vllm import VLLMServer, get_server_info
 
-    # Create evaluator
-    evaluator = LLMJudgeEvaluator(llm_client, args.patterns_dir)
+            # Extract port from base URL
+            port = int(args.llm_base_url.split(":")[-1])
 
-    # Determine which patterns to evaluate
-    if args.patterns:
-        pattern_ids = args.patterns
-    else:
-        # Find all patterns
-        pattern_ids = []
-        for category_dir in args.patterns_dir.iterdir():
-            if category_dir.is_dir() and not category_dir.name.startswith("."):
-                for pattern_dir in category_dir.iterdir():
-                    if pattern_dir.is_dir() and (pattern_dir / "pattern.toml").exists():
-                        pattern_ids.append(pattern_dir.name)
+            # Check if server is already running
+            server_info = get_server_info(base_url=args.llm_base_url)
+            if server_info.is_running:
+                logger.info(f"vLLM server already running at {server_info.base_url}")
+            else:
+                logger.info("Starting vLLM server automatically...")
+                vllm_server = VLLMServer(port=port, wait_timeout=120)
+                vllm_server.__enter__()
+                logger.info(f"vLLM server ready at {vllm_server.base_url}")
+        except ImportError:
+            logger.warning("vLLM utilities not available, assuming server is running")
+        except Exception as e:
+            logger.error(f"Failed to start vLLM server: {e}")
+            logger.info("Try running with --no-auto-server if server is already running")
+            return 1
 
-    logger.info(f"Evaluating {len(pattern_ids)} patterns")
+    try:
+        # Setup LLM client for judge
+        llm_config = LLMConfig(base_url=args.llm_base_url, temperature=0.0)
+        llm_client = create_client(llm_config)
 
-    # Evaluate patterns
-    pattern_metrics = []
-    for pattern_id in pattern_ids:
-        logger.info(f"Evaluating pattern: {pattern_id}")
-        metrics = await evaluator.evaluate_pattern(pattern_id)
-        if metrics:
-            pattern_metrics.append(metrics)
+        # Create evaluator
+        evaluator = LLMJudgeEvaluator(llm_client, args.patterns_dir)
 
-    if not pattern_metrics:
-        logger.error("No patterns were evaluated")
-        return 1
+        # Determine which patterns to evaluate
+        if args.patterns:
+            pattern_ids = args.patterns
+        else:
+            # Find all patterns
+            pattern_ids = []
+            for category_dir in args.patterns_dir.iterdir():
+                if category_dir.is_dir() and not category_dir.name.startswith("."):
+                    for pattern_dir in category_dir.iterdir():
+                        if pattern_dir.is_dir() and (pattern_dir / "pattern.toml").exists():
+                            pattern_ids.append(pattern_dir.name)
 
-    # Calculate overall metrics
-    total_tests = sum(p.total_tests for p in pattern_metrics)
-    total_correct = sum(p.correct_count for p in pattern_metrics)
-    total_partial = sum(p.partial_count for p in pattern_metrics)
+        logger.info(f"Evaluating {len(pattern_ids)} patterns")
 
-    # Aggregate by test type
-    all_positive = [e for p in pattern_metrics for e in p.evaluations if e.test_type == "positive"]
-    all_negative = [e for p in pattern_metrics for e in p.evaluations if e.test_type == "negative"]
-    all_context = [
-        e for p in pattern_metrics for e in p.evaluations if e.test_type == "context_dependent"
-    ]
+        # Evaluate patterns
+        pattern_metrics = []
+        for pattern_id in pattern_ids:
+            logger.info(f"Evaluating pattern: {pattern_id}")
+            metrics = await evaluator.evaluate_pattern(pattern_id)
+            if metrics:
+                pattern_metrics.append(metrics)
 
-    positive_accuracy = (
-        sum(1 for e in all_positive if e.judge_verdict == "yes") / len(all_positive)
-        if all_positive
-        else 0.0
-    )
-    negative_accuracy = (
-        sum(1 for e in all_negative if e.judge_verdict == "yes") / len(all_negative)
-        if all_negative
-        else 0.0
-    )
-    context_accuracy = (
-        sum(1 for e in all_context if e.judge_verdict in ["yes", "partial"]) / len(all_context)
-        if all_context
-        else 1.0
-    )
+        if not pattern_metrics:
+            logger.error("No patterns were evaluated")
+            return 1
 
-    overall_accuracy = (total_correct + 0.5 * total_partial) / total_tests
+        # Calculate overall metrics
+        total_tests = sum(p.total_tests for p in pattern_metrics)
+        total_correct = sum(p.correct_count for p in pattern_metrics)
+        total_partial = sum(p.partial_count for p in pattern_metrics)
 
-    # Average judge confidence
-    all_evals = [e for p in pattern_metrics for e in p.evaluations]
-    avg_confidence = sum(e.judge_confidence for e in all_evals) / len(all_evals)
+        # Aggregate by test type
+        all_positive = [
+            e for p in pattern_metrics for e in p.evaluations if e.test_type == "positive"
+        ]
+        all_negative = [
+            e for p in pattern_metrics for e in p.evaluations if e.test_type == "negative"
+        ]
+        all_context = [
+            e for p in pattern_metrics for e in p.evaluations if e.test_type == "context_dependent"
+        ]
 
-    # Patterns above threshold
-    patterns_above_threshold = sum(1 for p in pattern_metrics if p.overall_accuracy >= 0.85)
+        positive_accuracy = (
+            sum(1 for e in all_positive if e.judge_verdict == "yes") / len(all_positive)
+            if all_positive
+            else 0.0
+        )
+        negative_accuracy = (
+            sum(1 for e in all_negative if e.judge_verdict == "yes") / len(all_negative)
+            if all_negative
+            else 0.0
+        )
+        context_accuracy = (
+            sum(1 for e in all_context if e.judge_verdict in ["yes", "partial"]) / len(all_context)
+            if all_context
+            else 1.0
+        )
 
-    overall_metrics = OverallJudgeMetrics(
-        total_patterns=len(pattern_metrics),
-        total_tests=total_tests,
-        positive_accuracy=positive_accuracy,
-        negative_accuracy=negative_accuracy,
-        context_accuracy=context_accuracy,
-        overall_accuracy=overall_accuracy,
-        patterns=pattern_metrics,
-        avg_judge_confidence=avg_confidence,
-        patterns_above_threshold=patterns_above_threshold,
-    )
+        overall_accuracy = (total_correct + 0.5 * total_partial) / total_tests
 
-    # Determine output directory
-    if args.output_dir is None:
-        output_dir = args.patterns_dir.parent / "evals" / "reports" / "judge"
-    else:
-        output_dir = args.output_dir
+        # Average judge confidence
+        all_evals = [e for p in pattern_metrics for e in p.evaluations]
+        avg_confidence = sum(e.judge_confidence for e in all_evals) / len(all_evals)
 
-    # Generate reports
-    reporter = JudgeReportGenerator()
+        # Patterns above threshold
+        patterns_above_threshold = sum(1 for p in pattern_metrics if p.overall_accuracy >= 0.85)
 
-    if args.format in ["json", "all"]:
-        reporter.save_json_report(overall_metrics, output_dir / "llm_judge_report.json")
+        overall_metrics = OverallJudgeMetrics(
+            total_patterns=len(pattern_metrics),
+            total_tests=total_tests,
+            positive_accuracy=positive_accuracy,
+            negative_accuracy=negative_accuracy,
+            context_accuracy=context_accuracy,
+            overall_accuracy=overall_accuracy,
+            patterns=pattern_metrics,
+            avg_judge_confidence=avg_confidence,
+            patterns_above_threshold=patterns_above_threshold,
+        )
 
-    if args.format in ["markdown", "all"]:
-        reporter.save_markdown_report(overall_metrics, output_dir / "llm_judge_report.md")
+        # Determine output directory
+        if args.output_dir is None:
+            output_dir = args.patterns_dir.parent / "evals" / "reports" / "judge"
+        else:
+            output_dir = args.output_dir
 
-    # Print summary
-    print(reporter.generate_summary_text(overall_metrics))
+        # Generate reports
+        reporter = JudgeReportGenerator()
 
-    return 0
+        if args.format in ["json", "all"]:
+            reporter.save_json_report(overall_metrics, output_dir / "llm_judge_report.json")
+
+        if args.format in ["markdown", "all"]:
+            reporter.save_markdown_report(overall_metrics, output_dir / "llm_judge_report.md")
+
+        # Print summary
+        print(reporter.generate_summary_text(overall_metrics))
+
+        return 0
+
+    finally:
+        # Cleanup vLLM server if we started it
+        if vllm_server is not None:
+            try:
+                vllm_server.__exit__(None, None, None)
+                logger.info("vLLM server stopped")
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":

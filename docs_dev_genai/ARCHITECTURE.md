@@ -4,6 +4,79 @@ Core design decisions for building an effective AI-powered linter.
 
 ---
 
+## 0. Foundational Principle: Two-Tier LLM Strategy
+
+scicode-lint uses **different models for different purposes**:
+
+### Runtime: Constrained-Capacity Local LLM (Gemma 3 12B)
+
+**For bug detection at runtime**, we use a local 12B model. This is the middle ground between:
+- **Grep-style pattern matching** (traditional linters): Fast but rigid, misses semantic issues
+- **Expensive SOTA cloud reasoning**: Deep understanding but costly, privacy concerns, vendor lock-in
+
+Our runtime approach:
+- **Local execution**: Privacy, no API costs, works offline
+- **Fast inference**: vLLM with prefix caching, all patterns in parallel
+- **Acceptable accuracy**: Well-designed detection questions that smaller models can handle
+
+### Development: SOTA Cloud Reasoning Models
+
+**For developing and improving patterns**, use the best available reasoning models (Claude, etc.):
+- Writing and refining detection questions
+- Creating comprehensive test cases
+- Reviewing pattern quality
+- Analyzing detection failures
+- Code generation and refactoring
+
+The Pattern Reviewer agent (`.claude/agents/pattern-reviewer/`) uses SOTA models to ensure patterns are well-designed for the constrained runtime model.
+
+**The key insight**: Invest upfront in high-quality pattern design (using SOTA models) so the local model can reliably execute simple instructions at runtime.
+
+### Detection Question Design
+
+Detection questions must be written FOR constrained-capacity models:
+
+1. **Ask about the BUG directly** - "Is X MISSING?" not "Does it have X?"
+2. **YES = BUG, NO = OK** - The answer directly indicates bug presence
+3. **Simple and direct** - One search, one check, binary answer
+4. **No complex reasoning** - If the model needs to "think about it," simplify
+
+**Think of it as: "Would a junior developer following these exact instructions catch this bug?"**
+
+### Standard Detection Question Format
+
+```toml
+question = """
+Find X() calls in the code.
+Is Y= parameter MISSING?
+
+YES = Y is MISSING (BUG)
+NO = has Y, OR no X exists
+"""
+```
+
+**NOT:**
+```toml
+# WRONG - contradictory mapping
+question = """
+Find X() calls in the code.
+Does it have Y= parameter?
+
+YES = X found WITHOUT Y (BUG)  # <-- asks "have Y?" but YES means "without Y"
+"""
+
+# WRONG - too complex
+question = """
+Answer YES ONLY if you see EXPLICIT evidence of...
+Consider the context...
+The pattern might be handled externally...
+"""
+```
+
+This principle affects everything else in this document - all architectural decisions support reliable detection with a constrained-capacity local model.
+
+---
+
 ## 1. Prompt Structure: Code First (Critical for Performance)
 
 **Principle:** User code MUST come before detection instructions in prompts.

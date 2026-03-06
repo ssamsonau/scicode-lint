@@ -26,9 +26,11 @@ references = []
 
 [detection]
 question = """
-Does the code call fit_transform(X_test) or fit(X_test) where X_test is test data from train_test_split?
+Find fit_transform() or fit() calls on test data.
+Is fit() or fit_transform() incorrectly called on test data?
 
-This is data leakage because the test set should not be used to fit preprocessing - only transform() should be applied to test data using statistics learned from training data.
+YES = fit() or fit_transform() called on X_test (BUG)
+NO = fit on X_train then transform on X_test, OR uses Pipeline
 """
 
 warning_message = """

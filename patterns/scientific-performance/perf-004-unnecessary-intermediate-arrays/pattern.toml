@@ -1,0 +1,82 @@
+# Pattern: perf-004-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "perf-004"
+name = "unnecessary-intermediate-arrays"
+category = "scientific-performance"
+severity = "high"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Creating large intermediate arrays (e.g., squared = diff ** 2; summed = np.sum(squared)) wastes memory when optimized functions exist. Use np.linalg.norm() instead of manual norm computation, or in-place operations to avoid temporary allocations.
+"""
+
+explanation = """
+Materializing large intermediate arrays wastes memory. Use np.linalg.norm or in-place operations to avoid temporary allocations.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Find manual norm computations like "squared = arr ** 2" followed by "np.sum(squared)" then "np.sqrt()".
+Does the code create large intermediate arrays instead of using np.linalg.norm()?
+
+YES = unnecessary intermediate arrays found (BUG)
+NO = no such patterns exist
+"""
+
+warning_message = """
+Materializing large intermediate arrays wastes memory. Use np.linalg.norm or in-place operations to avoid temporary allocations.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/intermediate_array_creation.py"
+description = "Creates multiple large intermediate arrays (diff, squared, summed) when np.linalg.norm would avoid all temporaries"
+expected_issue = "Multiple large intermediate arrays created for norm computation"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "compute_normalized_distance"
+snippet = "squared = diff ** 2"
+
+[[tests.positive]]
+file = "test_positive/manual_norm_computation.py"
+description = "Manually computes norms with squared_matrix and row_sums intermediates - wastes memory on large arrays"
+expected_issue = "Large intermediate arrays for manual norm calculation"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "calculate_vector_norms"
+snippet = "squared_matrix = matrix ** 2"
+
+[[tests.negative]]
+file = "test_negative/linalg_norm.py"
+description = "Uses np.linalg.norm which avoids materializing intermediate arrays - memory efficient"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/inplace_operations.py"
+description = "Uses in-place operations with -= and /= to avoid creating temporary arrays"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

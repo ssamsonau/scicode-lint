@@ -45,17 +45,16 @@ scenarios:
         description: "Training loop missing optimizer.zero_grad()"
 
   pytorch_training_issues:
-    description: "PyTorch training loop with 4 common mistakes"
+    description: "PyTorch training loop with 3 common mistakes"
     file: "scenarios/pytorch_training_issues.py"
 
     expected_patterns:
       pt-001: 1   # Line 41-48: train_epoch without model.train() - missing train mode
-      pt-002: 1   # Line 52-71: validate without model.eval() - missing eval mode
       pt-004: 1   # Line 42-46: missing optimizer.zero_grad() - missing zero grad
       pt-007: 1   # Line 74-80: predict_batch without model.eval() - inference without eval
 
-    min_total_findings: 4
-    max_total_findings: 4
+    min_total_findings: 3
+    max_total_findings: 3
     max_false_positives: 0
 
     bugs:
@@ -66,10 +65,6 @@ scenarios:
       - line: 42
         pattern: pt-004
         description: "Training loop missing optimizer.zero_grad()"
-
-      - line: 52
-        pattern: pt-002
-        description: "validate function missing model.eval()"
 
       - line: 74
         pattern: pt-007

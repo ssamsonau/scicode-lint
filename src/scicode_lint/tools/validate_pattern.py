@@ -4,7 +4,7 @@ Validate pattern.toml files and directory structure.
 
 Checks for:
 - Valid TOML syntax and structure
-- Required directories (positive, negative, context_dependent)
+- Required directories (test_positive, test_negative, test_context_dependent)
 - Test file references exist
 - ID matches directory name
 - Category matches parent directory
@@ -58,36 +58,42 @@ class PatternValidator:
         except Exception as e:
             return False, [f"Failed to parse TOML: {e}"]
 
-        # Validate required directories exist
-        for dirname in ["positive", "negative", "context_dependent"]:
+        # Validate required directories (test_positive/test_negative required)
+        for dirname in ["test_positive", "test_negative"]:
             dir_path = pattern_dir / dirname
             if not dir_path.exists():
                 errors.append(f"Missing {dirname}/ directory")
 
+        # test_context_dependent is optional
+        context_dir = pattern_dir / "test_context_dependent"
+        if not context_dir.exists() and pattern.tests.context_dependent:
+            errors.append("Missing test_context_dependent/ directory (referenced in pattern.toml)")
+
         # Validate test file references (skip placeholder files)
-        for test in pattern.tests.positive:
+        for pos_test in pattern.tests.positive:
             # Skip validation for placeholder test files
-            if test.file == "positive/example.py":
+            if pos_test.file in ("positive/example.py", "test_positive/example.py"):
                 continue
-            test_path = pattern_dir / test.file
+            test_path = pattern_dir / pos_test.file
             if not test_path.exists():
-                errors.append(f"Positive test file not found: {test.file}")
+                errors.append(f"Positive test file not found: {pos_test.file}")
 
-        for test in pattern.tests.negative:
+        for neg_test in pattern.tests.negative:
             # Skip validation for placeholder test files
-            if test.file == "negative/example.py":
+            if neg_test.file in ("negative/example.py", "test_negative/example.py"):
                 continue
-            test_path = pattern_dir / test.file
+            test_path = pattern_dir / neg_test.file
             if not test_path.exists():
-                errors.append(f"Negative test file not found: {test.file}")
+                errors.append(f"Negative test file not found: {neg_test.file}")
 
-        for test in pattern.tests.context_dependent:
+        for ctx_test in pattern.tests.context_dependent:
             # Skip validation for placeholder test files
-            if test.file == "context_dependent/example.py":
+            ctx_placeholders = ("context_dependent/example.py", "test_context_dependent/example.py")
+            if ctx_test.file in ctx_placeholders:
                 continue
-            test_path = pattern_dir / test.file
+            test_path = pattern_dir / ctx_test.file
             if not test_path.exists():
-                errors.append(f"Context-dependent test file not found: {test.file}")
+                errors.append(f"Context-dependent test file not found: {ctx_test.file}")
 
         # Validate ID matches directory name
         if pattern.meta.id not in pattern_dir.name:
@@ -127,7 +133,7 @@ class PatternValidator:
         Returns:
             dictionary with validation results
         """
-        results = {"total": 0, "valid": 0, "invalid": 0, "errors": {}}
+        results: dict[str, Any] = {"total": 0, "valid": 0, "invalid": 0, "errors": {}}
 
         if not self.patterns_dir.exists():
             print(f"ERROR: Patterns directory not found: {self.patterns_dir}")
@@ -147,16 +153,17 @@ class PatternValidator:
                 if not pattern_dir.is_dir():
                     continue
 
-                results["total"] += 1
+                results["total"] = int(results["total"]) + 1
                 is_valid, errors = self.validate_pattern(pattern_dir)
 
                 if is_valid:
-                    results["valid"] += 1
+                    results["valid"] = int(results["valid"]) + 1
                     if verbose:
                         print(f"  ✓ {pattern_dir.name}")
                 else:
-                    results["invalid"] += 1
-                    results["errors"][str(pattern_dir)] = errors
+                    results["invalid"] = int(results["invalid"]) + 1
+                    errors_dict: dict[str, list[str]] = results["errors"]
+                    errors_dict[str(pattern_dir)] = errors
                     if verbose:
                         print(f"  ✗ {pattern_dir.name}")
                         for err in errors:
@@ -164,7 +171,7 @@ class PatternValidator:
 
         return results
 
-    def print_summary(self, results: dict[str, Any]):
+    def print_summary(self, results: dict[str, Any]) -> int:
         """Print validation summary."""
         print("\n" + "=" * 60)
         print("VALIDATION SUMMARY")
@@ -182,7 +189,7 @@ class PatternValidator:
             return 0
 
 
-def main():
+def main() -> int:
     """CLI entry point."""
     parser = argparse.ArgumentParser(
         description="Validate pattern.toml files and directory structure",

@@ -71,3 +71,8 @@ evals/integration/integration_report.md
 evals/*_2026-*.md
 evals/SESSION_SUMMARY.md
 evals/ML_PATTERNS_TEST_STATUS.md
+
+# Project statistics (generated on-demand, not tracked)
+PROJECT_STATS.md
+PROJECT_STATS.json
+stats/

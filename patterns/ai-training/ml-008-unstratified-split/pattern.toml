@@ -26,7 +26,11 @@ references = []
 
 [detection]
 question = """
-Is train_test_split or KFold used without stratification (missing stratify parameter or not using StratifiedKFold) in code that appears to be doing classification (uses classifiers like LogisticRegression, RandomForestClassifier, or metrics like 'roc_auc', 'precision', 'recall', 'f1')?
+Find train_test_split() or KFold() calls in classification code.
+Is stratification MISSING for classification split?
+
+YES = classification split WITHOUT stratify or StratifiedKFold (BUG)
+NO = has stratify=y, OR uses StratifiedKFold, OR regression task
 """
 
 warning_message = """

@@ -20,7 +20,7 @@ from loguru import logger
 
 def get_system_info() -> dict[str, Any]:
     """Collect system information."""
-    info = {
+    info: dict[str, Any] = {
         "timestamp": datetime.now().isoformat(),
         "platform": platform.platform(),
         "processor": platform.processor(),
@@ -58,7 +58,7 @@ def check_llm_backend() -> dict[str, Any]:
     """Check which LLM backend is available and get info."""
     import httpx
 
-    backend_info = {"available": False, "backend": None, "url": None}
+    backend_info: dict[str, Any] = {"available": False, "backend": None, "url": None}
 
     # Try vLLM
     for url in ["http://localhost:5001", "http://localhost:8000"]:

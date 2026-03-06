@@ -1,0 +1,79 @@
+# Pattern: pt-012-gradient-accumulation-without-scaling
+
+[meta]
+id = "pt-012"
+name = "gradient-accumulation-without-scaling"
+category = "ai-training"
+severity = "high"
+version = "1.0.0"
+created = "2026-03-06"
+updated = "2026-03-06"
+author = "scicode-lint"
+
+description = """
+Gradient accumulation without proper loss scaling causes incorrect gradient magnitudes. When accumulating gradients over N steps to simulate larger batch sizes, the loss must be divided by N to maintain correct gradient scale. Without scaling, effective learning rate is N times higher than intended.
+"""
+
+explanation = """
+Gradient accumulation without loss scaling: accumulating over N steps without dividing loss by N results in gradients N times larger than intended. This causes unstable training or requires compensating with smaller learning rate. Divide loss by accumulation_steps before backward().
+"""
+
+tags = ["pytorch", "training", "gradients", "gradient-accumulation", "batch-size"]
+related_patterns = ["pt-004", "pt-008"]
+references = ["https://pytorch.org/docs/stable/notes/amp_examples.html#gradient-accumulation"]
+
+[detection]
+question = """
+Find gradient accumulation patterns (multiple backward() before optimizer.step()).
+Is loss NOT divided by accumulation_steps?
+
+YES = gradient accumulation WITHOUT loss scaling (BUG)
+NO = loss divided by accumulation_steps, OR no gradient accumulation exists
+"""
+
+warning_message = """
+Gradient accumulation without loss scaling: accumulating over N steps without dividing loss by N results in gradients N times larger than intended. Divide loss by accumulation_steps before calling backward().
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/unscaled_accumulation.py"
+description = "Gradient accumulation loop calling backward() multiple times before optimizer.step() without dividing loss"
+expected_issue = "Gradient accumulation without loss scaling causes N times larger gradients"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "train_with_accumulation"
+snippet = "loss.backward()"
+
+[[tests.positive]]
+file = "test_positive/accumulate_without_division.py"
+description = "Training loop with modulo condition for optimizer.step() but loss not scaled by accumulation factor"
+expected_issue = "Loss not divided by accumulation_steps before backward"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "training_loop"
+snippet = "if (step + 1) % accumulation_steps == 0:"
+
+[[tests.negative]]
+file = "test_negative/scaled_accumulation.py"
+description = "Correct gradient accumulation with loss divided by accumulation_steps before backward()"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/no_accumulation.py"
+description = "Standard training loop without gradient accumulation - single backward per step"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

@@ -18,7 +18,6 @@ Quick guide to find the right documentation for your needs.
 **Performance:**
 - [docs_use_human/performance/BENCHMARKING.md](docs_use_human/performance/BENCHMARKING.md) - Benchmarking guide
 - [docs_use_human/performance/CONCURRENCY_GUIDE.md](docs_use_human/performance/CONCURRENCY_GUIDE.md) - Concurrency optimization
-- [docs_use_human/performance/CONCURRENCY_SUMMARY.md](docs_use_human/performance/CONCURRENCY_SUMMARY.md) - Summary
 
 **Contributing:**
 - [CONTRIBUTING.md](CONTRIBUTING.md) - How to contribute
@@ -73,8 +72,7 @@ Quick guide to find the right documentation for your needs.
 │   ├── VRAM_REQUIREMENTS.md
 │   └── performance/
 │       ├── BENCHMARKING.md
-│       ├── CONCURRENCY_GUIDE.md
-│       └── CONCURRENCY_SUMMARY.md
+│       └── CONCURRENCY_GUIDE.md
 │
 ├── docs_use_genai/               # GenAI agents USING scicode-lint
 │   ├── README.md
@@ -105,8 +103,11 @@ Quick guide to find the right documentation for your needs.
 │       ├── run_integration_eval.py # Hardcoded ground truth
 │       └── run_integration_eval_llm_judge.py  # LLM-as-judge
 │
-└── benchmarks/                     # Performance benchmarks
-    └── README.md
+├── benchmarks/                     # Performance benchmarks
+│   └── README.md
+│
+└── scripts/                        # Utility scripts
+    └── project_stats_generate.py   # Project statistics generator (--help for usage)
 ```
 
 ---
@@ -136,3 +137,6 @@ Quick guide to find the right documentation for your needs.
 
 ### "I want to run evaluations"
 → [evals/README.md](evals/README.md) (pattern-specific) → [evals/integration/README.md](evals/integration/README.md) (multi-pattern)
+
+### "I need project statistics"
+→ Run `python scripts/project_stats_generate.py --help`

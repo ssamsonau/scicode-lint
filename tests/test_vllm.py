@@ -23,7 +23,7 @@ from scicode_lint.vllm import (
 class TestIsRunning:
     """Tests for is_running function."""
 
-    def test_is_running_when_server_responds(self):
+    def test_is_running_when_server_responds(self) -> None:
         """Should return True when server health endpoint returns 200."""
         with patch("requests.get") as mock_get:
             mock_response = Mock()
@@ -33,14 +33,14 @@ class TestIsRunning:
             assert is_running("http://localhost:5001") is True
             mock_get.assert_called_once_with("http://localhost:5001/health", timeout=2)
 
-    def test_is_running_when_server_down(self):
+    def test_is_running_when_server_down(self) -> None:
         """Should return False when server is not responding."""
         with patch("requests.get") as mock_get:
             mock_get.side_effect = requests.RequestException("Connection refused")
 
             assert is_running("http://localhost:5001") is False
 
-    def test_is_running_with_non_200_status(self):
+    def test_is_running_with_non_200_status(self) -> None:
         """Should return False when server returns non-200 status."""
         with patch("requests.get") as mock_get:
             mock_response = Mock()
@@ -53,16 +53,16 @@ class TestIsRunning:
 class TestWaitForReady:
     """Tests for wait_for_ready function."""
 
-    def test_wait_for_ready_immediate(self):
+    def test_wait_for_ready_immediate(self) -> None:
         """Should return True immediately if server is ready."""
         with patch("scicode_lint.vllm.is_running", return_value=True):
             assert wait_for_ready(timeout=5) is True
 
-    def test_wait_for_ready_after_delay(self):
+    def test_wait_for_ready_after_delay(self) -> None:
         """Should return True after server becomes ready."""
         call_count = [0]
 
-        def mock_is_running(_):
+        def mock_is_running(_: str) -> bool:
             call_count[0] += 1
             return call_count[0] >= 3  # Ready on third call
 
@@ -70,7 +70,7 @@ class TestWaitForReady:
             with patch("time.sleep"):  # Speed up test
                 assert wait_for_ready(timeout=10, check_interval=0.1) is True
 
-    def test_wait_for_ready_timeout(self):
+    def test_wait_for_ready_timeout(self) -> None:
         """Should return False if timeout reached."""
         with patch("scicode_lint.vllm.is_running", return_value=False):
             with patch("time.sleep"):  # Speed up test
@@ -80,20 +80,20 @@ class TestWaitForReady:
 class TestStartServer:
     """Tests for start_server function."""
 
-    def test_start_server_raises_if_already_running(self):
+    def test_start_server_raises_if_already_running(self) -> None:
         """Should raise RuntimeError if server already running on port."""
         with patch("scicode_lint.vllm.is_running", return_value=True):
             with pytest.raises(RuntimeError, match="Server already running on port 5001"):
                 start_server(port=5001)
 
-    def test_start_server_raises_if_vllm_not_found(self):
+    def test_start_server_raises_if_vllm_not_found(self) -> None:
         """Should raise FileNotFoundError if vllm command not found."""
         with patch("scicode_lint.vllm.is_running", return_value=False):
             with patch("subprocess.Popen", side_effect=FileNotFoundError):
                 with pytest.raises(FileNotFoundError, match="vllm command not found"):
                     start_server()
 
-    def test_start_server_success(self):
+    def test_start_server_success(self) -> None:
         """Should start server and return process."""
         with patch("scicode_lint.vllm.is_running", return_value=False):
             with patch("scicode_lint.vllm._check_vllm_version"):
@@ -106,7 +106,7 @@ class TestStartServer:
 
                         assert proc == mock_proc
 
-    def test_start_server_with_wait(self):
+    def test_start_server_with_wait(self) -> None:
         """Should wait for server to be ready when wait=True."""
         with patch("scicode_lint.vllm.is_running", return_value=False):
             with patch("scicode_lint.vllm._check_vllm_version"):
@@ -119,7 +119,7 @@ class TestStartServer:
                             proc = start_server(wait=True)
                             assert proc == mock_proc
 
-    def test_start_server_wait_timeout(self):
+    def test_start_server_wait_timeout(self) -> None:
         """Should raise TimeoutError if server doesn't start in time."""
         with patch("scicode_lint.vllm.is_running", return_value=False):
             with patch("scicode_lint.vllm._check_vllm_version"):
@@ -137,7 +137,7 @@ class TestStartServer:
 class TestStopServer:
     """Tests for stop_server function."""
 
-    def test_stop_server_graceful(self):
+    def test_stop_server_graceful(self) -> None:
         """Should terminate process gracefully."""
         mock_proc = Mock(spec=subprocess.Popen)
         mock_proc.poll.return_value = None  # Still running
@@ -148,7 +148,7 @@ class TestStopServer:
         mock_proc.terminate.assert_called_once()
         mock_proc.wait.assert_called_once_with(timeout=10)
 
-    def test_stop_server_force_kill_on_timeout(self):
+    def test_stop_server_force_kill_on_timeout(self) -> None:
         """Should force kill if graceful termination times out."""
         mock_proc = Mock(spec=subprocess.Popen)
         mock_proc.poll.return_value = None
@@ -162,7 +162,7 @@ class TestStopServer:
         mock_proc.terminate.assert_called_once()
         mock_proc.kill.assert_called_once()
 
-    def test_stop_server_already_stopped(self):
+    def test_stop_server_already_stopped(self) -> None:
         """Should do nothing if process already stopped."""
         mock_proc = Mock(spec=subprocess.Popen)
         mock_proc.poll.return_value = 0  # Already stopped
@@ -175,7 +175,7 @@ class TestStopServer:
 class TestVLLMServerContextManager:
     """Tests for VLLMServer context manager."""
 
-    def test_local_server_not_running_starts_and_stops(self):
+    def test_local_server_not_running_starts_and_stops(self) -> None:
         """Should start local server if not running, stop on exit."""
         mock_proc = Mock(spec=subprocess.Popen)
 
@@ -187,7 +187,7 @@ class TestVLLMServerContextManager:
 
                     mock_stop.assert_called_once_with(mock_proc)
 
-    def test_local_server_already_running_reuses(self):
+    def test_local_server_already_running_reuses(self) -> None:
         """Should reuse local server if already running, not stop on exit."""
         with patch("scicode_lint.vllm.is_running", return_value=True):
             with patch("scicode_lint.vllm.requests.get") as mock_get:
@@ -205,7 +205,7 @@ class TestVLLMServerContextManager:
                         mock_start.assert_not_called()
                         mock_stop.assert_not_called()
 
-    def test_local_server_wrong_model_warns(self):
+    def test_local_server_wrong_model_warns(self) -> None:
         """Should warn if local server running with different model."""
         with patch("scicode_lint.vllm.is_running", return_value=True):
             with patch("scicode_lint.vllm.requests.get") as mock_get:
@@ -224,7 +224,7 @@ class TestVLLMServerContextManager:
                     assert "running with model 'different-model'" in str(w[0].message)
                     assert issubclass(w[0].category, RuntimeWarning)
 
-    def test_remote_server_running_reuses(self):
+    def test_remote_server_running_reuses(self) -> None:
         """Should reuse remote server if running."""
         with patch("scicode_lint.vllm.is_running", return_value=True):
             with patch("scicode_lint.vllm.start_server") as mock_start:
@@ -235,14 +235,14 @@ class TestVLLMServerContextManager:
                     mock_start.assert_not_called()
                     mock_stop.assert_not_called()
 
-    def test_remote_server_not_running_raises(self):
+    def test_remote_server_not_running_raises(self) -> None:
         """Should raise error if remote server not reachable."""
         with patch("scicode_lint.vllm.is_running", return_value=False):
             with pytest.raises(RuntimeError, match="Remote vLLM server not reachable"):
                 with VLLMServer(base_url="http://remote:5001"):
                     pass
 
-    def test_context_manager_exception_still_stops_server(self):
+    def test_context_manager_exception_still_stops_server(self) -> None:
         """Should stop server even if exception raised in context."""
         mock_proc = Mock(spec=subprocess.Popen)
 
@@ -260,7 +260,7 @@ class TestVLLMServerContextManager:
 class TestGetGPUInfo:
     """Tests for get_gpu_info function."""
 
-    def test_get_gpu_info_success(self):
+    def test_get_gpu_info_success(self) -> None:
         """Should parse nvidia-smi output correctly."""
         mock_result = Mock()
         mock_result.stdout = "NVIDIA RTX 4000 Ada, 20480, 4096, 16384, 15"
@@ -279,13 +279,13 @@ class TestGetGPUInfo:
             assert info.utilization_percent == 15
             assert info.cuda_version == "535.183.01"
 
-    def test_get_gpu_info_nvidia_smi_not_found(self):
+    def test_get_gpu_info_nvidia_smi_not_found(self) -> None:
         """Should return None if nvidia-smi not found."""
         with patch("subprocess.run", side_effect=FileNotFoundError):
             info = get_gpu_info()
             assert info is None
 
-    def test_get_gpu_info_parse_error(self):
+    def test_get_gpu_info_parse_error(self) -> None:
         """Should return None if parsing fails."""
         mock_result = Mock()
         mock_result.stdout = "invalid output"
@@ -298,7 +298,7 @@ class TestGetGPUInfo:
 class TestGetServerInfo:
     """Tests for get_server_info function."""
 
-    def test_get_server_info_running(self):
+    def test_get_server_info_running(self) -> None:
         """Should return server info when running."""
         with patch("scicode_lint.vllm.is_running", return_value=True):
             with patch("requests.get") as mock_get:
@@ -315,7 +315,7 @@ class TestGetServerInfo:
                 assert info.model == "RedHatAI/gemma-3-12b-it-FP8-dynamic"
                 assert info.base_url == "http://localhost:5001"
 
-    def test_get_server_info_not_running(self):
+    def test_get_server_info_not_running(self) -> None:
         """Should return not running status."""
         with patch("scicode_lint.vllm.is_running", return_value=False):
             info = get_server_info()
@@ -323,7 +323,7 @@ class TestGetServerInfo:
             assert info.is_running is False
             assert info.model is None
 
-    def test_get_server_info_model_fetch_fails(self):
+    def test_get_server_info_model_fetch_fails(self) -> None:
         """Should handle model fetch failure gracefully."""
         with patch("scicode_lint.vllm.is_running", return_value=True):
             with patch("requests.get", side_effect=requests.RequestException):
@@ -336,7 +336,7 @@ class TestGetServerInfo:
 class TestDataClasses:
     """Tests for dataclasses."""
 
-    def test_gpu_info_dataclass(self):
+    def test_gpu_info_dataclass(self) -> None:
         """Should create GPUInfo correctly."""
         info = GPUInfo(
             name="Test GPU",
@@ -354,7 +354,7 @@ class TestDataClasses:
         assert info.utilization_percent == 50
         assert info.cuda_version == "12.0"
 
-    def test_server_info_dataclass(self):
+    def test_server_info_dataclass(self) -> None:
         """Should create ServerInfo correctly."""
         info = ServerInfo(model="test-model", is_running=True, base_url="http://localhost:5001")
 
@@ -366,7 +366,7 @@ class TestDataClasses:
 class TestVersionChecking:
     """Tests for vLLM version checking."""
 
-    def test_version_check_passes_for_016(self):
+    def test_version_check_passes_for_016(self) -> None:
         """Should pass for vLLM 0.16.0."""
         from scicode_lint.vllm import _check_vllm_version
 
@@ -377,7 +377,7 @@ class TestVersionChecking:
         with patch("subprocess.run", return_value=mock_result):
             _check_vllm_version()  # Should not raise
 
-    def test_version_check_passes_for_017(self):
+    def test_version_check_passes_for_017(self) -> None:
         """Should pass for vLLM 0.17.0."""
         from scicode_lint.vllm import _check_vllm_version
 
@@ -388,7 +388,7 @@ class TestVersionChecking:
         with patch("subprocess.run", return_value=mock_result):
             _check_vllm_version()  # Should not raise
 
-    def test_version_check_fails_for_015(self):
+    def test_version_check_fails_for_015(self) -> None:
         """Should raise RuntimeError for vLLM 0.15.x."""
         from scicode_lint.vllm import _check_vllm_version
 
@@ -400,7 +400,7 @@ class TestVersionChecking:
             with pytest.raises(RuntimeError, match="version 0.15.x is too old"):
                 _check_vllm_version()
 
-    def test_version_check_fails_for_014(self):
+    def test_version_check_fails_for_014(self) -> None:
         """Should raise RuntimeError for vLLM 0.14.x."""
         from scicode_lint.vllm import _check_vllm_version
 
@@ -412,7 +412,7 @@ class TestVersionChecking:
             with pytest.raises(RuntimeError, match="version 0.14.x is too old"):
                 _check_vllm_version()
 
-    def test_version_check_handles_vllm_not_found(self):
+    def test_version_check_handles_vllm_not_found(self) -> None:
         """Should not raise if vllm command not found (will be caught later)."""
         from scicode_lint.vllm import _check_vllm_version
 
@@ -423,7 +423,7 @@ class TestVersionChecking:
 class TestVRAMAutoDetection:
     """Tests for VRAM-based auto-detection."""
 
-    def test_20gb_vram_settings(self):
+    def test_20gb_vram_settings(self) -> None:
         """Should use 16K context and 0.90 GPU memory for 20GB+ VRAM."""
         from scicode_lint.vllm import _auto_detect_vram_settings
 
@@ -433,7 +433,7 @@ class TestVRAMAutoDetection:
         assert max_len == 16000
         assert gpu_mem == 0.90
 
-    def test_16gb_vram_settings(self):
+    def test_16gb_vram_settings(self) -> None:
         """Should raise RuntimeError for 16GB VRAM (below 20GB minimum)."""
         import pytest
 
@@ -443,7 +443,7 @@ class TestVRAMAutoDetection:
         with pytest.raises(RuntimeError, match="Minimum requirement: 20GB VRAM"):
             _auto_detect_vram_settings(override_vram_mb=16384)
 
-    def test_12gb_vram_settings(self):
+    def test_12gb_vram_settings(self) -> None:
         """Should raise RuntimeError for 12GB VRAM (below 20GB minimum)."""
         import pytest
 
@@ -453,7 +453,7 @@ class TestVRAMAutoDetection:
         with pytest.raises(RuntimeError, match="Minimum requirement: 20GB VRAM"):
             _auto_detect_vram_settings(override_vram_mb=12288)
 
-    def test_8gb_vram_settings(self):
+    def test_8gb_vram_settings(self) -> None:
         """Should raise RuntimeError for 8GB VRAM (below 20GB minimum)."""
         import pytest
 
@@ -463,7 +463,7 @@ class TestVRAMAutoDetection:
         with pytest.raises(RuntimeError, match="Minimum requirement: 20GB VRAM"):
             _auto_detect_vram_settings(override_vram_mb=8192)
 
-    def test_vram_boundary_20gb(self):
+    def test_vram_boundary_20gb(self) -> None:
         """Should correctly handle VRAM at 20GB boundary."""
         import pytest
 
@@ -478,7 +478,7 @@ class TestVRAMAutoDetection:
         assert max_len == 16000
         assert gpu_mem == 0.90
 
-    def test_start_server_uses_standard_settings(self):
+    def test_start_server_uses_standard_settings(self) -> None:
         """Should use standard 16K context and 0.90 GPU memory for 20GB+ VRAM."""
         from scicode_lint.vllm import _auto_detect_vram_settings
 
@@ -492,7 +492,7 @@ class TestVRAMAutoDetection:
         assert max_len == 16000
         assert gpu_mem == 0.90
 
-    def test_no_gpu_fallback(self):
+    def test_no_gpu_fallback(self) -> None:
         """Should raise RuntimeError when GPU cannot be detected."""
         import pytest
 

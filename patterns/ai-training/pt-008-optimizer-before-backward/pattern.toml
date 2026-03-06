@@ -12,7 +12,7 @@ updated = "2026-03-03"
 author = "scicode-lint"
 
 description = """
-Is optimizer.step() called before loss.backward(), reversing the correct order of gradient computation and parameter update?
+Calling optimizer.step() before loss.backward() updates parameters with stale or zero gradients from the previous iteration. The correct order is: zero_grad(), forward, loss, backward(), step().
 """
 
 explanation = """
@@ -25,7 +25,11 @@ references = []
 
 [detection]
 question = """
-In the training loop, is the sequence of operations correct? Specifically, are model parameters being updated before the gradients for the current loss have been computed? This would mean performing the optimization step before the backward pass.
+Find training loops with optimizer.step() and loss.backward() calls.
+Is optimizer.step() called BEFORE loss.backward()?
+
+YES = optimizer.step() called BEFORE backward() (BUG)
+NO = correct order (backward then step), OR no training loop exists
 """
 
 warning_message = """

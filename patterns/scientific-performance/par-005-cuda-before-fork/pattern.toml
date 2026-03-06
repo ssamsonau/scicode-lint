@@ -1,0 +1,82 @@
+# Pattern: par-005-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "par-005"
+name = "cuda-before-fork"
+category = "scientific-performance"
+severity = "high"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Initializing CUDA (e.g., tensor.cuda(), model.to(device)) before spawning multiprocessing workers can cause deadlocks. The CUDA context doesn't survive fork(). Use mp.set_start_method('spawn') and initialize CUDA inside each worker process.
+"""
+
+explanation = """
+CUDA before fork: initializing CUDA then forking can deadlock. Use mp.set_start_method('spawn') and initialize CUDA inside each worker.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Find CUDA initialization (.cuda() or .to(device)) in the code.
+Does it happen before mp.Process or Pool creation without spawn method?
+
+YES = CUDA initialized before fork (BUG)
+NO = no CUDA-before-fork exists
+"""
+
+warning_message = """
+CUDA before fork: initializing CUDA then forking can deadlock. Use mp.set_start_method('spawn') and initialize CUDA inside each worker.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/cuda_before_fork.py"
+description = "CUDA initialized with .to(device) before spawning multiprocessing processes - can cause deadlocks"
+expected_issue = "CUDA tensor created before multiprocessing.Process spawn"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "module"
+name = "__main__"
+snippet = "data = torch.randn(1000, 1000).to(device)"
+
+[[tests.positive]]
+file = "test_positive/model_cuda_then_mp.py"
+description = "Model moved to CUDA before multiprocessing Pool creation - forking after CUDA init causes issues"
+expected_issue = "Model moved to CUDA before multiprocessing Pool"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "module"
+name = "module_level"
+snippet = "model = model.cuda()"
+
+[[tests.negative]]
+file = "test_negative/spawn_method_cuda.py"
+description = "Correctly uses spawn method and initializes CUDA inside each worker process"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/cuda_in_worker.py"
+description = "Properly initializes CUDA within worker function after spawn - safe pattern"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

@@ -1,0 +1,82 @@
+# Pattern: num-005-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "num-005"
+name = "division-by-zero-normalization"
+category = "scientific-numerical"
+severity = "high"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Division by standard deviation, range, or other computed values that could be zero produces inf or NaN. This commonly occurs in normalization when a feature is constant (std=0) or in min-max scaling when min equals max. Always add an epsilon guard or check for zero before dividing.
+"""
+
+explanation = """
+Division by zero in normalization: std is 0 for constant features, producing inf or NaN. Check for zero std and handle it.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Find division by std, range, or computed values that could be zero in normalization code.
+Is zero guard MISSING for normalization division (no + epsilon, np.maximum, if std > 0, or library function)?
+
+YES = zero guard is MISSING for normalization division (BUG)
+NO = has guard, OR no such division exists, OR denominator cannot be zero
+"""
+
+warning_message = """
+Division by zero in normalization: std is 0 for constant features, producing inf or NaN. Check for zero std and handle it.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/unguarded_division.py"
+description = "Z-score normalization (data-mean)/std or min-max scaling without checking for zero std or zero range, producing inf/NaN for constant features"
+expected_issue = "Division by std or range without zero check"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "normalize_features"
+snippet = "normalized = (data - mean) / std"
+
+[[tests.positive]]
+file = "test_positive/normalization_bug.py"
+description = "Feature standardization or coefficient of variation calculations where denominator could be zero for constant data"
+expected_issue = "Normalization divides by value that could be zero"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "minmax_scale"
+snippet = "scaled = (arr - min_val) / (max_val - min_val)"
+
+[[tests.negative]]
+file = "test_negative/safe_normalization.py"
+description = "Division with epsilon added to denominator (std + 1e-8) or explicit zero checks before division"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/checked_division.py"
+description = "Explicit if/else handling for zero denominators using np.maximum(), np.isclose(), or conditional returns"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

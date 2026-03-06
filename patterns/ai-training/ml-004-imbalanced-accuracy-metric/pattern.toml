@@ -26,8 +26,11 @@ references = []
 
 [detection]
 question = """
-Is accuracy used as the evaluation metric while the data appears to have imbalanced classes (e.g., stratify parameter is used, or class distribution is visibly skewed)?
+Find accuracy_score() or scoring="accuracy" in the code.
+Is accuracy metric used on IMBALANCED classes?
 
+YES = accuracy used WITH imbalanced classes (BUG)
+NO = using F1/AUC/precision/recall, OR classes are balanced, OR no accuracy metric exists
 """
 
 warning_message = """

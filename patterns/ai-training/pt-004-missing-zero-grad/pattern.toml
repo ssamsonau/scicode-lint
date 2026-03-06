@@ -12,7 +12,7 @@ updated = "2026-03-03"
 author = "scicode-lint"
 
 description = """
-Is there a training loop where optimizer.zero_grad() is missing or not called before each backward pass?
+Missing optimizer.zero_grad() in training loops causes gradients to accumulate across batches instead of being reset. This leads to incorrect gradient updates, exploding gradients, and NaN losses.
 """
 
 explanation = """
@@ -25,18 +25,11 @@ references = []
 
 [detection]
 question = """
-Look for training loops with missing or incorrectly placed optimizer.zero_grad().
+Find training loops with loss.backward() in the code.
+Is optimizer.zero_grad() MISSING inside the loop before backward()?
 
-Answer YES ONLY if you see EXPLICIT evidence of:
-1. Training loop with "loss.backward()" and "optimizer.step()" BUT no "optimizer.zero_grad()" anywhere in the same loop scope
-2. "optimizer.zero_grad()" or "p.grad.zero_()" called OUTSIDE the batch loop (before all epochs start) BUT not called INSIDE the loop before each backward()
-3. Loop contains "loss.backward()" with "optimizer.step()" but gradient clearing appears after backward() instead of before it
-
-Answer NO if:
-- "optimizer.zero_grad()" appears in the batch loop BEFORE "loss.backward()"
-- Proper sequence visible: "optimizer.zero_grad()" then "loss.backward()" then "optimizer.step()"
-- Code is for inference only (no backward() or optimizer.step())
-- Using gradient accumulation intentionally (comment or code structure indicates deliberate accumulation)
+YES = zero_grad() is MISSING inside the loop (BUG)
+NO = zero_grad() is called inside the loop before backward(), OR no training loops exist
 """
 
 warning_message = """

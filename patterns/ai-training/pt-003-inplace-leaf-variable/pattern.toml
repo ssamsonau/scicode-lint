@@ -12,7 +12,7 @@ updated = "2026-03-03"
 author = "scicode-lint"
 
 description = """
-Are there in-place operations on leaf variables (tensors that require gradients) or input tensors during the forward pass?
+In-place operations on leaf variables or input tensors that require gradients break PyTorch's autograd graph. This causes a runtime error during backward() because the tensor version has changed.
 """
 
 explanation = """
@@ -25,7 +25,11 @@ references = []
 
 [detection]
 question = """
-Are there in-place modifications being performed on tensors that are leaf variables in the computation graph and have gradient tracking enabled? This includes direct modifications to input tensors or model parameters during the forward pass.
+Find in-place operations (+=, -=, *=, /=, add_(), sub_(), mul_(), div_()) on tensors in the code.
+Does the tensor have requires_grad=True or is it an input to forward()?
+
+YES = in-place op found on tensor WITH requires_grad=True (BUG)
+NO = in-place ops only on detached/no-grad tensors, OR no in-place ops exist
 """
 
 warning_message = """

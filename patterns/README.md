@@ -2,6 +2,18 @@
 
 Pattern specifications and test data for scicode-lint.
 
+## Core Principle: Design for Constrained-Capacity LLMs
+
+**scicode-lint uses a local 12B parameter model (Gemma 3 12B) by design.** This is the middle ground between grep-style matching and expensive cloud APIs.
+
+Detection questions must be written FOR this constraint:
+- **Ask about the BUG directly** - "Is X MISSING?" not "Does it have X?"
+- **YES = BUG, NO = OK** - The answer directly indicates bug presence
+- **Simple and direct** - One search, one check, binary answer
+- **No complex reasoning** - If the model needs to "think about it," simplify
+
+See [ARCHITECTURE.md](../docs_dev_genai/ARCHITECTURE.md) for the full rationale.
+
 ## Overview
 
 This directory contains the **definitions** of what issues to detect and **test data** to validate detection quality.
@@ -56,8 +68,15 @@ category = "ai-training"
 severity = "critical"
 
 [detection]
-question = "Is StandardScaler.fit() called on the full dataset before train_test_split()?"
-warning_message = "Data leakage: scaler/encoder is fit on full data including test set..."
+# Detection questions must ask about the BUG condition directly
+question = """
+Find scaler.fit() or scaler.fit_transform() calls.
+Is the scaler fit BEFORE train_test_split() (on full data)?
+
+YES = scaler fit BEFORE split (BUG - data leakage)
+NO = scaler fit AFTER split on train only, OR no scaler
+"""
+warning_message = "Data leakage: scaler is fit on full data including test set..."
 
 [[tests.positive]]
 file = "test_positive/scaler_before_split.py"
@@ -211,10 +230,12 @@ Reproducibility issues:
 ### 1. Create Directory Structure
 
 ```bash
-mkdir -p patterns/ai-training/ml-999-my-pattern/{positive,negative,context_dependent}
+mkdir -p patterns/ai-training/ml-999-my-pattern/{test_positive,test_negative,test_context_dependent}
 ```
 
 ### 2. Create `pattern.toml`
+
+**IMPORTANT: Detection questions must be ultra-simple for constrained-capacity models.**
 
 ```toml
 [meta]
@@ -224,39 +245,35 @@ category = "ai-training"
 severity = "critical"
 
 [detection]
-detection_question = "What specific code pattern should the LLM look for?"
+# Ask about the BUG condition directly (YES = bug, NO = ok)
+question = """
+Find FUNCTION_CALL() in the code.
+Is REQUIRED_PARAM= argument MISSING?
+
+YES = REQUIRED_PARAM is MISSING (BUG)
+NO = has REQUIRED_PARAM, OR no FUNCTION_CALL exists
+"""
 warning_message = "Brief explanation of why this is an issue and how to fix it."
+
+[[tests.positive]]
+file = "test_positive/example.py"
+description = "Description of the issue in this file"
+expected_issue = "What the issue is"
+min_confidence = 0.85
+
+[[tests.negative]]
+file = "test_negative/correct.py"
+description = "Correct code that should NOT trigger"
+max_false_positives = 0
+
+[[tests.context_dependent]]
+file = "test_context_dependent/edge_case.py"
+description = "Ambiguous case"
+allow_detection = true
+allow_skip = true
 ```
 
-### 3. Create `ground_truth.yaml`
-
-```yaml
-pattern_id: ml-999-my-pattern
-category: ai-training
-severity: critical
-description: "Brief description of the issue"
-
-positive_cases:
-  - file: positive/example.py
-    expected_findings:
-      - location:
-          type: function
-          name: problematic_function
-          snippet: "key problematic line"
-        issue: "What the issue is"
-        min_confidence: 0.85
-
-negative_cases:
-  - file: negative/correct.py
-    max_false_positives: 0
-
-ambiguous_cases:
-  - file: context_dependent/edge_case.py
-    allow_detection: true
-    allow_skip: true
-```
-
-### 4. Create Test Files
+### 3. Create Test Files
 
 Write pure Python code (no docstrings, no comments):
 - `test_positive/*.py` - 2-3 files with the issue

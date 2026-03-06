@@ -12,12 +12,11 @@ updated = "2026-03-03"
 author = "scicode-lint"
 
 description = """
-Data leakage occurs when feature selection (e.g., SelectKBest, mutual information, correlation filtering) is performed on the full dataset before cross-validation or train/test splitting. This causes the model to use information from the test set to choose features, leading to overly optimistic performance estimates.
+Target leakage occurs when a feature is derived from or directly uses the target variable (y). Common examples: creating a category from y.mean(), using target statistics as features, or encoding y-derived information into X.
 """
 
 explanation = """
-Data leakage: features are selected using information from the test set. Move feature selection inside each CV fold or after the split.
-
+Target leakage: features contain information derived from the target variable. The model essentially sees the answer in the input, leading to unrealistic performance.
 """
 
 tags = []
@@ -26,13 +25,15 @@ references = []
 
 [detection]
 question = """
-Is feature selection (e.g., SelectKBest, mutual_info, correlation filtering) performed on the full dataset before cross-validation or train/test splitting?
+Find feature creation that uses the target variable y.
+Is target variable y used to derive features?
 
+YES = y-derived value added to X as feature (BUG)
+NO = y used only for prediction, OR no target variable exists
 """
 
 warning_message = """
-Data leakage: features are selected using information from the test set. Move feature selection inside each CV fold or after the split.
-
+Target leakage: feature created from target variable y. Remove this feature - it contains the answer.
 """
 
 min_confidence = 0.85

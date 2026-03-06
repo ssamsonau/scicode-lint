@@ -6,8 +6,7 @@ Each pattern follows this exact structure:
 
 ```
 patterns/ai-training/ml-001-scaler-leakage/
-├── pattern.toml              # Detection definition (what to look for)
-├── evaluation.yaml           # Test expectations (for eval only)
+├── pattern.toml              # Complete pattern definition (detection + tests)
 ├── test_positive/            # Code WITH issues (must detect)
 │   └── *.py                  # Pure code, NO documentation
 ├── test_negative/            # Code WITHOUT issues (must not flag)
@@ -18,13 +17,12 @@ patterns/ai-training/ml-001-scaler-leakage/
 
 ## File Purposes
 
-### 1. `pattern.toml` - Detection Definition
-**Who sees it**: The linter
+### 1. `pattern.toml` - Complete Pattern Definition
+**Who sees it**: The linter sees `[meta]` and `[detection]`; the evaluator sees `[tests]`
 **What it contains**:
-- Pattern metadata (ID, name, category, severity)
-- **Detection question** - What the LLM should look for in code
-- **Warning message** - What to tell the user if detected
-- Explanation of why this is an issue
+- **[meta]** - Pattern metadata (ID, name, category, severity)
+- **[detection]** - Detection question, warning message, explanation
+- **[tests]** - Test case definitions (positive, negative, context_dependent)
 
 Example:
 ```toml
@@ -35,41 +33,25 @@ category = "ai-training"
 severity = "critical"
 
 [detection]
-detection_question = "Is StandardScaler.fit() called on the full dataset before train_test_split()?"
+question = "Is StandardScaler.fit() called on the full dataset before train_test_split()?"
 warning_message = "Data leakage: scaler/encoder is fit on full data including test set."
-```
 
-### 2. `evaluation.yaml` - Test Expectations
-**Who sees it**: The evaluator only (NOT the linter)
-**What it contains**:
-- Pattern ID
-- Test case file paths
-- Expected behavior descriptions (for LLM-as-a-judge)
-- Evaluation metadata
+[[tests.positive]]
+file = "test_positive/scaler_before_split.py"
+description = "Scaler fit on combined train+test data"
+expected_issue = "Data leakage: scaler statistics include test set"
+min_confidence = 0.85
 
-Example:
-```yaml
-pattern_id: ml-001-scaler-leakage
-category: ml-correctness
-severity: critical
+[[tests.negative]]
+file = "test_negative/scaler_after_split.py"
+description = "Correct scaler usage after split"
+max_false_positives = 0
 
-# Code WITH issues that MUST be detected
-positive_cases:
-  - file: test_positive/scaler_before_split.py
-    expected_findings:
-      - issue: "Data leakage: normalization statistics computed from train+test"
-        min_confidence: 0.85
-
-# Correct code that must NOT be flagged
-negative_cases:
-  - file: test_negative/scaler_after_split.py
-    max_false_positives: 0
-
-# Edge cases where either outcome is acceptable
-context_dependent_cases:
-  - file: test_context_dependent/scaler_on_train_val.py
-    allow_detection: true
-    allow_skip: true
+[[tests.context_dependent]]
+file = "test_context_dependent/scaler_on_train_val.py"
+description = "Scaler fit on train+val (excluding test)"
+allow_detection = true
+allow_skip = true
 ```
 
 ### 3. Test Code Files
@@ -123,8 +105,8 @@ def fit_on_train_and_val(train_data, val_data, test_data):
 ## Why This Structure?
 
 ### Separation of Concerns
-- **`pattern.toml`**: What the linter looks for (detection logic)
-- **`evaluation.yaml`**: What the evaluator expects (test metadata)
+- **`pattern.toml` [meta] + [detection]**: What the linter looks for (detection logic)
+- **`pattern.toml` [tests]**: What the evaluator expects (test metadata)
 - **Test files**: Pure code to analyze (no hints)
 
 ### No Data Leakage in Evaluation
@@ -141,14 +123,14 @@ If test files had comments like `# ISSUE: this causes data leakage`, the LLM wou
 
 ```
 Linter sees:
-  ✓ pattern.toml (detection question)
+  ✓ pattern.toml [meta] and [detection] sections
   ✓ test_*.py files (code to analyze)
-  ✗ evaluation.yaml (evaluation metadata)
+  ✗ pattern.toml [tests] section (evaluation metadata)
 
 Evaluator sees:
-  ✓ evaluation.yaml (expected behavior)
+  ✓ pattern.toml [tests] section (expected behavior)
   ✓ test_*.py files (to compare against expectations)
-  ✗ pattern.toml (not needed for eval)
+  ✗ pattern.toml [detection] section (not needed for eval)
 
 Test files see:
   ✗ Nothing (pure code, zero documentation)
@@ -166,7 +148,7 @@ Old structure (deprecated):
 ```
 ml-001-scaler-leakage/
 ├── pattern.toml
-├── ground_truth.yaml     ← renamed to evaluation.yaml
+├── ground_truth.yaml     ← merged into pattern.toml [tests] section
 ├── positive/              ← renamed to test_positive/
 ├── negative/              ← renamed to test_negative/
 └── context_dependent/     ← renamed to test_context_dependent/

@@ -10,7 +10,7 @@ from scicode_lint.llm.tokens import (
 )
 
 
-def test_estimate_tokens_basic():
+def test_estimate_tokens_basic() -> None:
     """Test basic token estimation."""
     # Empty string
     assert estimate_tokens("") == 0
@@ -25,7 +25,7 @@ def test_estimate_tokens_basic():
     assert 10 < tokens < 20  # Should be ~12 tokens
 
 
-def test_estimate_prompt_tokens():
+def test_estimate_prompt_tokens() -> None:
     """Test full prompt token estimation with overhead."""
     code = "x = 1"
     system = "You are a code analyzer"
@@ -42,7 +42,7 @@ def test_estimate_prompt_tokens():
     assert 200 < tokens < 300
 
 
-def test_check_context_length_fits():
+def test_check_context_length_fits() -> None:
     """Test context length check when input fits."""
     code = "def hello(): pass"
     system = "You are a code analyzer"
@@ -61,7 +61,7 @@ def test_check_context_length_fits():
     assert estimated < 8000
 
 
-def test_check_context_length_exceeds():
+def test_check_context_length_exceeds() -> None:
     """Test context length check when input exceeds limit."""
     # Create large code (10000 chars = ~2500 tokens)
     # Plus overhead = ~2700 tokens total
@@ -87,7 +87,7 @@ def test_check_context_length_exceeds():
     assert "Suggestions:" in error.message
 
 
-def test_context_length_error_message():
+def test_context_length_error_message() -> None:
     """Test error message formatting."""
     error = ContextLengthError(
         file_path="test.py",

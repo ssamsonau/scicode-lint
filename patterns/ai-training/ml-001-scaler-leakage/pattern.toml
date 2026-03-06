@@ -26,14 +26,11 @@ references = []
 
 [detection]
 question = """
-Look for data leakage from scalers/normalizers. Answer YES ONLY if you see EXPLICIT evidence of:
-1. torch.cat([train, test]) or np.concatenate([train, test]) or pd.concat() combining train and test, THEN fitting on the combined data, OR
-2. fit() or fit_transform() called on data BEFORE train_test_split() is called, OR
-3. all_data = ... combining train+test, followed by all_data.mean(), all_data.std(), etc.
+Find scaler.fit() or fit_transform() calls in the code.
+Is scaler fit() called BEFORE train/test split (on full data)?
 
-Answer NO if:
-- scaler.fit(train_data) or train_data.mean() (fitting/stats on train data only)
-- Function parameters suggest already-split data (train_data, test_data parameters) with no combining operations visible in the function
+YES = fit() called on FULL data BEFORE train_test_split (BUG)
+NO = fit() on train-only data, OR no scaler exists
 """
 
 warning_message = """

@@ -1,0 +1,82 @@
+# Pattern: num-003-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "num-003"
+name = "unguarded-log-zero"
+category = "scientific-numerical"
+severity = "high"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Calling np.log() on values that could be zero produces -inf, which silently poisons all downstream computations. This commonly occurs with probability arrays, KL divergence calculations, or any data that could contain zeros. Use np.log1p(x) for log(1+x), or add an epsilon guard like np.log(x + 1e-10).
+"""
+
+explanation = """
+np.log(0) returns -inf silently and poisons downstream computations. Use np.log1p(x) for log(1+x), or add a guard/clamp.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Find np.log() on values that could be zero (probabilities, data arrays, ratios) in the code.
+Is zero guard MISSING for np.log() (no + epsilon, np.maximum, np.clip, np.log1p, or nonzero mask)?
+
+YES = zero guard is MISSING for np.log() (BUG)
+NO = has guard, OR no such np.log() exists, OR input is guaranteed positive
+"""
+
+warning_message = """
+np.log(0) returns -inf silently and poisons downstream computations. Use np.log1p(x) for log(1+x), or add a guard/clamp.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/unguarded_log.py"
+description = "np.log() called on probability arrays or data that could contain zeros, producing -inf without guards or np.log1p()"
+expected_issue = "np.log() called on values that could be zero without guard"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "compute_entropy"
+snippet = "log_probs = np.log(probabilities)"
+
+[[tests.positive]]
+file = "test_positive/log_calculations.py"
+description = "Log-based calculations like KL divergence or information gain where log(0) or log(x/0) could occur without protection"
+expected_issue = "Log operations on potentially zero values in entropy/divergence calculations"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "kl_divergence"
+snippet = "kl = np.sum(p * np.log(p / q))"
+
+[[tests.negative]]
+file = "test_negative/guarded_log.py"
+description = "np.log() with epsilon addition, np.maximum(), or np.clip() to prevent zero inputs"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/log1p_usage.py"
+description = "Proper use of np.log1p() for log(1+x), or explicit nonzero masks before log operations"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

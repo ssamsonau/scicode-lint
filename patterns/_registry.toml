@@ -1,5 +1,5 @@
 # Pattern Registry - Auto-generated
-# Generated: 2026-03-03T09:10:12.565240
+# Generated: 2026-03-06T09:53:11.103609
 # Total patterns: 44
 
 version = "1.0"
@@ -20,29 +20,29 @@ severity = "critical"
 version = "1.0.0"
 
 [patterns."ml-003"]
-path = "ai-training/ml-003-temporal-leakage"
-name = "temporal-leakage"
+path = "ai-training/ml-003-target-encoding-leakage"
+name = "target-encoding-leakage"
 category = "ai-training"
 severity = "critical"
 version = "1.0.0"
 
 [patterns."ml-004"]
-path = "ai-training/ml-004-transform-test-only"
-name = "transform-test-only"
+path = "ai-training/ml-004-imbalanced-accuracy-metric"
+name = "imbalanced-accuracy-metric"
 category = "ai-training"
 severity = "critical"
 version = "1.0.0"
 
 [patterns."ml-005"]
-path = "ai-training/ml-005-transform-order"
-name = "transform-order"
+path = "ai-training/ml-005-cv-temporal-shuffle"
+name = "cv-temporal-shuffle"
 category = "ai-training"
 severity = "critical"
 version = "1.0.0"
 
 [patterns."ml-006"]
-path = "ai-training/ml-006-duplicate-preprocessing"
-name = "duplicate-preprocessing"
+path = "ai-training/ml-006-temporal-shift-leakage"
+name = "temporal-shift-leakage"
 category = "ai-training"
 severity = "critical"
 version = "1.0.0"
@@ -55,141 +55,141 @@ severity = "critical"
 version = "1.0.0"
 
 [patterns."ml-008"]
-path = "ai-training/ml-008-validation-leakage"
-name = "validation-leakage"
+path = "ai-training/ml-008-unstratified-split"
+name = "unstratified-split"
 category = "ai-training"
 severity = "high"
 version = "1.0.0"
 
 [patterns."np-001"]
-path = "scientific-numerical/np-001-pattern"
-name = "pattern"
+path = "scientific-numerical/np-001-slice-view-mutation"
+name = "slice-view-mutation"
 category = "scientific-numerical"
 severity = "high"
 version = "1.0.0"
 
 [patterns."np-002"]
-path = "scientific-numerical/np-002-pattern"
-name = "pattern"
+path = "scientific-numerical/np-002-broadcasting-shape-mismatch"
+name = "broadcasting-shape-mismatch"
 category = "scientific-numerical"
 severity = "high"
 version = "1.0.0"
 
 [patterns."num-001"]
-path = "scientific-numerical/num-001-pattern"
-name = "pattern"
+path = "scientific-numerical/num-001-float-equality-comparison"
+name = "float-equality-comparison"
 category = "scientific-numerical"
 severity = "critical"
 version = "1.0.0"
 
 [patterns."num-002"]
-path = "scientific-numerical/num-002-pattern"
-name = "pattern"
+path = "scientific-numerical/num-002-catastrophic-cancellation"
+name = "catastrophic-cancellation"
 category = "scientific-numerical"
 severity = "high"
 version = "1.0.0"
 
 [patterns."num-003"]
-path = "scientific-numerical/num-003-pattern"
-name = "pattern"
+path = "scientific-numerical/num-003-unguarded-log-zero"
+name = "unguarded-log-zero"
 category = "scientific-numerical"
 severity = "high"
 version = "1.0.0"
 
 [patterns."num-004"]
-path = "scientific-numerical/num-004-pattern"
-name = "pattern"
+path = "scientific-numerical/num-004-int32-overflow"
+name = "int32-overflow"
 category = "scientific-numerical"
 severity = "high"
 version = "1.0.0"
 
 [patterns."num-005"]
-path = "scientific-numerical/num-005-pattern"
-name = "pattern"
+path = "scientific-numerical/num-005-division-by-zero-normalization"
+name = "division-by-zero-normalization"
 category = "scientific-numerical"
 severity = "high"
 version = "1.0.0"
 
 [patterns."num-006"]
-path = "scientific-numerical/num-006-pattern"
-name = "pattern"
+path = "scientific-numerical/num-006-exact-float-test-assertion"
+name = "exact-float-test-assertion"
 category = "scientific-numerical"
 severity = "medium"
 version = "1.0.0"
 
 [patterns."par-001"]
-path = "scientific-performance/par-001-pattern"
-name = "pattern"
+path = "scientific-performance/par-001-threading-cpu-bound"
+name = "threading-cpu-bound"
 category = "scientific-performance"
 severity = "high"
 version = "1.0.0"
 
 [patterns."par-002"]
-path = "scientific-performance/par-002-pattern"
-name = "pattern"
+path = "scientific-performance/par-002-multiprocessing-data-copy"
+name = "multiprocessing-data-copy"
 category = "scientific-performance"
 severity = "high"
 version = "1.0.0"
 
 [patterns."par-003"]
-path = "scientific-performance/par-003-pattern"
-name = "pattern"
+path = "scientific-performance/par-003-parallel-before-vectorize"
+name = "parallel-before-vectorize"
 category = "scientific-performance"
 severity = "high"
 version = "1.0.0"
 
 [patterns."par-004"]
-path = "scientific-performance/par-004-pattern"
-name = "pattern"
+path = "scientific-performance/par-004-excessive-dataloader-workers"
+name = "excessive-dataloader-workers"
 category = "scientific-performance"
 severity = "high"
 version = "1.0.0"
 
 [patterns."par-005"]
-path = "scientific-performance/par-005-pattern"
-name = "pattern"
+path = "scientific-performance/par-005-cuda-before-fork"
+name = "cuda-before-fork"
 category = "scientific-performance"
 severity = "high"
 version = "1.0.0"
 
 [patterns."par-006"]
-path = "scientific-performance/par-006-pattern"
-name = "pattern"
+path = "scientific-performance/par-006-nondeterministic-parallel-order"
+name = "nondeterministic-parallel-order"
 category = "scientific-performance"
 severity = "medium"
 version = "1.0.0"
 
 [patterns."perf-001"]
-path = "scientific-performance/perf-001-pattern"
-name = "pattern"
+path = "scientific-performance/perf-001-python-loop-over-array"
+name = "python-loop-over-array"
 category = "scientific-performance"
 severity = "high"
 version = "1.0.0"
 
 [patterns."perf-002"]
-path = "scientific-performance/perf-002-pattern"
-name = "pattern"
+path = "scientific-performance/perf-002-array-allocation-in-loop"
+name = "array-allocation-in-loop"
 category = "scientific-performance"
 severity = "high"
 version = "1.0.0"
 
 [patterns."perf-003"]
-path = "scientific-performance/perf-003-pattern"
-name = "pattern"
+path = "scientific-performance/perf-003-full-pairwise-distance-matrix"
+name = "full-pairwise-distance-matrix"
 category = "scientific-performance"
 severity = "high"
 version = "1.0.0"
 
 [patterns."perf-004"]
-path = "scientific-performance/perf-004-pattern"
-name = "pattern"
+path = "scientific-performance/perf-004-unnecessary-intermediate-arrays"
+name = "unnecessary-intermediate-arrays"
 category = "scientific-performance"
 severity = "high"
 version = "1.0.0"
 
 [patterns."perf-005"]
-path = "scientific-performance/perf-005-pattern"
-name = "pattern"
+path = "scientific-performance/perf-005-unnecessary-array-copy"
+name = "unnecessary-array-copy"
 category = "scientific-performance"
 severity = "medium"
 version = "1.0.0"
@@ -197,13 +197,6 @@ version = "1.0.0"
 [patterns."pt-001"]
 path = "ai-training/pt-001-missing-train-mode"
 name = "missing-train-mode"
-category = "ai-training"
-severity = "critical"
-version = "1.0.0"
-
-[patterns."pt-002"]
-path = "ai-training/pt-002-missing-eval-mode"
-name = "missing-eval-mode"
 category = "ai-training"
 severity = "critical"
 version = "1.0.0"
@@ -230,8 +223,8 @@ severity = "critical"
 version = "1.0.0"
 
 [patterns."pt-006"]
-path = "ai-inference/pt-006-inference-without-no-grad"
-name = "inference-without-no-grad"
+path = "ai-inference/pt-006-logit-threshold-without-sigmoid"
+name = "logit-threshold-without-sigmoid"
 category = "ai-inference"
 severity = "high"
 version = "1.0.0"
@@ -251,64 +244,71 @@ severity = "high"
 version = "1.0.0"
 
 [patterns."pt-009"]
-path = "ai-training/pt-009-multiple-backward-calls"
-name = "multiple-backward-calls"
+path = "ai-training/pt-009-loss-tensor-accumulation"
+name = "loss-tensor-accumulation"
 category = "ai-training"
 severity = "high"
 version = "1.0.0"
 
 [patterns."pt-010"]
-path = "ai-data/pt-010-dataloader-no-workers"
+path = "ai-training/pt-010-dataloader-no-workers"
 name = "dataloader-no-workers"
-category = "ai-data"
+category = "ai-training"
 severity = "high"
 version = "1.0.0"
 
 [patterns."pt-011"]
-path = "ai-inference/pt-011-model-device-mismatch"
-name = "model-device-mismatch"
+path = "ai-inference/pt-011-unbatched-gpu-inference"
+name = "unbatched-gpu-inference"
 category = "ai-inference"
 severity = "high"
 version = "1.0.0"
 
+[patterns."pt-012"]
+path = "ai-training/pt-012-gradient-accumulation-without-scaling"
+name = "gradient-accumulation-without-scaling"
+category = "ai-training"
+severity = "high"
+version = "1.0.0"
+
 [patterns."py-001"]
-path = "scientific-numerical/py-001-pattern"
-name = "pattern"
+path = "scientific-numerical/py-001-mutable-default-argument"
+name = "mutable-default-argument"
 category = "scientific-numerical"
 severity = "medium"
 version = "1.0.0"
 
 [patterns."py-002"]
-path = "scientific-numerical/py-002-pattern"
-name = "pattern"
+path = "scientific-numerical/py-002-inplace-array-modification"
+name = "inplace-array-modification"
 category = "scientific-numerical"
 severity = "medium"
 version = "1.0.0"
 
 [patterns."rep-001"]
-path = "scientific-reproducibility/rep-001-pattern"
-name = "pattern"
+path = "scientific-reproducibility/rep-001-incomplete-random-seeds"
+name = "incomplete-random-seeds"
 category = "scientific-reproducibility"
 severity = "high"
 version = "1.0.0"
 
 [patterns."rep-002"]
-path = "scientific-reproducibility/rep-002-pattern"
-name = "pattern"
+path = "scientific-reproducibility/rep-002-cuda-nondeterminism"
+name = "cuda-nondeterminism"
 category = "scientific-reproducibility"
 severity = "high"
 version = "1.0.0"
 
 [patterns."rep-003"]
-path = "scientific-reproducibility/rep-003-pattern"
-name = "pattern"
+path = "scientific-reproducibility/rep-003-hardcoded-hyperparameters"
+name = "hardcoded-hyperparameters"
 category = "scientific-reproducibility"
 severity = "medium"
 version = "1.0.0"
 
 [patterns."rep-004"]
-path = "scientific-reproducibility/rep-004-pattern"
-name = "pattern"
+path = "scientific-reproducibility/rep-004-missing-random-seed"
+name = "missing-random-seed"
 category = "scientific-reproducibility"
 severity = "medium"
 version = "1.0.0"

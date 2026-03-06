@@ -1,0 +1,82 @@
+# Pattern: par-002-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "par-002"
+name = "multiprocessing-data-copy"
+category = "scientific-performance"
+severity = "high"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Passing large arrays to multiprocessing causes expensive data copying. Each process receives a full copy: 4 processes on a 4GB array = 16GB. Use multiprocessing.shared_memory or pass indices instead of data.
+"""
+
+explanation = """
+Data duplication: multiprocessing copies data to each process. 4 processes on a 4 GB array = 16 GB. Use multiprocessing.shared_memory or pass indices instead of data.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Find Pool.map() or ProcessPoolExecutor.submit() in the code.
+Does it pass the same large array to multiple workers?
+
+YES = large array copied to multiple processes (BUG)
+NO = no large array duplication exists
+"""
+
+warning_message = """
+Data duplication: multiprocessing copies data to each process. 4 processes on a 4 GB array = 16 GB. Use multiprocessing.shared_memory or pass indices instead of data.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/multiprocessing_array_copy.py"
+description = "Pool.map passing large array to all workers - each process gets full copy causing massive memory duplication"
+expected_issue = "Large array passed to all processes without shared memory - causes data duplication"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "parallel_process_array"
+snippet = "results = pool.map(apply_filter, [large_array] * num_processes)"
+
+[[tests.positive]]
+file = "test_positive/processpool_full_data.py"
+description = "ProcessPoolExecutor submitting same large matrix to multiple workers - memory usage multiplies by worker count"
+expected_issue = "Full data matrix submitted to each process without shared memory"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "analyze_in_parallel"
+snippet = "futures = [executor.submit(compute_statistics, data_matrix) for _ in range(4)]"
+
+[[tests.negative]]
+file = "test_negative/shared_memory_approach.py"
+description = "Correctly uses multiprocessing.shared_memory to avoid data duplication across processes"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/index_passing.py"
+description = "Passes only index ranges to workers instead of full data - efficient memory usage"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

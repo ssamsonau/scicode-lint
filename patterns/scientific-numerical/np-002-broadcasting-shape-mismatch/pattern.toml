@@ -1,0 +1,82 @@
+# Pattern: np-002-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "np-002"
+name = "broadcasting-shape-mismatch"
+category = "scientific-numerical"
+severity = "high"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Broadcasting arrays with semantically incompatible shapes causes subtle bugs. NumPy will silently produce wrong-shaped results when array dimensions are numerically compatible but semantically mismatched.
+"""
+
+explanation = """
+Broadcasting silent error: shapes are numerically compatible but semantically wrong. Verify array shapes explicitly before operations.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Find array operations between arrays with different shapes.
+Is shape validation MISSING before broadcasting?
+
+YES = shape validation is MISSING before broadcasting (BUG)
+NO = has shape check/assert, OR shapes are clearly compatible
+"""
+
+warning_message = """
+Broadcasting silent error: shapes are numerically compatible but semantically wrong. Verify array shapes explicitly before operations.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/shape_mismatch.py"
+description = "Arrays with semantically incompatible shapes are broadcast together (e.g., (100,64,64,3) with (64,1) or (32,128) with (32,1)) producing wrong-shaped results silently"
+expected_issue = "Broadcasting produces semantically incorrect shape without error"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "apply_weights"
+snippet = "weighted = images * weights"
+
+[[tests.positive]]
+file = "test_positive/broadcasting_confusion.py"
+description = "Operations like subtraction or matrix multiplication on arrays with potentially incompatible semantic dimensions that broadcast without validation"
+expected_issue = "Shape mismatch silently handled by broadcasting rules"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "compute_distances"
+snippet = "diffs = points - centers"
+
+[[tests.negative]]
+file = "test_negative/explicit_shape_check.py"
+description = "Explicit shape assertions or checks before array operations to verify semantic compatibility"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/correct_broadcasting.py"
+description = "Proper use of keepdims and reshape to ensure broadcasting happens along intended dimensions with correct semantic meaning"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

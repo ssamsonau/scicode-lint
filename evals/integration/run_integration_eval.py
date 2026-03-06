@@ -33,20 +33,21 @@ class IntegrationEvaluator:
     def _load_config(self) -> dict[str, Any]:
         """Load expected findings configuration."""
         with open(self.config_path) as f:
-            return yaml.safe_load(f)
+            return yaml.safe_load(f)  # type: ignore[no-any-return]
 
     def run_all_scenarios(self, verbose: bool = False) -> dict[str, Any]:
         """Run all integration test scenarios."""
-        results = {
+        overall: dict[str, Any] = {
+            "total_scenarios": 0,
+            "passed": 0,
+            "failed": 0,
+            "total_bugs_injected": 0,
+            "total_bugs_found": 0,
+            "false_positives": 0,
+        }
+        results: dict[str, Any] = {
             "scenarios": {},
-            "overall": {
-                "total_scenarios": 0,
-                "passed": 0,
-                "failed": 0,
-                "total_bugs_injected": 0,
-                "total_bugs_found": 0,
-                "false_positives": 0,
-            },
+            "overall": overall,
         }
 
         for scenario_name, scenario_config in self.config["scenarios"].items():
@@ -59,32 +60,32 @@ class IntegrationEvaluator:
             results["scenarios"][scenario_name] = result
 
             # Update overall stats
-            results["overall"]["total_scenarios"] += 1
+            overall["total_scenarios"] += 1
             if result["passed"]:
-                results["overall"]["passed"] += 1
+                overall["passed"] += 1
             else:
-                results["overall"]["failed"] += 1
+                overall["failed"] += 1
 
-            results["overall"]["total_bugs_injected"] += result["expected_count"]
-            results["overall"]["total_bugs_found"] += result["found_count"]
-            results["overall"]["false_positives"] += result["false_positives"]
+            overall["total_bugs_injected"] += result["expected_count"]
+            overall["total_bugs_found"] += result["found_count"]
+            overall["false_positives"] += result["false_positives"]
 
         # Calculate overall metrics
-        total_injected = results["overall"]["total_bugs_injected"]
-        total_found = results["overall"]["total_bugs_found"]
+        total_injected: int = overall["total_bugs_injected"]
+        total_found: int = overall["total_bugs_found"]
 
         if total_injected > 0:
-            results["overall"]["coverage"] = total_found / total_injected
-            results["overall"]["recall"] = total_found / total_injected
+            overall["coverage"] = total_found / total_injected
+            overall["recall"] = total_found / total_injected
         else:
-            results["overall"]["coverage"] = 0.0
-            results["overall"]["recall"] = 0.0
+            overall["coverage"] = 0.0
+            overall["recall"] = 0.0
 
         if total_found > 0:
-            correct = total_found - results["overall"]["false_positives"]
-            results["overall"]["precision"] = correct / total_found
+            correct = total_found - overall["false_positives"]
+            overall["precision"] = correct / total_found
         else:
-            results["overall"]["precision"] = 0.0
+            overall["precision"] = 0.0
 
         return results
 
@@ -121,7 +122,7 @@ class IntegrationEvaluator:
             }
 
         # Count findings by pattern
-        findings_by_pattern = defaultdict(int)
+        findings_by_pattern: defaultdict[str, int] = defaultdict(int)
         for finding in findings:
             findings_by_pattern[finding.id] += 1
 
@@ -221,8 +222,11 @@ class IntegrationEvaluator:
         overall = results["overall"]
         lines.append("## Overall Summary\n")
         lines.append(f"- **Scenarios**: {overall['passed']}/{overall['total_scenarios']} passed")
+        bugs_found = overall['total_bugs_found']
+        bugs_injected = overall['total_bugs_injected']
         lines.append(
-            f"- **Coverage**: {overall['coverage']:.1%} ({overall['total_bugs_found']}/{overall['total_bugs_injected']} bugs detected)"
+            f"- **Coverage**: {overall['coverage']:.1%} "
+            f"({bugs_found}/{bugs_injected} bugs detected)"
         )
         lines.append(f"- **Precision**: {overall['precision']:.1%}")
         lines.append(f"- **Recall**: {overall['recall']:.1%}")
@@ -236,11 +240,13 @@ class IntegrationEvaluator:
         coverage_pass = overall["coverage"] >= min_coverage
         fp_pass = overall["false_positives"] == 0
 
+        cov_status = '✓ PASS' if coverage_pass else '✗ FAIL'
+        fp_status = '✓ PASS' if fp_pass else '✗ FAIL'
         lines.append(
-            f"- Coverage ≥ {min_coverage:.0%}: {'✓ PASS' if coverage_pass else '✗ FAIL'} ({overall['coverage']:.1%})"
+            f"- Coverage ≥ {min_coverage:.0%}: {cov_status} ({overall['coverage']:.1%})"
         )
         lines.append(
-            f"- False positives = 0: {'✓ PASS' if fp_pass else '✗ FAIL'} ({overall['false_positives']})\n"
+            f"- False positives = 0: {fp_status} ({overall['false_positives']})\n"
         )
 
         # Per-scenario results
@@ -287,7 +293,7 @@ class IntegrationEvaluator:
         print(f"\nReport written to: {output_path}")
 
 
-def main():
+def main() -> int:
     """Run integration evaluations."""
     parser = argparse.ArgumentParser(description="Run integration evaluations")
     parser.add_argument(

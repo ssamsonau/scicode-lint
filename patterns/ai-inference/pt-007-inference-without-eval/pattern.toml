@@ -12,7 +12,7 @@ updated = "2026-03-03"
 author = "scicode-lint"
 
 description = """
-Is model evaluation (validation or test) performed without calling model
+Proper inference requires BOTH model.eval() AND torch.no_grad(). Missing model.eval() leaves dropout active and batchnorm updating. Missing torch.no_grad() wastes memory storing gradients. Both are needed for correct and efficient inference.
 """
 
 explanation = """
@@ -26,17 +26,11 @@ references = []
 
 [detection]
 question = """
-Look for evaluation or inference operations missing either eval mode or gradient disabling.
+Find inference functions (call model() without loss.backward()).
+Is model.eval() MISSING or is torch.no_grad() MISSING?
 
-Answer YES ONLY if you see EXPLICIT evidence of:
-1. Validation/test loop with "with torch.no_grad():" but NO "model.eval()" call
-2. Evaluation function with "model.eval()" but NO "torch.no_grad()" or "@torch.inference_mode()"
-3. Model forward pass for inference but missing BOTH "model.eval()" AND gradient disabling
-
-Answer NO if:
-- BOTH "model.eval()" AND "torch.no_grad()" (or "@torch.inference_mode()") are present before evaluation
-- Function is training-only (optimizer.step() present, no validation/test context)
-- Context suggests this is a training forward pass (loss.backward() follows)
+YES = eval() is MISSING or no_grad() is MISSING (BUG)
+NO = has BOTH eval() AND no_grad(), OR no inference functions exist
 """
 
 warning_message = """

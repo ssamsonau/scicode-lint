@@ -12,7 +12,7 @@ updated = "2026-03-03"
 author = "scicode-lint"
 
 description = """
-Is there a training loop where model.train() is missing before training, or where model.train() is not called after model.eval() to resume training?
+Training without calling model.train() leaves dropout and batch normalization in evaluation mode, causing incorrect behavior. Dropout won't drop units and batch norm uses running statistics instead of batch statistics.
 """
 
 explanation = """
@@ -20,12 +20,16 @@ Missing model.train() causes dropout and batch normalization to remain in evalua
 """
 
 tags = ["pytorch", "training", "dropout", "batch-normalization"]
-related_patterns = ["pt-002"]
+related_patterns = ["pt-007"]
 references = []
 
 [detection]
 question = """
-Does the code perform PyTorch model training (has optimizer.step() and loss.backward()) but never calls model.train() in the visible code?
+Find training loops (loss.backward() + optimizer.step()) in the code.
+Is model.train() MISSING before the training loop?
+
+YES = model.train() is MISSING before training (BUG)
+NO = model.train() is called before training, OR no training loops exist
 """
 
 warning_message = """

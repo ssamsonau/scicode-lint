@@ -1,0 +1,82 @@
+# Pattern: py-001-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "py-001"
+name = "mutable-default-argument"
+category = "scientific-numerical"
+severity = "medium"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Mutable default arguments like def func(x, items=[]) share the same object across all function calls. This causes subtle bugs where the list/dict accumulates values between calls. Use None as default and create the mutable object inside the function.
+"""
+
+explanation = """
+Mutable default argument: the default object is shared across all calls. Use None as default and create inside the function.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Find a function with a default argument.
+Is a mutable default argument used (list or dict like [] or {})?
+
+YES = mutable default argument is used (BUG)
+NO = default is None/immutable, OR no default arguments
+"""
+
+warning_message = """
+Mutable default argument: the default object is shared across all calls. Use None as default and create inside the function.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/mutable_defaults.py"
+description = "Function definitions with mutable defaults (history=[], settings={}, accumulator=[]) that are shared across calls, causing state leakage"
+expected_issue = "Mutable default argument shared across function calls"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "add_measurement"
+snippet = "def add_measurement(value, history=[]):"
+
+[[tests.positive]]
+file = "test_positive/cache_defaults.py"
+description = "Cache pattern with cache={} default, or functions with list/dict defaults used for accumulation or storage"
+expected_issue = "Dictionary or list default argument mutated across invocations"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "cached_compute"
+snippet = "def cached_compute(key, cache={}):"
+
+[[tests.negative]]
+file = "test_negative/proper_defaults.py"
+description = "Functions using None as default with if arg is None: arg = [] pattern to create fresh mutable objects per call"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/immutable_defaults.py"
+description = "Functions with immutable defaults (floats, ints, strings, tuples) or no default arguments"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

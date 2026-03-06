@@ -251,8 +251,6 @@ Both evaluation approaches serve different purposes:
 - **Hardcoded ground truth**: Fast, deterministic, good for regression testing and CI/CD
 - **LLM-as-judge**: Flexible, semantic correctness, good for development and quality assessment
 
-See [EVAL_COMPARISON.md](EVAL_COMPARISON.md) for detailed comparison and when to use each approach.
-
 **Recommended workflow:**
 1. Develop patterns with LLM-as-judge feedback (fast iteration)
 2. Lock in expectations with ground truth (regression prevention)

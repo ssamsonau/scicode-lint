@@ -25,8 +25,6 @@ def training_procedure(model, dataloader, num_epochs):
     loss_fn = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-    # BUG: Gradient clearing done only once before all epochs
-    # Should be inside the batch loop
     for p in model.parameters():
         if p.grad is not None:
             p.grad.zero_()

@@ -492,22 +492,58 @@ def main() -> None:
         help="Report format",
     )
     parser.add_argument("--timeout", type=int, default=30, help="Linter timeout in seconds")
+    parser.add_argument(
+        "--no-auto-server",
+        action="store_true",
+        help="Don't auto-start vLLM server (assume already running)",
+    )
+    parser.add_argument(
+        "--vllm-port",
+        type=int,
+        default=5001,
+        help="vLLM server port (default: 5001)",
+    )
 
     args = parser.parse_args()
 
-    # Create runner
-    runner = EvalRunner(
-        patterns_dir=args.patterns_dir,
-        test_definitions_path=args.config,
-        linter_timeout=args.timeout,
-    )
+    def run_evaluation() -> int:
+        """Run the actual evaluation."""
+        runner = EvalRunner(
+            patterns_dir=args.patterns_dir,
+            test_definitions_path=args.config,
+            linter_timeout=args.timeout,
+        )
+        return runner.run(
+            pattern_filter=args.patterns,
+            output_dir=args.output_dir,
+            output_format=args.format,
+        )
 
-    # Run evaluation
-    exit_code = runner.run(
-        pattern_filter=args.patterns,
-        output_dir=args.output_dir,
-        output_format=args.format,
-    )
+    # Auto-start vLLM server if needed
+    if args.no_auto_server:
+        exit_code = run_evaluation()
+    else:
+        try:
+            from scicode_lint.vllm import VLLMServer, get_server_info
+
+            # Check if server is already running
+            base_url = f"http://localhost:{args.vllm_port}"
+            server_info = get_server_info(base_url=base_url)
+            if server_info.is_running:
+                logger.info(f"vLLM server already running at {server_info.base_url}")
+                exit_code = run_evaluation()
+            else:
+                logger.info("Starting vLLM server automatically...")
+                with VLLMServer(port=args.vllm_port, wait_timeout=120) as server:
+                    logger.info(f"vLLM server ready at {server.base_url}")
+                    exit_code = run_evaluation()
+        except ImportError:
+            logger.warning("vLLM utilities not available, running without auto-start")
+            exit_code = run_evaluation()
+        except Exception as e:
+            logger.error(f"Failed to start vLLM server: {e}")
+            logger.info("Try running with --no-auto-server if server is already running")
+            sys.exit(1)
 
     sys.exit(exit_code)
 

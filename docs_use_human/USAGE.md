@@ -165,16 +165,14 @@ scicode-lint check myfile.py \
 
 The linter checks 44 patterns across these categories:
 
-- **ml-correctness** (8 patterns) - Data leakage, wrong metrics, temporal leakage
-- **pytorch** (11 patterns) - Missing eval mode, gradient issues, loss function errors
-- **numerical** (6 patterns) - Float comparison, overflow, division by zero
-- **reproducibility** (4 patterns) - Missing seeds, CUDA non-determinism
-- **performance** (5 patterns) - Loops vs vectorization, DataLoader issues
-- **parallelization** (6 patterns) - GIL issues, data duplication, CUDA fork
-- **python** (2 patterns) - Mutable defaults, silent mutations
-- **numpy** (2 patterns) - View mutations, broadcasting errors
+- **ai-training** (15 patterns) - Data leakage, PyTorch training modes, gradient management
+- **ai-inference** (3 patterns) - Missing eval mode, missing no_grad, device mismatches
+- **ai-data** (1 pattern) - DataLoader configuration issues
+- **scientific-numerical** (10 patterns) - Float comparison, dtype overflow, catastrophic cancellation
+- **scientific-performance** (11 patterns) - Loops vs vectorization, memory inefficiency
+- **scientific-reproducibility** (4 patterns) - Missing seeds, CUDA non-determinism
 
-See [detection_catalog.yaml](detection_catalog.yaml) for complete list.
+See the `patterns/` directory for complete list.
 
 ## Limitations
 

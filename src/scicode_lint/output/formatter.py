@@ -23,7 +23,7 @@ class Location(BaseModel):
             "examples": [
                 {
                     "lines": [15, 16, 17],
-                    "snippet": "all_data = torch.cat([train_data, test_data])\\nmean = all_data.mean()",
+                    "snippet": "all_data = torch.cat([...])\\nmean = all_data.mean()",
                 }
             ]
         }

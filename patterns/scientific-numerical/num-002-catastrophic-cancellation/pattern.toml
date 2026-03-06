@@ -1,0 +1,82 @@
+# Pattern: num-002-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "num-002"
+name = "catastrophic-cancellation"
+category = "scientific-numerical"
+severity = "high"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Subtracting nearly equal large numbers causes catastrophic cancellation, losing significant digits of precision. Common examples include naive variance calculation (mean_sq - mean^2) and exponential differences.
+"""
+
+explanation = """
+Catastrophic cancellation: subtracting nearly equal large numbers loses precision. Restructure the formula to avoid this.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Find subtraction of nearly equal large numbers in the code (e.g., naive variance mean_sq - mean^2, exp(x) - exp(x-delta)).
+Is numerically stable algorithm MISSING (no np.var, Welford, log-sum-exp, or ratios)?
+
+YES = numerically stable algorithm is MISSING (BUG)
+NO = uses stable algorithm, OR no such subtraction exists, OR values are well-separated
+"""
+
+warning_message = """
+Catastrophic cancellation: subtracting nearly equal large numbers loses precision. Restructure the formula to avoid this.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/cancellation.py"
+description = "Variance computed as mean(x^2) - mean(x)^2 with large values, or subtraction of nearly equal large numbers (1.0000001 - 1.0000000) losing precision"
+expected_issue = "Catastrophic cancellation from subtracting nearly equal numbers"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "compute_variance_naive"
+snippet = "variance = mean_sq - mean_val ** 2"
+
+[[tests.positive]]
+file = "test_positive/nearly_equal_subtraction.py"
+description = "Exponential differences, distance calculations, or (large_val + small_delta) - large_val where subtraction loses significant digits"
+expected_issue = "Subtraction of large nearly-equal values causes precision loss"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "exponential_difference"
+snippet = "diff = val1 - val2"
+
+[[tests.negative]]
+file = "test_negative/stable_computation.py"
+description = "Using stable algorithms like np.var() or operations on well-separated values where cancellation is not a concern"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/safe_operations.py"
+description = "Operations using ratios, gradients, or differences of values with sufficient separation to avoid precision loss"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

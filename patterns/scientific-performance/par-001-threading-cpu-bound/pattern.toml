@@ -1,0 +1,82 @@
+# Pattern: par-001-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "par-001"
+name = "threading-cpu-bound"
+category = "scientific-performance"
+severity = "high"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Using ThreadPoolExecutor or threading for CPU-bound numerical work (e.g., NumPy operations, matrix computations) provides no speedup due to Python's GIL. Threads only help for I/O-bound tasks. Use ProcessPoolExecutor or multiprocessing for CPU-bound work.
+"""
+
+explanation = """
+Wrong concurrency: threading on CPU-bound work gives no speedup due to GIL. Use multiprocessing or ProcessPoolExecutor for CPU-bound tasks.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Find ThreadPoolExecutor or threading.Thread in the code.
+Does it run CPU-bound numerical work (NumPy, matrix ops, array computations)?
+
+YES = threading used for CPU-bound work (BUG)
+NO = no threading for CPU-bound work exists
+"""
+
+warning_message = """
+Wrong concurrency: threading on CPU-bound work gives no speedup due to GIL. Use multiprocessing or ProcessPoolExecutor for CPU-bound tasks.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/threadpool_matrix_ops.py"
+description = "ThreadPoolExecutor used for CPU-bound eigenvalue computation - threading provides no speedup for numerical computation due to GIL"
+expected_issue = "ThreadPoolExecutor used for CPU-bound matrix eigenvalue computation"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "parallel_eigenvalue_analysis"
+snippet = "with ThreadPoolExecutor(max_workers=8) as executor:"
+
+[[tests.positive]]
+file = "test_positive/threading_feature_engineering.py"
+description = "Threading module used for CPU-bound feature normalization - numerical operations on arrays don't benefit from threading"
+expected_issue = "Threading used for CPU-bound feature engineering with NumPy arrays"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "batch_normalize"
+snippet = "t = threading.Thread(target=normalize_features"
+
+[[tests.negative]]
+file = "test_negative/process_pool_matrix_ops.py"
+description = "ProcessPoolExecutor correctly used for CPU-bound eigenvalue computation - each process runs on separate core"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/threading_io_tasks.py"
+description = "Threading correctly used for IO-bound API fetching - GIL released during IO operations"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

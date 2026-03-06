@@ -19,7 +19,6 @@ def training_step(model, inputs, labels, optimizer):
     predictions = model(inputs)
     loss = nn.functional.binary_cross_entropy(predictions, labels)
 
-    # BUG: Converting to Python scalar before backward
     scalar_loss = float(loss)
 
     optimizer.zero_grad()

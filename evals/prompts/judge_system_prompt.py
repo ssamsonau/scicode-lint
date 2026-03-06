@@ -1,5 +1,7 @@
 """System prompt for LLM-as-judge evaluation."""
 
+from typing import Any
+
 JUDGE_SYSTEM_PROMPT = """You are evaluating the correctness of a code linter's output.
 
 Your task:
@@ -23,7 +25,7 @@ CRITICAL: Output ONLY valid JSON, nothing else - NO markdown fences, NO extra te
 
 
 def generate_judge_prompt(
-    test_file_path: str, test_type: str, expected_behavior: str, linter_output: dict
+    test_file_path: str, test_type: str, expected_behavior: str, linter_output: dict[str, Any]
 ) -> str:
     """
     Generate judge prompt with clear XML structure.
@@ -84,11 +86,14 @@ Confidence: {confidence}
 Does the linter output correctly match the test case's intended behavior?
 
 Consider:
-- For positive tests: Did the linter detect the issue on the correct lines? Does the code snippet show the actual problem? Is the reasoning sound?
-- For negative tests: Did the linter correctly NOT flag this as a bug (detected="no")?
-- For context-dependent tests: Is the linter's judgment reasonable (either "yes", "context-dependent", or "no" with good reasoning)?
+- For positive tests: Did the linter detect the issue on the correct lines?
+  Does the code snippet show the actual problem? Is the reasoning sound?
+- For negative tests: Did the linter correctly NOT flag this as a bug?
+- For context-dependent tests: Is the linter's judgment reasonable
+  (either "yes", "context-dependent", or "no" with good reasoning)?
 
-Compare the code snippet against the expected behavior. The linter should identify the actual problematic code.
+Compare the code snippet against the expected behavior.
+The linter should identify the actual problematic code.
 
 Output ONLY valid JSON with this exact structure:
 {{"verdict": "yes"|"no"|"partial", "reasoning": "Brief explanation", "confidence": 0.95}}

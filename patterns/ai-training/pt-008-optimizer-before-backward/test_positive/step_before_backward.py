@@ -26,7 +26,6 @@ def incorrect_training_order(model, train_loader):
             if param.grad is not None:
                 param.grad.zero_()
 
-        # BUG: Applying updates before computing gradients
         optimizer.step()
 
         # Computing gradients after parameters already updated

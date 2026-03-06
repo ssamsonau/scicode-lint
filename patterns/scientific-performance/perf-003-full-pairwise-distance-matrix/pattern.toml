@@ -1,0 +1,82 @@
+# Pattern: perf-003-pattern
+# Auto-migrated from YAML catalog on 2026-03-03
+
+[meta]
+id = "perf-003"
+name = "full-pairwise-distance-matrix"
+category = "scientific-performance"
+severity = "high"
+version = "1.0.0"
+created = "2024-01-15"
+updated = "2026-03-03"
+author = "scicode-lint"
+
+description = """
+Computing full pairwise distance matrices when only partial results are needed wastes memory. An N×N matrix for N=50,000 uses ~20GB. Use spatial indexing (KD-tree), chunked computation, or compute only needed distances.
+"""
+
+explanation = """
+Full N×N distance matrix in memory: N=50,000 uses ~20 GB. Use spatial indexing (KD-tree), chunked computation, or only compute needed distances.
+
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Find cdist(X, X) calls or nested loops computing full N×N pairwise distance/similarity matrices.
+Does the code store a full N×N matrix in memory where N could be large?
+
+YES = full pairwise matrix found (BUG)
+NO = no such matrices exist
+"""
+
+warning_message = """
+Full N×N distance matrix in memory: N=50,000 uses ~20 GB. Use spatial indexing (KD-tree), chunked computation, or only compute needed distances.
+
+"""
+
+min_confidence = 0.85
+code_patterns = []
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/full_distance_matrix.py"
+description = "Computing full 50000x50000 distance matrix with cdist - uses 20GB memory, most entries never used"
+expected_issue = "Full N×N pairwise distance matrix computed and stored in memory"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "compute_all_distances"
+snippet = "distance_matrix = cdist(points, points, metric='euclidean')"
+
+[[tests.positive]]
+file = "test_positive/pairwise_matrix_storage.py"
+description = "Nested loops creating full 30000x30000 similarity matrix - massive memory allocation for pairwise computation"
+expected_issue = "Full pairwise similarity matrix allocated and computed"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "calculate_similarity_matrix"
+snippet = "similarity = np.zeros((num_samples, num_samples))"
+
+[[tests.negative]]
+file = "test_negative/kdtree_approach.py"
+description = "Uses KDTree spatial indexing to find neighbors efficiently - avoids full distance matrix"
+max_false_positives = 0
+
+[[tests.negative]]
+file = "test_negative/chunked_computation.py"
+description = "Computes distances in chunks and only keeps minimum values - memory efficient approach"
+max_false_positives = 0
+
+[quality]
+target_precision = 0.90
+target_recall = 0.80
+target_f1 = 0.85

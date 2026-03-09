@@ -1,227 +1,90 @@
 # Continuous Improvement Loop
 
-**Core principle: Quality improvement is directly proportional to effort invested.**
+**Key principle:** Don't fine-tune to specific tests. Extract generalizable principles and apply to ALL patterns.
 
-This project has a structured improvement workflow. Each cycle of evaluation → analysis → improvement advances pattern quality. The more cycles run, the better the results.
+**Requires:** vLLM server running (runs actual detection against test files)
 
----
+**Different from pattern review:** Pattern review (`claude --agent pattern_verification/semantic/pattern-reviewer`) is static analysis of pattern files that does NOT run evals. Use it independently to check pattern structure, test file quality, etc.
 
-## What Can Be Improved
-
-### 1. Detection Patterns (Primary Focus)
-- Detection questions, warning messages, test cases
-- **Reviewed** via **pattern-reviewer agent**: `claude --agent pattern-reviewer "Review <pattern-id>"`
-- Agent analyzes and suggests improvements → you implement the changes
-
-### 2. The Agent Itself (When Needed)
-- Agent instructions, system prompts, capabilities
-- Location: `.claude/agents/pattern-reviewer/`
-- Improve when agent consistently gives poor suggestions or misses issues
-
-### 3. Evaluation Framework
-- Test scenarios, metrics calculation, reporting
-- Location: `evals/`
-
-### Critical Rules (NEVER Break)
-
-**Pattern Design Rules** (how detection prompts work at runtime):
-
-| Rule | Rationale |
-|------|-----------|
-| Data leakage patterns must detect leakage | Core scientific integrity - false negatives here invalidate research |
-| Critical severity requires precision ≥ 0.95 | High-confidence warnings only for critical issues |
-| Detection questions must stay simple | Constrained-capacity LLM (Gemma 3 12B) cannot handle complex reasoning |
-| Code-first prompt structure | User code comes before detection instructions - required for vLLM prefix caching |
-
-These rules apply to **pattern TOML files** and **prompt generation** - not to the pattern-reviewer agent.
-
-**If an "improvement" would violate these rules, reject it.**
-
----
-
-## Current Quality Metrics
-
-| Metric | Pattern-Specific | Integration | Target |
-|--------|------------------|-------------|--------|
-| Precision | 64.8% | 19.1% | ≥ 90% |
-| Recall | 84.0% ✓ | 60% | ≥ 80% |
-| Pass rate | 9/44 patterns | 0/4 scenarios | 100% |
-
-**Source:** [README.md](../README.md) - update after each evaluation run.
-
----
-
-## The Improvement Loop
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                                                             │
-│   1. EVALUATE                                               │
-│   ├── Pattern-specific: python evals/run_eval.py           │
-│   └── Integration: python evals/integration/run_integration_eval.py │
-│                         │                                   │
-│                         ▼                                   │
-│   2. IDENTIFY FAILURES                                      │
-│   ├── Which patterns fail precision/recall targets?         │
-│   └── What are the false positive/negative cases?           │
-│                         │                                   │
-│                         ▼                                   │
-│   3. ANALYZE & IMPROVE                                      │
-│   ├── Use pattern-reviewer agent for analysis               │
-│   ├── Improve detection questions (simpler, more focused)   │
-│   ├── Add/fix test cases (positive/negative/context)        │
-│   └── Update warnings for clarity                           │
-│                         │                                   │
-│                         ▼                                   │
-│   4. VALIDATE                                               │
-│   ├── ruff check . && ruff format .                         │
-│   ├── mypy src/                                             │
-│   └── pytest                                                │
-│                         │                                   │
-│                         ▼                                   │
-│   5. RE-EVALUATE → Loop back to step 1                      │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Step-by-Step Commands
-
-### Step 1: Run Evaluations
+## Loop
 
 ```bash
-# All patterns (isolated)
+# 0. Run validation script first (catches structural issues before eval)
+python pattern_verification/deterministic/validate.py
+# Fix any errors before proceeding. The script checks:
+# TOML/file sync, schema, data leakage, test count, TODO markers,
+# detection format, syntax, empty fields, diversity
+
+# 1. Evaluate individual patterns
 python evals/run_eval.py
 
-# Specific pattern
-python evals/run_eval.py --pattern ml-001-scaler-leakage
+# 2. Debug FAILING patterns (see LLM reasoning)
+python -m scicode_lint check <file> --pattern <id> --verbose
 
-# Integration tests
-python evals/integration/run_integration_eval.py
+# 3. Fix - but look for GENERAL principle, not specific fix
+#    If found generalizable principle:
+#    - Add to patterns/README.md
+#    - Update pattern-reviewer agent if needed
+#    - Apply to ALL pattern questions, not just the failing one
+
+# 4. (Optional) Review changed patterns for structural issues
+#    ⚠️ COST: Uses Opus API. Prefer single-pattern reviews.
+claude --agent pattern_verification/semantic/pattern-reviewer "Review <pattern-id>"
+
+# 5. Validate - check nothing broke
+python evals/run_eval.py
+
+# 6. If updated pattern-reviewer agent, run on all patterns to verify
+#    ⚠️ COST: Bulk reviews consume significant tokens. Use sparingly.
+claude --agent pattern_verification/semantic/pattern-reviewer "Review all patterns"
 ```
 
-### Step 2: Identify Failing Patterns
+## Parallel Category Loops
 
-- Check eval output for patterns below targets (precision < 0.90, recall < 0.80)
-- Review false positives (detected but shouldn't be) and false negatives (missed)
-
-### Step 3: Run Pattern-Reviewer Agent
-
-The **pattern-reviewer agent** analyzes patterns and suggests improvements (it reviews, not writes):
+Run improvement loops per category in parallel (each in separate terminal):
 
 ```bash
-# Review single pattern
-claude --agent pattern-reviewer "Review ml-001-scaler-leakage"
+# Terminal 1: AI inference patterns
+python evals/run_eval.py -c ai-inference
 
-# Batch review failing patterns
-claude --agent pattern-reviewer "Review all patterns with precision < 0.90"
+# Terminal 2: AI training patterns
+python evals/run_eval.py -c ai-training
 
-# Get specific suggestions
-claude --agent pattern-reviewer "ml-001 has 3 false positives. Analyze and suggest fixes."
+# Terminal 3: Scientific numerical patterns
+python evals/run_eval.py -c scientific-numerical
+
+# Terminal 4: Scientific performance patterns
+python evals/run_eval.py -c scientific-performance
+
+# Terminal 5: Scientific reproducibility patterns
+python evals/run_eval.py -c scientific-reproducibility
 ```
 
-**What the agent does:**
-- Analyzes pattern and identifies issues
-- Suggests specific improvements
-- **You implement the suggested changes** (edit TOML, add test cases)
+Each category writes reports to `evals/reports/judge/<category>/`.
 
-**What the agent checks:**
-- Detection question clarity and simplicity
-- Warning message actionability
-- Test case coverage (positive/negative/context-dependent)
-- Alignment with constrained-capacity LLM principles
+**Note:** All parallel runs share the same vLLM server. Start the server first with sufficient capacity, or let the first process auto-start it.
 
-**Agent location:** `.claude/agents/pattern-reviewer/`
+## Integration Tests (holdout set)
 
-### Step 4: Validate Code Quality
+Tests generalization - did we overfit to pattern-specific tests?
 
 ```bash
-ruff check . && ruff format .
-mypy src/
-pytest
+python evals/integration/run_integration_eval.py     # static integration
+python evals/integration/dynamic_eval.py             # dynamic integration
 ```
 
-### Step 5: Re-evaluate and Iterate
+## Update README
 
-- Run evals again
-- If metrics improved but still below target, continue loop
-- If metrics meet targets, move to next failing pattern
+When metrics change, update README.md.
 
----
+## Evaluation Types
 
-## When to Run This Loop
+| Type | Purpose |
+|------|---------|
+| Pattern-specific | Iterate on individual patterns |
+| Static integration | Holdout - test all patterns on realistic code |
+| Dynamic integration | Holdout - test on fresh LLM-generated code |
 
-**MANDATORY: Every pattern change requires running the pattern-reviewer agent.**
+## Critical Constraint
 
-```bash
-# After ANY pattern modification
-claude --agent pattern-reviewer "Review <pattern-id>"
-```
-
-| Trigger | Action |
-|---------|--------|
-| After implementing new pattern | Run pattern-reviewer agent + full loop |
-| After modifying detection question | Run pattern-reviewer agent + re-evaluate |
-| After changing test cases | Run pattern-reviewer agent + re-evaluate |
-| Before any release | Run full eval suite, document results in README |
-| Pattern precision/recall below target | Run pattern-reviewer agent for analysis |
-| Integration tests failing | Focus on cross-pattern interference |
-
----
-
-## Success Criteria
-
-### Pattern Passes When
-
-- Precision ≥ 0.90 (≥ 0.95 for critical severity)
-- Recall ≥ 0.80
-- All test cases (positive/negative/context-dependent) behave as expected
-
-### Project Milestone Achieved When
-
-- All 44 patterns meet individual thresholds
-- Integration scenarios pass with acceptable precision
-- README metrics updated to reflect current state
-
----
-
-## Improving the Agent Itself
-
-When the pattern-reviewer agent consistently gives poor suggestions:
-
-1. **Identify the issue** - What types of suggestions are wrong?
-2. **Update agent instructions** - Edit `.claude/agents/pattern-reviewer/system_prompt.md`
-3. **Add examples** - Improve `.claude/agents/pattern-reviewer/examples.md`
-4. **Test the changes** - Run the agent on known patterns and verify better output
-
-**Agent files:**
-```
-.claude/agents/pattern-reviewer/
-├── agent.json          # Agent configuration
-├── system_prompt.md    # Main instructions (edit this)
-├── README.md           # Documentation
-├── QUICK_START.md      # Quick reference
-├── BATCH_OPERATIONS.md # Batch processing guide
-└── examples.md         # Usage examples
-```
-
-**Remember:** Agent improvements must respect Critical Rules (see above).
-
----
-
-## Resources
-
-- **Pattern-reviewer agent:** [.claude/agents/pattern-reviewer/](../.claude/agents/pattern-reviewer/)
-- **Evaluation framework:** [evals/README.md](../evals/README.md)
-- **Integration tests:** [evals/integration/README.md](../evals/integration/README.md)
-- **Pattern structure:** [patterns/README.md](../patterns/README.md)
-- **Architecture (detection question design):** [ARCHITECTURE.md](ARCHITECTURE.md)
-
----
-
-## See Also
-
-- [TOOLS.md](TOOLS.md) - Development tools including pattern-reviewer agent
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Design principles for detection questions
-- [../Claude.md](../Claude.md) - Main AI agent instructions
+- **No hints in test files** - pure code only, no comments about bugs (data leakage in evaluation)

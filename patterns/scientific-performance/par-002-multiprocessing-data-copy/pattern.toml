@@ -26,11 +26,21 @@ references = []
 
 [detection]
 question = """
-Find Pool.map() or ProcessPoolExecutor.submit() in the code.
-Does it pass the same large array to multiple workers?
+Analyze multiprocessing data transfer patterns.
 
-YES = large array copied to multiple processes (BUG)
-NO = no large array duplication exists
+Passing large arrays to multiprocessing causes expensive data copying. Each process receives a full copy: 4 processes on a 4GB array = 16GB memory usage.
+
+Correct approach: Use multiprocessing.shared_memory, pass indices instead of data, or use file-based sharing.
+
+Does this code copy large arrays to each worker process?
+
+Look for:
+- pool.map(func, [large_array] * N) duplicating array N times
+- ProcessPoolExecutor submitting same large array to multiple workers
+- Large arrays passed as function arguments to worker processes
+
+YES = Bug found: large arrays copied to each worker process
+NO = Correct: uses shared memory, passes indices, or small data only
 """
 
 warning_message = """
@@ -39,7 +49,6 @@ Data duplication: multiprocessing copies data to each process. 4 processes on a 
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -69,14 +78,24 @@ snippet = "futures = [executor.submit(compute_statistics, data_matrix) for _ in 
 [[tests.negative]]
 file = "test_negative/shared_memory_approach.py"
 description = "Correctly uses multiprocessing.shared_memory to avoid data duplication across processes"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/index_passing.py"
 description = "Passes only index ranges to workers instead of full data - efficient memory usage"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/shared_array_copy.py"
+description = "Pool.map duplicates large array to 4 workers and ProcessPoolExecutor submits the same large array to multiple workers without shared memory"
+expected_issue = "Large arrays passed to workers via pool.map([array] * 4) and repeated submissions cause memory duplication"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "process_chunks"
+snippet = "def worker(chunk):"
+
+[[tests.negative]]
+file = "test_negative/shared_array_proper.py"
+description = "Uses multiprocessing.shared_memory to create a shared buffer and passes only metadata (name, shape, dtype, indices) to workers, avoiding data duplication"

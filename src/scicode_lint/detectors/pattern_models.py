@@ -36,7 +36,6 @@ class DetectionConfig(BaseModel):
     warning_message: str
     suggestion: Optional[str] = None
     min_confidence: float = 0.85
-    code_patterns: list[str] = Field(default_factory=list)
     false_positive_risks: list[str] = Field(default_factory=list)
 
 
@@ -63,7 +62,6 @@ class NegativeTest(BaseModel):
 
     file: str
     description: str
-    max_false_positives: int = 0
     notes: Optional[str] = None
 
 
@@ -87,18 +85,6 @@ class TestCases(BaseModel):
     context_dependent: list[ContextDependentTest] = Field(default_factory=list)
 
 
-class QualityMetrics(BaseModel):
-    """Quality metrics for pattern performance."""
-
-    target_precision: float = 0.90
-    target_recall: float = 0.80
-    target_f1: float = 0.85
-    actual_precision: Optional[float] = None
-    actual_recall: Optional[float] = None
-    actual_f1: Optional[float] = None
-    last_evaluated: Optional[str] = None
-
-
 class AIScience(BaseModel):
     """AI/science-specific metadata."""
 
@@ -117,5 +103,4 @@ class PatternTOML(BaseModel):
     meta: PatternMeta
     detection: DetectionConfig
     tests: TestCases
-    quality: Optional[QualityMetrics] = Field(default_factory=QualityMetrics)
     ai_science: Optional[AIScience] = None

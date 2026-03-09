@@ -25,11 +25,18 @@ references = []
 
 [detection]
 question = """
-Find training loops with optimizer.step() and loss.backward() calls.
-Is optimizer.step() called BEFORE loss.backward()?
+Analyze the training loop order of operations.
 
-YES = optimizer.step() called BEFORE backward() (BUG)
-NO = correct order (backward then step), OR no training loop exists
+The correct PyTorch training sequence is: zero_grad() → forward → loss → backward() → step(). Calling optimizer.step() before backward() updates parameters with stale or zero gradients.
+
+Does this code call optimizer.step() before backward()?
+
+Look for:
+- optimizer.step() appearing before loss.backward() in training loop
+- Parameter updates happening before gradient computation
+
+YES = Bug found: optimizer.step() called before backward()
+NO = Correct: backward() called before step()
 """
 
 warning_message = """
@@ -37,7 +44,6 @@ Optimizer step before backward: Calling optimizer.step() before loss.backward() 
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -67,14 +73,24 @@ snippet = "model.zero_grad()"
 [[tests.negative]]
 file = "test_negative/correct_optimization_order.py"
 description = "Correct usage: zero_grad(), forward, loss, backward(), step() in proper order"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/proper_gradient_descent.py"
 description = "Correct usage: proper training sequence for complex model (VAE)"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/alternating_update.py"
+description = "GAN training with incorrect order: optimizer.step() called before backward() for both generator and discriminator."
+expected_issue = "Optimizer step called before backward pass"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "train_gan_wrong"
+snippet = "for real_data in data_loader:"
+
+[[tests.negative]]
+file = "test_negative/alternating_update_correct.py"
+description = "Correct GAN training: zero_grad() → loss computation → backward() → step() sequence for both optimizers."

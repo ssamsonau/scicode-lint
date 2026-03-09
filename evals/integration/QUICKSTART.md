@@ -68,8 +68,6 @@ All scenarios should:
 ### LLM-as-Judge
 
 All scenarios should:
-- Recall ≥ 80% (detect at least 80% of bugs)
-- Partial credit recall ≥ 90% (including partial detections)
 - Judge confirms findings are semantically correct
 
 ## Adding New Scenarios

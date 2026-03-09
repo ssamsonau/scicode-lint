@@ -17,9 +17,9 @@ The linter requires a local LLM server to run. vLLM is the only supported backen
 pip install scicode-lint[vllm-server]
 
 # Start vLLM server (downloads model automatically on first run)
-vllm serve --model RedHatAI/gemma-3-12b-it-FP8-dynamic \
+vllm serve Qwen/Qwen3-8B-FP8 \
     --trust-remote-code --gpu-memory-utilization 0.9 \
-    --max-model-len 16000
+    --max-model-len 24000
 
 # For CPU-only systems, add --device cpu
 # Note: CPU inference is 10-50x slower than GPU
@@ -147,7 +147,7 @@ scicode-lint check myfile.py
 # Specify custom URL and model
 scicode-lint check myfile.py \
   --vllm-url http://localhost:8000 \
-  --model google/gemma-3-12b-it
+  --model Qwen/Qwen3-8B-FP8
 ```
 
 ## Exit Codes
@@ -163,24 +163,23 @@ scicode-lint check myfile.py \
 
 ## Detection Categories
 
-The linter checks 44 patterns across these categories:
+The linter checks 64 patterns across these categories:
 
-- **ai-training** (15 patterns) - Data leakage, PyTorch training modes, gradient management
-- **ai-inference** (3 patterns) - Missing eval mode, missing no_grad, device mismatches
-- **ai-data** (1 pattern) - DataLoader configuration issues
+- **ai-training** (16 patterns) - Data leakage, PyTorch training modes, gradient management
+- **ai-inference** (13 patterns) - Missing eval mode, missing no_grad, device mismatches
 - **scientific-numerical** (10 patterns) - Float comparison, dtype overflow, catastrophic cancellation
 - **scientific-performance** (11 patterns) - Loops vs vectorization, memory inefficiency
-- **scientific-reproducibility** (4 patterns) - Missing seeds, CUDA non-determinism
+- **scientific-reproducibility** (14 patterns) - Missing seeds, CUDA non-determinism
 
 See the `patterns/` directory for complete list.
 
 ## Limitations
 
 1. **Requires LLM**: vLLM must be running
-2. **Speed**: Checking 44 patterns takes time (varies by file size and GPU)
+2. **Speed**: Checking 64 patterns takes time (varies by file size and GPU)
 3. **False positives possible**: Review all findings - the linter is conservative but not perfect
 4. **Function/class level only**: Findings report function/class names, not exact line numbers
-5. **Context length limits**: Files must fit within model's context window (16K tokens = ~1,500 lines)
+5. **Context length limits**: Files must fit within model's input context (16K tokens = ~1,500 lines)
    - Files that are too large will be skipped with a clear error message
    - See "File too large" error below for solutions
 
@@ -190,7 +189,7 @@ See the `patterns/` directory for complete list.
 
 Make sure vLLM is running:
 ```bash
-vllm serve --model RedHatAI/gemma-3-12b-it-FP8-dynamic
+vllm serve Qwen/Qwen3-8B-FP8
 ```
 
 ### "Model not found" error
@@ -230,20 +229,20 @@ Suggestions:
    src/evaluation.py     (2000 tokens)
    ```
 
-2. **Adjust context limit**: The default 16K context supports ~1,500 line files (90-95th percentile):
+2. **Adjust context limit**: The default 24K context (16K input + 8K response) supports ~1,500 line files (90-95th percentile):
    ```bash
-   # Standard: 16K tokens (supports ~1,500 lines)
-   vllm serve --model RedHatAI/gemma-3-12b-it-FP8-dynamic --max-model-len 16000
+   # Standard: 24K total tokens (16K input + 8K response for thinking)
+   vllm serve Qwen/Qwen3-8B-FP8 --max-model-len 24000
    ```
 
 3. **Use environment variable**: Override context limit via config
    ```bash
-   export SCICODE_LINT_MAX_MODEL_LEN=16000
+   export SCICODE_LINT_MAX_MODEL_LEN=24000
    scicode-lint check large_file.py
    ```
 
 **Context window:**
-- Standard: 16K tokens (20GB VRAM, covers ~1,500 lines)
+- Standard: 24K tokens total (16K input + 8K response, 16GB VRAM, covers ~1,500 lines)
 
 **Estimate tokens before checking:**
 ```python

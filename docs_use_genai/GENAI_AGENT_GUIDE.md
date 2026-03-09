@@ -54,7 +54,7 @@ linter = SciCodeLinter(config)
 pip install scicode-lint[vllm-server]
 
 # Start vLLM server (see installation guide for configuration options)
-vllm serve --model RedHatAI/gemma-3-12b-it-FP8-dynamic --trust-remote-code --max-model-len 16000
+vllm serve Qwen/Qwen3-8B-FP8 --trust-remote-code --max-model-len 24000
 ```
 
 **For automated workflows:** See [VLLM_UTILITIES.md](VLLM_UTILITIES.md) for programmatic server management.
@@ -92,11 +92,11 @@ from scicode_lint.config import LinterConfig, LLMConfig, Severity
 config = LinterConfig(
     llm_config=LLMConfig(
         base_url="http://localhost:5001",  # Auto-detects if empty
-        model="RedHatAI/gemma-3-12b-it-FP8-dynamic",  # Auto-detects if empty
+        model="Qwen/Qwen3-8B-FP8",  # Auto-detects if empty
     ),
     min_confidence=0.7,  # 0.0-1.0
     enabled_severities={Severity.CRITICAL, Severity.HIGH},  # Filter by severity
-    enabled_categories={"ml-correctness", "pytorch"},  # Filter by category
+    enabled_categories={"ai-training", "ai-inference"},  # Filter by category
     enabled_patterns={"ml-001", "pt-001"},  # Filter by pattern ID
 )
 
@@ -113,7 +113,7 @@ result.summary: dict           # Statistics
 
 # Finding (tells you which pattern failed and why)
 finding.id: str               # Pattern ID (e.g., "ml-001") ← WHICH pattern
-finding.category: str         # "ml-correctness", "pytorch", etc.
+finding.category: str         # "ai-training", "ai-inference", etc.
 finding.severity: str         # "critical", "high", "medium"
 finding.explanation: str      # What's wrong and how to fix ← WHAT it means
 finding.confidence: float     # 0.0 to 1.0
@@ -157,7 +157,7 @@ catalog_path = Path(__file__).parent / "scicode_lint" / "detection_catalog.yaml"
 catalog = DetectionCatalog(catalog_path)
 
 # Get patterns by category
-ml_patterns = catalog.get_patterns_by_category("ml-correctness")
+ml_patterns = catalog.get_patterns_by_category("ai-training")
 for p in ml_patterns:
     print(f"{p.id}: {p.warning_message}")
 
@@ -183,7 +183,7 @@ scicode-lint check myfile.py --format json
 scicode-lint check myfile.py --severity critical,high
 
 # Filter by category
-scicode-lint check myfile.py --category ml-correctness,pytorch
+scicode-lint check myfile.py --category ai-training,ai-inference
 
 # Filter by pattern
 scicode-lint check myfile.py --pattern ml-001,ml-002
@@ -204,7 +204,7 @@ scicode-lint check file1.py file2.py
     "findings": [
       {
         "id": "ml-001",
-        "category": "ml-correctness",
+        "category": "ai-training",
         "severity": "critical",
         "location": {
           "type": "function",
@@ -218,7 +218,7 @@ scicode-lint check file1.py file2.py
     "summary": {
       "total_findings": 1,
       "by_severity": {"critical": 1},
-      "by_category": {"ml-correctness": 1}
+      "by_category": {"ai-training": 1}
     }
   }
 ]
@@ -241,9 +241,9 @@ def fix_ml_pipeline(file_path: str):
     Focus on ML correctness patterns only.
     """
 
-    # Step 1: Check ONLY ML correctness issues (not all 44 patterns)
+    # Step 1: Check ONLY ML correctness issues (not all 64 patterns)
     config = LinterConfig(
-        enabled_categories={"ml-correctness"},  # Only 8 patterns, ~40 sec
+        enabled_categories={"ai-training"},  # 16 patterns
     )
     linter = SciCodeLinter(config)
     result = linter.check_file(Path(file_path))
@@ -283,7 +283,7 @@ def fix_pytorch_training(file_path: str):
 
     # Check ONLY PyTorch patterns
     config = LinterConfig(
-        enabled_categories={"pytorch"},  # Only 11 patterns
+        enabled_categories={"ai-training"},  # 16 patterns
     )
     linter = SciCodeLinter(config)
     result = linter.check_file(Path(file_path))
@@ -349,21 +349,21 @@ config = LinterConfig(
     enabled_patterns={"ml-001"},  # Only this pattern
 )
 linter = SciCodeLinter(config)
-result = linter.check_file(Path("pipeline.py"))  # 4 seconds, not 2 minutes
+result = linter.check_file(Path("pipeline.py"))  # ~50 seconds
 
 # Example 2: GenAI fixing PyTorch training loop - check only pt-001, pt-002, pt-003
 config = LinterConfig(
     enabled_patterns={"pt-001", "pt-002", "pt-003"},
 )
 linter = SciCodeLinter(config)
-result = linter.check_file(Path("train.py"))  # ~15 seconds
+result = linter.check_file(Path("train.py"))  # ~55 seconds
 
 # Example 3: Check specific category while working on ML pipeline
 config = LinterConfig(
-    enabled_categories={"ml-correctness"},  # 8 patterns
+    enabled_categories={"ai-training"},  # 16 patterns
 )
 linter = SciCodeLinter(config)
-result = linter.check_file(Path("ml_pipeline.py"))  # ~40 seconds
+result = linter.check_file(Path("ml_pipeline.py"))  # ~60 seconds
 ```
 
 **CLI equivalent:**
@@ -375,7 +375,7 @@ scicode-lint check pipeline.py --pattern ml-001
 scicode-lint check train.py --pattern pt-001,pt-002,pt-003
 
 # Check category
-scicode-lint check ml_pipeline.py --category ml-correctness
+scicode-lint check ml_pipeline.py --category ai-training
 ```
 
 **Best Practice:** During development, check only the patterns you're actively fixing. Run full scan before final commit.
@@ -439,18 +439,15 @@ All information needed to fix the issue is in the `Finding` object.
 
 ---
 
-## Detection Categories (44 patterns)
+## Detection Categories (64 patterns)
 
 | Category | Patterns | Examples |
 |----------|----------|----------|
-| **ml-correctness** | 8 | Data leakage, wrong metrics, temporal leakage |
-| **pytorch** | 11 | Missing eval/zero_grad, gradient issues, dtype errors |
-| **numerical** | 6 | Float comparison, overflow, division by zero |
-| **reproducibility** | 4 | Missing seeds, CUDA non-determinism |
-| **performance** | 5 | Loops vs vectorization, DataLoader issues |
-| **parallelization** | 6 | GIL issues, CUDA fork deadlocks |
-| **numpy** | 2 | View mutations, broadcasting errors |
-| **python** | 2 | Mutable defaults, silent mutations |
+| **ai-training** | 16 | Data leakage, missing zero_grad, gradient issues |
+| **ai-inference** | 13 | Missing eval mode, no_grad, device mismatches |
+| **scientific-numerical** | 10 | Float comparison, overflow, division by zero |
+| **scientific-performance** | 11 | Loops vs vectorization, memory inefficiency |
+| **scientific-reproducibility** | 14 | Missing seeds, CUDA non-determinism |
 
 ### Common Patterns & Fixes
 
@@ -541,9 +538,9 @@ except Exception as e:
 ## Performance
 
 **Speed (per file):**
-- Single pattern: ~4-5 seconds
-- Category (8 patterns): ~30-40 seconds
-- Full scan (44 patterns): ~2-3 minutes
+- Single pattern: ~50 seconds
+- Category (8 patterns): ~60 seconds
+- Full scan (64 patterns): ~90 seconds
 
 **Optimization:**
 - vLLM's prefix caching reuses code analysis across patterns for significant speedup
@@ -551,8 +548,8 @@ except Exception as e:
 - Filter by `--category` for targeted analysis
 
 **Hardware:**
-- Tested on NVIDIA RTX 4000 Ada (20GB VRAM) with Gemma 3 12B FP8 @ 16K context
-- Minimum: 20GB VRAM with native FP8 support (compute capability >= 8.9)
+- Tested on NVIDIA RTX 4000 Ada (20GB VRAM) with Qwen3-8B-FP8 @ 24K context
+- Minimum: 16GB VRAM with native FP8 support (compute capability >= 8.9)
 
 ---
 
@@ -586,7 +583,7 @@ enabled_severities = ["critical", "high"]
 2. **No line numbers**: Uses function/class names (LLMs hallucinate line numbers)
 3. **False positives possible**: Always review findings
 4. **Requires LLM**: Needs vLLM server running
-5. **Speed**: Full scan takes 2-3 minutes per file
+5. **Speed**: Full scan takes ~90 seconds per file
 6. **File size limit**: ~1,500 lines max (16K token context)
    - 16K chosen based on analysis of 10M+ GitHub repositories
    - Covers 90-95th percentile of Python files in the wild

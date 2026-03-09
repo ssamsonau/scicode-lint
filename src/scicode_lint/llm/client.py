@@ -131,6 +131,42 @@ class VLLMClient(LLMClient):
             self._auto_detect_max_model_len()
 
     @staticmethod
+    def _extract_thinking(text: str) -> tuple[str, str | None]:
+        """
+        Extract and remove <think>...</think> tags from response.
+
+        Qwen3 models in thinking mode output reasoning in <think> tags before the JSON.
+        Handles both closed tags and truncated/unclosed tags (when output is cut off).
+
+        Returns:
+            Tuple of (cleaned_text, thinking_content).
+            thinking_content is None if no thinking tags were found.
+        """
+        import re
+
+        thinking_content = None
+
+        # Try to find closed thinking tags first
+        thinking_match = re.search(r"<think>(.*?)</think>", text, flags=re.DOTALL)
+        if thinking_match:
+            thinking_content = thinking_match.group(1).strip()
+            # Remove the closed thinking block
+            cleaned_text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+        elif text.strip().startswith("<think>"):
+            # Handle unclosed/truncated thinking tags (output was cut off)
+            # Everything after <think> is thinking content, no JSON available
+            thinking_content = text[7:].strip()  # Skip "<think>"
+            cleaned_text = ""  # No JSON content available
+            logger.warning(
+                f"Truncated thinking detected ({len(thinking_content)} chars). "
+                "Model may have exhausted output tokens on reasoning."
+            )
+        else:
+            cleaned_text = text
+
+        return cleaned_text.strip(), thinking_content
+
+    @staticmethod
     def _strip_markdown_fences(text: str) -> str:
         """
         Strip markdown code fences from response.
@@ -162,10 +198,13 @@ class VLLMClient(LLMClient):
         Parse JSON response and validate against Pydantic schema with retry.
 
         Retries once on JSON parse or validation errors to handle transient issues.
-        Strips markdown code fences that models often add despite instructions.
+        Strips thinking tags (Qwen3) and markdown code fences that models often add.
+
+        If the schema has a 'thinking' field, the extracted thinking content will be
+        stored there. Otherwise, it's logged at debug level.
 
         Args:
-            response_text: Raw JSON string from LLM (may have markdown fences)
+            response_text: Raw JSON string from LLM (may have thinking tags or markdown fences)
             schema: Pydantic model class to validate against
 
         Returns:
@@ -174,8 +213,12 @@ class VLLMClient(LLMClient):
         Raises:
             ValueError: If parsing or validation fails after retries
         """
-        # Strip markdown code fences
-        cleaned_text = VLLMClient._strip_markdown_fences(response_text)
+        # Extract thinking content (Qwen3) and strip markdown code fences
+        cleaned_text, thinking_content = VLLMClient._extract_thinking(response_text)
+        cleaned_text = VLLMClient._strip_markdown_fences(cleaned_text)
+
+        if thinking_content:
+            logger.debug(f"Extracted thinking content ({len(thinking_content)} chars)")
 
         try:
             response_data = json.loads(cleaned_text)
@@ -184,6 +227,10 @@ class VLLMClient(LLMClient):
             logger.error(f"Original response: {response_text[:500]}")
             logger.error(f"Cleaned response: {cleaned_text[:500]}")
             raise
+
+        # If schema has 'thinking' field, add extracted thinking content
+        if thinking_content and "thinking" in schema.model_fields:
+            response_data["thinking"] = thinking_content
 
         try:
             result = schema.model_validate(response_data)
@@ -207,28 +254,37 @@ class VLLMClient(LLMClient):
         # Get JSON schema from Pydantic model
         json_schema = schema.model_json_schema()
 
+        # Limit output tokens to prevent thinking models from running too long
+        max_tokens = self.config.max_completion_tokens or 2048
+
         # Try vLLM's guided_json first (enforces schema via constrained decoding)
+        # Use recommended sampling params for Qwen3 thinking mode
         try:
             completion = self._sync_client.chat.completions.create(
-                model=self.config.model,
+                model=self.config.model_served_name,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                extra_body={"guided_json": json_schema},
+                extra_body={"guided_json": json_schema, "top_k": self.config.top_k},
                 temperature=self.config.temperature,
+                top_p=self.config.top_p,
+                max_tokens=max_tokens,
             )
         except Exception as e:
             # Fallback to json_object mode if guided_json not supported
             logger.warning(f"guided_json not supported, falling back to json_object: {e}")
             completion = self._sync_client.chat.completions.create(
-                model=self.config.model,
+                model=self.config.model_served_name,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
                 response_format={"type": "json_object"},
                 temperature=self.config.temperature,
+                top_p=self.config.top_p,
+                extra_body={"top_k": self.config.top_k},
+                max_tokens=max_tokens,
             )
 
         elapsed = time.time() - start_time
@@ -278,27 +334,36 @@ class VLLMClient(LLMClient):
 
         # Try vLLM's guided_json first (enforces schema via constrained decoding)
         # This uses XGrammar or Outlines backend to guarantee valid JSON
+        # Limit output tokens to prevent thinking models from running too long
+        # Use recommended sampling params for Qwen3 thinking mode
+        max_tokens = self.config.max_completion_tokens or 2048
+
         try:
             completion = await self._async_client.chat.completions.create(
-                model=self.config.model,
+                model=self.config.model_served_name,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                extra_body={"guided_json": json_schema},
+                extra_body={"guided_json": json_schema, "top_k": self.config.top_k},
                 temperature=self.config.temperature,
+                top_p=self.config.top_p,
+                max_tokens=max_tokens,
             )
         except Exception as e:
             # Fallback to json_object mode if guided_json not supported
             logger.warning(f"guided_json not supported, falling back to json_object: {e}")
             completion = await self._async_client.chat.completions.create(
-                model=self.config.model,
+                model=self.config.model_served_name,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
                 response_format={"type": "json_object"},
                 temperature=self.config.temperature,
+                top_p=self.config.top_p,
+                extra_body={"top_k": self.config.top_k},
+                max_tokens=max_tokens,
             )
 
         elapsed = time.time() - start_time
@@ -350,8 +415,8 @@ class VLLMClient(LLMClient):
                             )
                             return
 
-            # Fallback: default for gemma-3-12b
-            self._max_model_len = 16000
+            # Fallback: use config value
+            self._max_model_len = self.config.max_model_len or self._get_config_max_model_len()
             logger.warning(
                 "Could not auto-detect max_model_len from server, using default: "
                 f"{self._max_model_len} tokens"
@@ -359,11 +424,22 @@ class VLLMClient(LLMClient):
 
         except Exception as e:
             # Fallback on any error
-            self._max_model_len = 16000
+            self._max_model_len = self.config.max_model_len or self._get_config_max_model_len()
             logger.warning(
                 f"Error auto-detecting max_model_len ({e}), using default: "
                 f"{self._max_model_len} tokens"
             )
+
+    def _get_config_max_model_len(self) -> int:
+        """Get max_model_len from config.toml or return default."""
+        try:
+            from scicode_lint.config import load_config_from_toml
+
+            config = load_config_from_toml()
+            result: int = config.get("llm", {}).get("max_model_len", 24000)
+            return result
+        except Exception:
+            return 24000
 
     def get_max_model_len(self) -> int:
         """Get maximum context length in tokens.
@@ -378,7 +454,7 @@ class VLLMClient(LLMClient):
         """
         if self._max_model_len is None:
             self._auto_detect_max_model_len()
-        return self._max_model_len or 16000
+        return self._max_model_len or self._get_config_max_model_len()
 
 
 def detect_vllm() -> tuple[str, str | None]:
@@ -414,7 +490,7 @@ def detect_vllm() -> tuple[str, str | None]:
     raise RuntimeError(
         "No vLLM server detected. Please start vLLM:\n\n"
         "  1. Install: pip install scicode-lint[vllm-server]\n"
-        "  2. Start: vllm serve --model RedHatAI/gemma-3-12b-it-FP8-dynamic\n"
+        "  2. Start: vllm serve RedHatAI/Qwen3-8B-FP8-dynamic\n"
         "  3. vLLM will run on http://localhost:5001 or http://localhost:8000\n\n"
         "Note: vLLM supports CPU mode with --device cpu"
     )
@@ -432,12 +508,9 @@ def create_client(config: LLMConfig) -> LLMClient:
     Returns:
         vLLM client instance
     """
-    # Auto-detect if no base_url specified
+    # Auto-detect base_url if not specified
     if not config.base_url:
-        detected_url, detected_model = detect_vllm()
+        detected_url, _ = detect_vllm()
         config.base_url = detected_url
-        # Use detected model if user didn't specify one
-        if detected_model and not config.model:
-            config.model = detected_model
 
     return VLLMClient(config)

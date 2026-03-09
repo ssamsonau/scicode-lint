@@ -25,12 +25,20 @@ references = []
 
 [detection]
 question = """
-Find train_test_split() calls in the code.
+Analyze data splitting for reproducibility.
 
-Is random_state MISSING from train_test_split()?
+train_test_split() without random_state produces different splits each run, making experiments non-reproducible. Results will vary between runs even with identical code.
 
-YES = random_state is missing from train_test_split call (BUG)
-NO = random_state is present, OR no train_test_split exists
+Correct approach: Add random_state=42 (or any fixed integer) for consistent splits.
+
+Does this code split data without random_state?
+
+Look for:
+- train_test_split(...) without random_state parameter
+- Data splits that will differ between runs
+
+YES = Bug found: train_test_split missing random_state
+NO = Correct: random_state is set, or no train_test_split used
 """
 
 warning_message = """
@@ -38,7 +46,6 @@ train_test_split() missing random_state parameter. Add random_state=42 for repro
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -55,16 +62,37 @@ name = "prepare_data"
 snippet = "train_test_split(X, y, test_size=0.2)"
 
 [[tests.negative]]
-file = "test_negative/all_seeds_set.py"
-description = "Properly sets all three seeds (np.random.seed, torch.manual_seed, random.seed) before using all three libraries."
-max_false_positives = 0
+file = "test_negative/train_test_split_with_seed.py"
+description = "train_test_split called with random_state parameter"
+
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/partial_seed.py"
+description = "Sets np.random.seed but doesn't use random_state in sklearn functions, leaving data splits non-reproducible"
+expected_issue = "train_test_split() missing random_state - np.random seeding insufficient for sklearn data splitting"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "train_model"
+snippet = "np.random.seed(seed)"
+
+[[tests.positive]]
+file = "test_positive/partial_seeding.py"
+description = "Sets numpy and torch seeds at module level but train_test_split is called without random_state parameter"
+expected_issue = "train_test_split() missing random_state - seed setup is incomplete despite other libraries being seeded"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "setup_experiment"
+snippet = "np.random.seed(42)"
 
 [[tests.negative]]
-file = "test_negative/deterministic_setup.py"
-description = "Complete reproducibility setup with all seeds set to same value at initialization."
-max_false_positives = 0
+file = "test_negative/complete_seed.py"
+description = "Uses helper function to set all random seeds (random, numpy, torch) comprehensively across the codebase"
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+[[tests.negative]]
+file = "test_negative/complete_seeding.py"
+description = "Sets all seeds globally and correctly uses random_state parameter in train_test_split for reproducible data splits"

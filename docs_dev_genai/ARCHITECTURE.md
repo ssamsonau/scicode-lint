@@ -8,14 +8,15 @@ Core design decisions for building an effective AI-powered linter.
 
 scicode-lint uses **different models for different purposes**:
 
-### Runtime: Constrained-Capacity Local LLM (Gemma 3 12B)
+### Runtime: Constrained-Capacity Local LLM
 
-**For bug detection at runtime**, we use a local 12B model. This is the middle ground between:
+**For bug detection at runtime**, we use a small local model (fits in 16GB VRAM). This is the middle ground between:
 - **Grep-style pattern matching** (traditional linters): Fast but rigid, misses semantic issues
-- **Expensive SOTA cloud reasoning**: Deep understanding but costly, privacy concerns, vendor lock-in
+- **Expensive SOTA cloud reasoning**: Deep understanding but costly, privacy concerns, vendor lock-in, models get deprecated
 
 Our runtime approach:
 - **Local execution**: Privacy, no API costs, works offline
+- **Reproducible**: Open-source models remain available; results stay consistent over time
 - **Fast inference**: vLLM with prefix caching, all patterns in parallel
 - **Acceptable accuracy**: Well-designed detection questions that smaller models can handle
 
@@ -28,50 +29,21 @@ Our runtime approach:
 - Analyzing detection failures
 - Code generation and refactoring
 
-The Pattern Reviewer agent (`.claude/agents/pattern-reviewer/`) uses SOTA models to ensure patterns are well-designed for the constrained runtime model.
+The Pattern Reviewer agent (`pattern_verification/semantic/pattern-reviewer/`) uses SOTA models to ensure patterns are well-designed for the constrained runtime model. See [pattern_verification/README.md](../pattern_verification/README.md) for the complete verification workflow.
 
 **The key insight**: Invest upfront in high-quality pattern design (using SOTA models) so the local model can reliably execute simple instructions at runtime.
 
 ### Detection Question Design
 
-Detection questions must be written FOR constrained-capacity models:
+We use Qwen3, a thinking model that reasons through problems. Detection questions should:
 
-1. **Ask about the BUG directly** - "Is X MISSING?" not "Does it have X?"
-2. **YES = BUG, NO = OK** - The answer directly indicates bug presence
-3. **Simple and direct** - One search, one check, binary answer
-4. **No complex reasoning** - If the model needs to "think about it," simplify
+1. **Be self-contained** - Include "why it matters" directly in the question
+2. **Have focused scope** - One specific issue per question
+3. **End with clear YES/NO conditions** - YES = bug found, NO = correct
 
 **Think of it as: "Would a junior developer following these exact instructions catch this bug?"**
 
-### Standard Detection Question Format
-
-```toml
-question = """
-Find X() calls in the code.
-Is Y= parameter MISSING?
-
-YES = Y is MISSING (BUG)
-NO = has Y, OR no X exists
-"""
-```
-
-**NOT:**
-```toml
-# WRONG - contradictory mapping
-question = """
-Find X() calls in the code.
-Does it have Y= parameter?
-
-YES = X found WITHOUT Y (BUG)  # <-- asks "have Y?" but YES means "without Y"
-"""
-
-# WRONG - too complex
-question = """
-Answer YES ONLY if you see EXPLICIT evidence of...
-Consider the context...
-The pattern might be handled externally...
-"""
-```
+**📖 Pattern guide:** [patterns/README.md](../patterns/README.md)
 
 This principle affects everything else in this document - all architectural decisions support reliable detection with a constrained-capacity local model.
 
@@ -574,7 +546,7 @@ Based on [Ben Boyter's analysis of ~10 million GitHub/Bitbucket/GitLab repositor
 - Safety margin: Extra cushion to prevent edge cases
 
 **Why not larger?**
-- **VRAM efficiency:** KV cache scales linearly with context length (~2,700 tokens per GB on Gemma 3 12B)
+- **VRAM efficiency:** KV cache scales linearly with context length
 - **Diminishing returns:** 90-95% coverage is sufficient; the remaining 5-10% are outliers (large auto-generated files, concatenated modules, etc.)
 - **Cost:** Each 8K increase requires ~3GB more VRAM
 - **Speed:** Smaller context = faster prefill and generation
@@ -878,20 +850,17 @@ accuracy = calculate_accuracy(results)
 
 ### When to Use Each Eval Type
 
-**Hardcoded ground truth** (`evals/run_eval.py`):
-- Fast iteration during pattern development
+**Comprehensive evaluation** (`evals/run_eval.py`):
+- LLM judge + direct metrics + alignment in one pass
+- Semantic correctness validation
+- Explanation quality assessment
+- Development iteration and pre-release checks
+
+**Quick evaluation** (`evals/run_eval.py --skip-judge`):
+- Fast, deterministic (no judge LLM)
 - Exact location/snippet validation
 - Regression testing (detect unintended changes)
 - CI/CD gates (must pass before merge)
-
-**LLM-as-judge** (`evals/run_eval_llm_judge.py`):
-- Semantic correctness validation
-- Explanation quality assessment
-- Edge case evaluation
-- Pre-release quality checks
-
-**Combined approach:**
-- Patterns must pass BOTH evaluations
 - Hardcoded ensures precision
 - LLM-judge ensures semantic correctness
 
@@ -900,7 +869,7 @@ accuracy = calculate_accuracy(results)
 ```
 evals/
 ├── run_eval.py                 # Hardcoded ground truth
-├── run_eval_llm_judge.py      # LLM-as-judge
+├── run_eval.py      # LLM-as-judge
 ├── metrics.py                  # Precision/recall/F1
 ├── validators.py               # Location matching
 └── prompts/
@@ -943,9 +912,9 @@ Key architectural decisions:
 6. **Minimize false positives** - Conservative > noisy
 7. **Keep it simple** - Modern Python, minimal dependencies
 8. **Local-first** - Privacy, cost, speed, reproducibility
-9. **16K context window** - Empirically sized for 90-95% coverage based on 10M+ repository analysis
+9. **24K total context** (16K input + 8K response) - Empirically sized for 90-95% coverage based on 10M+ repository analysis
    - **Efficient allocation** - vLLM paged attention means no waste on smaller files
-   - **Sweet spot** - Covers mean + margin without excessive VRAM overhead
+   - **Configurable** - Values set in config.toml, not hardcoded
 10. **Clear validation taxonomy** - tests (deterministic) vs benchmarks (performance) vs evals (quality)
 11. **LLM-as-judge evaluation** - Flexible semantic correctness validation using same model
     - **Simple comparison** - Does output match intended behavior?

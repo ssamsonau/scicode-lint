@@ -22,12 +22,11 @@
   - Data models and API
   - Code quality standards
 
-- **[TOOLS.md](TOOLS.md)** - Development tools and agents
-  - Pattern Reviewer Agent (parallel pattern review and improvement)
-  - Batch operations for efficient multi-pattern analysis
-  - Helper scripts
-  - Scaffolding tools
-  - Two-tier evaluation framework (pattern-specific + integration tests)
+- **[CONTINUOUS_IMPROVEMENT.md](CONTINUOUS_IMPROVEMENT.md)** - Evaluation → improvement workflow
+
+- **[../pattern_verification/README.md](../pattern_verification/README.md)** - Pattern quality verification
+  - Deterministic checks (9 automated checks, no LLM)
+  - Semantic checks (LLM-based consistency review)
 
 ---
 

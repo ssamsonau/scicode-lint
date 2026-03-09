@@ -27,10 +27,7 @@ def train(model, train_loader, epochs):
             outputs = model(batch_data)
             loss = criterion(outputs, batch_labels)
 
-            # Compute gradients
             loss.backward()
-
-            # Update parameters (but gradients weren't cleared first!)
             optimizer.step()
 
     return model

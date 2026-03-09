@@ -150,7 +150,7 @@ def main() -> None:
     else:
         logger.error("No vLLM backend available!")
         logger.error("Please start vLLM before running benchmark:")
-        logger.error("  vllm serve --model RedHatAI/gemma-3-12b-it-FP8-dynamic")
+        logger.error("  vllm serve Qwen/Qwen3-8B-FP8")
         sys.exit(1)
 
     # Find test files

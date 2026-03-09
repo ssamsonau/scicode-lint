@@ -1,6 +1,21 @@
-# Integration Evaluations
+# Integration Evaluations (Holdout Set)
 
-Global, multi-pattern evaluations for scicode-lint.
+Tests generalization - did we overfit to pattern-specific tests?
+
+## Two Approaches
+
+| Approach | Test Data | Use For |
+|----------|-----------|---------|
+| **Static** | Pre-written scenarios | Holdout - realistic code |
+| **Dynamic** | Fresh LLM-generated code | Holdout - fresh code each run |
+
+```bash
+# Static integration (pre-written scenarios)
+python evals/integration/run_integration_eval.py
+
+# Dynamic integration (fresh generated code - recommended before release)
+python evals/integration/dynamic_eval.py --scenarios 10 --bugs 3
+```
 
 ## Overview
 
@@ -134,8 +149,6 @@ scenarios:
       ml-001-scaler-leakage: 1      # Should find 1 instance
       pt-001-missing-train-mode: 1
       pt-004-missing-zero-grad: 2   # Should find 2 instances
-    min_total_findings: 4
-    max_false_positives: 0
 ```
 
 ## How It Works
@@ -174,7 +187,7 @@ Like pattern-specific evals, integration tests support **two evaluation methods*
 
 - Compares pattern IDs against exact expectations
 - Fast and deterministic
-- Good for CI/CD and regression testing
+- Good for regression testing
 - Requires exact pattern ID matches
 
 ```bash
@@ -210,7 +223,7 @@ python evals/integration/run_integration_eval_llm_judge.py -v --json judge_resul
 
 ### Which to Use?
 
-- **Hardcoded**: Fast feedback during development, CI/CD gates
+- **Hardcoded**: Fast feedback during development
 - **LLM Judge**: Quality assurance, evaluating if bugs are detected semantically
 - **Both**: Run both before release for comprehensive validation
 
@@ -225,17 +238,15 @@ Integration evaluations track:
 
 ### Thresholds
 
-- Coverage ≥ 90% (find at least 90% of injected bugs)
 - False positives = 0 (no unexpected findings)
 - Min findings met for each scenario
 
 ## Success Criteria
 
 A scenario passes if:
-1. All expected patterns are detected (at expected counts)
-2. Total findings ≥ min_total_findings
-3. False positives ≤ max_false_positives
-4. No crashes or errors during linting
+1. All expected patterns are detected
+2. Zero false positives
+3. No crashes or errors during linting
 
 ## Adding New Scenarios
 
@@ -253,6 +264,75 @@ A scenario passes if:
 | File Size | Small, minimal | Larger, realistic |
 | Bugs | 1 bug per file (usually) | 3-10 bugs per file |
 | Purpose | Pattern validation | System validation |
+
+## Dynamic Integration Evaluation
+
+### The Overfitting Problem
+
+Static integration tests use pre-written scenarios. If we tune detection questions based on these results, we risk overfitting - metrics may not generalize to real user code.
+
+### Solution: Dynamic Evaluation
+
+`dynamic_eval.py` generates fresh test code each run:
+
+1. **Generate**: Claude creates Python code with N intentional bugs + a manifest
+2. **Lint**: scicode-lint analyzes the generated code (blind - no access to manifest)
+3. **Judge**: Claude evaluates results against the manifest
+
+**Data flow (no leakage to linter):**
+```
+┌─────────────┐      ┌─────────────┐      ┌─────────────┐
+│  Generator  │      │   Linter    │      │    Judge    │
+│   (Claude)  │      │ (scicode)   │      │  (Claude)   │
+└──────┬──────┘      └──────┬──────┘      └──────┬──────┘
+       │                    │                    │
+       │ code + manifest    │                    │
+       ├───────────────────►│ code only          │
+       │                    ├───────────────────►│
+       │                    │                    │
+       │                    │ detections         │
+       │                    ├───────────────────►│
+       │                    │                    │
+       │ manifest ──────────┼───────────────────►│
+       │                    │                    │
+       │                    │                    ▼
+       │                    │              verdict (TP/FP/FN)
+```
+
+**Key design choices:**
+- Generator and judge are **separate API calls** (no shared state)
+- Linter never sees the manifest - it analyzes code blind
+- Judge sees: code, manifest, AND detections (to categorize results)
+
+**Judge categories:**
+
+| Category | Meaning |
+|----------|---------|
+| **TP-intended** | Encoded bug was detected ✅ |
+| **TP-bonus** | Real bug found (not intentionally encoded) 🎁 |
+| **FP** | Non-existent bug reported ❌ |
+| **FN** | Encoded bug missed ⚠️ |
+
+### Usage
+
+```bash
+# Default: 10 scenarios, 3 bugs each
+python evals/integration/dynamic_eval.py
+
+# Custom configuration
+python evals/integration/dynamic_eval.py --scenarios 10 --bugs 5 --output results.json
+
+# Use Claude CLI instead of API
+python evals/integration/dynamic_eval.py --use-cli
+```
+
+### When to Use
+
+- **Before releases**: Run dynamic eval to verify metrics generalize
+- **After major changes**: Check if improvements hold on fresh code
+- **Periodically**: Validate that tuning hasn't caused overfitting
+
+---
 
 ## See Also
 

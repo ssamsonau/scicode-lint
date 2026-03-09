@@ -1,0 +1,95 @@
+[meta]
+id = "rep-007"
+name = "unstable-sort-with-ties"
+category = "scientific-reproducibility"
+severity = "medium"
+version = "1.0.0"
+created = "2026-03-08"
+updated = "2026-03-08"
+author = "scicode-lint"
+
+description = """
+Using numpy sort() or argsort() without kind='stable' on data with ties produces non-deterministic ordering of equal elements. Default quicksort has arbitrary tie-breaking.
+"""
+
+explanation = """
+For reproducible sorting with potential ties, use kind='stable' (mergesort) which preserves relative order of equal elements.
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Analyze sorting for stable tie-breaking.
+
+NumPy's default sort (quicksort) does not guarantee stable ordering of equal elements. When sorting data with potential ties (rankings, scores, probabilities), the relative order of ties varies between runs.
+
+Correct approach: Use kind='stable' for reproducible tie-breaking.
+
+Does this code sort data with potential ties without stable sort?
+
+Look for:
+- np.sort() or np.argsort() without kind='stable'
+- Sorting scores, rankings, or data that may have duplicates
+- Order-dependent operations after sorting
+
+YES = Bug found: sorting without kind='stable' on data with potential ties
+NO = Correct: kind='stable' used, or data is guaranteed unique
+"""
+
+warning_message = """
+Default numpy sort has non-deterministic tie-breaking. Use kind='stable' for reproducible ordering of equal elements.
+"""
+
+min_confidence = 0.85
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/unstable_sort.py"
+description = "Sorting without stable kind on data with ties"
+expected_issue = "np.argsort() without kind='stable'"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "rank_predictions"
+snippet = "argsort"
+
+[[tests.negative]]
+file = "test_negative/unique_values.py"
+description = "Sorting guaranteed unique values (no ties)"
+
+[[tests.negative]]
+file = "test_negative/pandas_tiebreaker.py"
+description = "Using pandas rank with tiebreaker method"
+
+[[tests.negative]]
+file = "test_negative/stable_sort.py"
+description = "Using kind='stable' for reproducible tie-breaking"
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/argsort_default.py"
+description = "Multiple functions using np.argsort() without kind='stable' on ranking data with potential ties."
+expected_issue = "np.argsort() without kind='stable' parameter"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "get_ranking"
+snippet = "return np.argsort(scores)"
+
+[[tests.positive]]
+file = "test_positive/quicksort_ranking.py"
+description = "Ranking and feature importance sorting using np.argsort() without stable sort on scores that may contain ties."
+expected_issue = "np.argsort() without kind='stable' parameter"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "rank_candidates"
+snippet = "order = np.argsort(-scores)"

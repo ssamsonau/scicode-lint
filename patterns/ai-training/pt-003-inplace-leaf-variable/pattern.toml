@@ -25,11 +25,20 @@ references = []
 
 [detection]
 question = """
-Find in-place operations (+=, -=, *=, /=, add_(), sub_(), mul_(), div_()) on tensors in the code.
-Does the tensor have requires_grad=True or is it an input to forward()?
+Analyze tensor operations in this code for autograd compatibility.
 
-YES = in-place op found on tensor WITH requires_grad=True (BUG)
-NO = in-place ops only on detached/no-grad tensors, OR no in-place ops exist
+In-place operations (+=, -=, *=, /=, add_(), mul_(), etc.) on tensors that require gradients break PyTorch's autograd graph. This causes runtime errors during backward() because the original tensor values are overwritten.
+
+Correct approach: Use non-in-place operations (x = x + y instead of x += y).
+
+Does this code have in-place operations on gradient-tracked tensors?
+
+Look for:
+- In-place operators (+=, -=, *=, /=) on tensors with requires_grad=True
+- In-place methods (add_(), sub_(), mul_(), div_()) on leaf variables or forward() inputs
+
+YES = Bug found: in-place operation on tensor that requires gradients
+NO = Correct: only non-in-place operations, or in-place only on detached tensors
 """
 
 warning_message = """
@@ -37,21 +46,20 @@ In-place operation on leaf variable: In-place operations modify tensors with req
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
 
 [[tests.positive]]
 file = "test_positive/inplace_on_parameter.py"
-description = "Direct in-place modification of model parameters using += operator after loss computation"
+description = "Direct in-place += operation on nn.Parameter (leaf tensor) in forward() method"
 expected_issue = "In-place operation on parameter that requires gradients"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
-name = "train_with_inplace_modification"
-snippet = "param.data += noise"
+type = "method"
+name = "forward"
+snippet = "self.weight +="
 
 [[tests.positive]]
 file = "test_positive/inplace_input_modification.py"
@@ -67,14 +75,24 @@ snippet = "x -= mean_val"
 [[tests.negative]]
 file = "test_negative/correct_gradient_computation.py"
 description = "Correct usage: standard non-in-place operations throughout training"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/safe_tensor_operations.py"
 description = "Correct usage: non-in-place tensor operations for normalization"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/weight_normalize.py"
+description = "In-place division (div_) on nn.Parameter within forward() and in-place multiplication on parameters during weight decay"
+expected_issue = "In-place operations on parameters that require gradients"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "class"
+name = "WeightNormalizedLayer"
+snippet = "class WeightNormalizedLayer"
+
+[[tests.negative]]
+file = "test_negative/weight_normalize_correct.py"
+description = "Correct usage: non-in-place division for weight normalization in forward() and torch.no_grad() context for in-place weight decay updates"

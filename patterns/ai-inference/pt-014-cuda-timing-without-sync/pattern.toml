@@ -1,0 +1,98 @@
+[meta]
+id = "pt-014"
+name = "cuda-timing-without-sync"
+category = "ai-inference"
+severity = "medium"
+version = "1.0.0"
+created = "2026-03-08"
+updated = "2026-03-08"
+author = "scicode-lint"
+
+description = """
+Measuring CUDA timing without torch.cuda.synchronize() produces inaccurate results. CUDA operations are asynchronous - GPU kernels return immediately while execution continues in background.
+"""
+
+explanation = """
+CUDA operations are asynchronous. Without synchronize(), timing only captures the time to queue operations, not actual execution time. Always call torch.cuda.synchronize() before measuring end time.
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Does this code time CUDA/GPU operations without synchronization?
+
+CUDA operations are asynchronous - model(x) returns immediately while GPU computes in background.
+Using time.time()/time.perf_counter() without torch.cuda.synchronize() measures queue time, not execution time.
+
+Check these conditions:
+1. Code uses .cuda() or tensors/models on GPU
+2. Uses time.time() or time.perf_counter() to measure duration
+3. NO torch.cuda.synchronize() called before recording end time
+
+NOT a bug (ignore these):
+- CPU-only code (no .cuda(), no GPU tensors)
+- Uses torch.profiler (handles sync internally)
+- Uses torch.cuda.Event() for timing (handles sync via record/synchronize)
+- torch.cuda.synchronize() called before end time measurement
+
+YES = Bug: time.time/perf_counter around GPU ops WITHOUT synchronize() before end time
+NO = Clean: CPU code, or uses profiler/CUDA events, or has synchronize() before end time
+"""
+
+warning_message = """
+CUDA timing without torch.cuda.synchronize() is inaccurate. Call synchronize() before measuring end time to ensure all GPU operations complete.
+"""
+
+min_confidence = 0.85
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/timing_without_sync.py"
+description = "Timing GPU operations without CUDA synchronization"
+expected_issue = "time.perf_counter() used without torch.cuda.synchronize()"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "benchmark_model"
+snippet = "time.perf_counter()"
+
+[[tests.negative]]
+file = "test_negative/cpu_benchmark.py"
+description = "CPU-only benchmarking (no CUDA sync needed)"
+
+[[tests.negative]]
+file = "test_negative/torch_profiler.py"
+description = "Using torch.profiler for GPU profiling"
+
+[[tests.negative]]
+file = "test_negative/cuda_events.py"
+description = "Using CUDA events for accurate GPU timing"
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/gpu_profiler.py"
+description = "Layer-by-layer GPU timing without synchronization causing inaccurate measurements"
+expected_issue = "time.time() and time.perf_counter() used to measure GPU layer execution without torch.cuda.synchronize()"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "profile_layers"
+snippet = "timings = {}"
+
+[[tests.positive]]
+file = "test_positive/latency_measurement.py"
+description = "Forward pass and batch size benchmarking without CUDA synchronization producing unreliable timing"
+expected_issue = "time.perf_counter() and time.time() measure GPU operations without torch.cuda.synchronize() before end time"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "profile_forward_pass"
+snippet = "model.cuda()"

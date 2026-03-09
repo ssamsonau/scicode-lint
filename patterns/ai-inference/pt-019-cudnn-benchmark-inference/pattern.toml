@@ -1,0 +1,99 @@
+[meta]
+id = "pt-019"
+name = "cudnn-benchmark-inference"
+category = "ai-inference"
+severity = "medium"
+version = "1.0.0"
+created = "2026-03-08"
+updated = "2026-03-08"
+author = "scicode-lint"
+
+description = """
+Enabling cudnn.benchmark=True for inference with variable input sizes causes performance degradation. CuDNN benchmarks different algorithms for each new input shape, adding significant overhead.
+"""
+
+explanation = """
+cudnn.benchmark=True is beneficial for training with fixed input sizes but harmful for inference with varying shapes. Disable it for production inference with variable inputs.
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Does this code enable cudnn.benchmark=True in inference code with variable inputs?
+
+cudnn.benchmark=True makes cuDNN benchmark algorithms for each new input shape.
+Good for training (fixed shapes), bad for inference (varying shapes cause repeated benchmarking).
+
+Check for BOTH conditions:
+1. cudnn.benchmark = True is set
+2. Code has INFERENCE markers AND variable-size input handling:
+   - model.eval() or torch.no_grad() (inference markers)
+   - Processes queue/list/stream of inputs (variable sizes)
+   - Function handles requests/batches of different sizes
+
+NOT a bug (answer NO):
+- benchmark=True in training code (no model.eval, has loss.backward)
+- benchmark=False or not set
+- Fixed batch size throughout inference
+
+YES = Bug: cudnn.benchmark=True with model.eval() AND variable-size input processing
+NO = Clean: training code, or benchmark disabled, or fixed input shapes
+"""
+
+warning_message = """
+cudnn.benchmark=True with variable input sizes causes overhead. Disable it for inference with varying batch sizes or dimensions.
+"""
+
+min_confidence = 0.85
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/benchmark_variable_shapes.py"
+description = "CuDNN benchmark enabled for variable-shape inference"
+expected_issue = "cudnn.benchmark=True with variable input shapes"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "setup_inference"
+snippet = "cudnn.benchmark = True"
+
+[[tests.negative]]
+file = "test_negative/fixed_shape_benchmark.py"
+description = "Benchmark enabled for training with fixed shapes"
+
+[[tests.negative]]
+file = "test_negative/cpu_inference.py"
+description = "CPU-only inference (no cuDNN)"
+
+[[tests.negative]]
+file = "test_negative/benchmark_disabled.py"
+description = "Benchmark disabled for variable-shape inference"
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/benchmark_variable_inputs.py"
+description = "CuDNN benchmark enabled for inference with variable image sizes"
+expected_issue = "cudnn.benchmark=True when processing variable-sized image batches in inference server"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "class"
+name = "ImageEncoder"
+snippet = "class ImageEncoder"
+
+[[tests.positive]]
+file = "test_positive/dynamic_input_benchmark.py"
+description = "CuDNN benchmark enabled globally for variable-sized inference requests"
+expected_issue = "cudnn.benchmark=True applied to inference with dynamic input shapes"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "setup_inference"
+snippet = "cudnn.benchmark = True"

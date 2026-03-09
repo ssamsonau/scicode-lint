@@ -48,7 +48,7 @@
 ```python
 # 1. Install and start server manually
 pip install scicode-lint
-vllm serve --model RedHatAI/gemma-3-12b-it-FP8-dynamic --trust-remote-code --max-model-len 16000
+vllm serve Qwen/Qwen3-8B-FP8 --trust-remote-code --max-model-len 24000
 
 # 2. Use in code
 from scicode_lint import SciCodeLinter

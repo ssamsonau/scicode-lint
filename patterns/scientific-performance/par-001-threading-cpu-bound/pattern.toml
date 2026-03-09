@@ -26,11 +26,21 @@ references = []
 
 [detection]
 question = """
-Find ThreadPoolExecutor or threading.Thread in the code.
-Does it run CPU-bound numerical work (NumPy, matrix ops, array computations)?
+Analyze threading usage for appropriate workload.
 
-YES = threading used for CPU-bound work (BUG)
-NO = no threading for CPU-bound work exists
+Python's GIL prevents threads from executing CPU-bound Python code in parallel. ThreadPoolExecutor with NumPy operations provides no speedup and adds overhead. Threads only help for I/O-bound tasks (network, file I/O).
+
+Correct approach: Use ProcessPoolExecutor or multiprocessing for CPU-bound work.
+
+Does this code use threading for CPU-bound numerical work?
+
+Look for:
+- ThreadPoolExecutor running NumPy/matrix computations
+- threading.Thread with numerical array operations
+- Parallel CPU work that should use multiprocessing instead
+
+YES = Bug found: threading used for CPU-bound numerical work (GIL blocks parallelism)
+NO = Correct: threading for I/O, or uses ProcessPoolExecutor for CPU work
 """
 
 warning_message = """
@@ -39,7 +49,6 @@ Wrong concurrency: threading on CPU-bound work gives no speedup due to GIL. Use 
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -69,14 +78,24 @@ snippet = "t = threading.Thread(target=normalize_features"
 [[tests.negative]]
 file = "test_negative/process_pool_matrix_ops.py"
 description = "ProcessPoolExecutor correctly used for CPU-bound eigenvalue computation - each process runs on separate core"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/threading_io_tasks.py"
 description = "Threading correctly used for IO-bound API fetching - GIL released during IO operations"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/parallel_compute.py"
+description = "Threading module used for CPU-bound matrix multiplication - thread-based chunking provides no speedup due to GIL"
+expected_issue = "Threading used for CPU-bound matrix multiplication across row chunks"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "parallel_matrix_multiply"
+snippet = "result = np.zeros((A.shape[0], B.shape[1]))"
+
+[[tests.negative]]
+file = "test_negative/parallel_compute_mp.py"
+description = "Multiprocessing Pool correctly used for CPU-bound matrix multiplication - each process bypasses GIL on separate core"

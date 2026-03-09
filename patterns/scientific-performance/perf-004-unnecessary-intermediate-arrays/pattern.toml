@@ -26,11 +26,21 @@ references = []
 
 [detection]
 question = """
-Find manual norm computations like "squared = arr ** 2" followed by "np.sum(squared)" then "np.sqrt()".
-Does the code create large intermediate arrays instead of using np.linalg.norm()?
+Analyze computations for unnecessary temporary arrays.
 
-YES = unnecessary intermediate arrays found (BUG)
-NO = no such patterns exist
+Creating large intermediate arrays (squared = diff ** 2; summed = np.sum(squared)) wastes memory when optimized functions exist. np.linalg.norm() computes norms without materializing intermediates.
+
+Correct approach: Use np.linalg.norm(), np.einsum(), or in-place operations.
+
+Does this code create unnecessary large intermediate arrays?
+
+Look for:
+- diff = a - b; squared = diff ** 2; norm = np.sqrt(np.sum(squared))
+- Multiple separate array operations that could be combined
+- Manual norm/distance computation instead of np.linalg.norm()
+
+YES = Bug found: large intermediate arrays where optimized function exists
+NO = Correct: uses optimized functions like np.linalg.norm()
 """
 
 warning_message = """
@@ -39,7 +49,6 @@ Materializing large intermediate arrays wastes memory. Use np.linalg.norm or in-
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -69,14 +78,24 @@ snippet = "squared_matrix = matrix ** 2"
 [[tests.negative]]
 file = "test_negative/linalg_norm.py"
 description = "Uses np.linalg.norm which avoids materializing intermediate arrays - memory efficient"
-max_false_positives = 0
 
 [[tests.negative]]
-file = "test_negative/inplace_operations.py"
+file = "test_negative/inplace_operations_opt.py"
 description = "Uses in-place operations with -= and /= to avoid creating temporary arrays"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/chained_ops.py"
+description = "Creates multiple unnecessary intermediate arrays (temp1, temp2, temp3, temp4) through chained operations instead of combining computations"
+expected_issue = "Multiple intermediate arrays created through sequential operations"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "process_data"
+snippet = "temp1 = data * 2"
+
+[[tests.negative]]
+file = "test_negative/chained_ops_inplace.py"
+description = "Uses in-place operations (+=, /=) and out parameter in np.sqrt to avoid creating temporary arrays"

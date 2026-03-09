@@ -18,6 +18,34 @@ else:
         tomllib = None  # type: ignore[assignment]
 
 
+def _load_bundled_config() -> dict[str, Any]:
+    """Load defaults from bundled config.toml (single source of truth).
+
+    Raises:
+        RuntimeError: If config.toml cannot be loaded (missing tomllib or file not found)
+    """
+    if not tomllib:
+        raise RuntimeError(
+            "TOML support required. Install tomli for Python < 3.11: pip install tomli"
+        )
+
+    # Bundled config.toml is the source of truth for defaults
+    package_config = Path(__file__).parent.parent.parent / "config.toml"
+    if not package_config.exists():
+        raise RuntimeError(
+            f"Bundled config.toml not found at {package_config}. "
+            "This indicates a broken installation. Reinstall scicode-lint."
+        )
+
+    with open(package_config, "rb") as f:
+        return tomllib.load(f)
+
+
+# Load defaults at module init - config.toml is single source of truth
+_BUNDLED = _load_bundled_config()
+_LLM_DEFAULTS = _BUNDLED.get("llm", {})
+
+
 class Severity(str, Enum):
     """Issue severity levels."""
 
@@ -30,42 +58,65 @@ class LLMConfig(BaseSettings):
     """
     LLM client configuration with validation and env var support.
 
-    vLLM server configuration (local or remote):
-    - OPENAI_BASE_URL: vLLM server URL (e.g., http://localhost:5001/v1)
-      Note: Uses OpenAI-compatible API format, but only works with vLLM servers
+    Defaults are loaded from bundled config.toml (single source of truth).
 
-    Package-specific environment variables:
-    - SCICODE_LINT_TEMPERATURE: Temperature 0.0-1.0 (default: 0.3)
-    - SCICODE_LINT_TIMEOUT: Timeout in seconds (default: 120)
-    - SCICODE_LINT_MAX_MODEL_LEN: Maximum context length (default: auto-detect)
+    Override via environment variables:
+    - SCICODE_LINT_TEMPERATURE: Sampling temperature
+    - SCICODE_LINT_TOP_P: Top-p sampling
+    - SCICODE_LINT_TOP_K: Top-k sampling
+    - SCICODE_LINT_TIMEOUT: Timeout in seconds
+    - SCICODE_LINT_MAX_MODEL_LEN: Maximum context length
+    - OPENAI_BASE_URL: vLLM server URL
 
-    Note: All patterns are checked concurrently. vLLM handles batching and queuing internally.
+    See config.toml for recommended values and documentation.
     """
 
     base_url: str = Field(
-        default="",
+        default_factory=lambda: _LLM_DEFAULTS.get("base_url", ""),
         description="API base URL (empty = auto-detect)",
     )
     model: str = Field(
-        default="",
-        description="Model name (empty = auto-detect)",
+        default_factory=lambda: _LLM_DEFAULTS["model"],
+        description="Model path for starting vLLM (HuggingFace model ID)",
+    )
+    model_served_name: str = Field(
+        default_factory=lambda: _LLM_DEFAULTS["model_served_name"],
+        description="Served model name for API calls (must match vLLM --served-model-name)",
     )
     timeout: int = Field(
-        default=120,
+        default_factory=lambda: _LLM_DEFAULTS["timeout"],
         ge=10,
         le=600,
         description="Request timeout in seconds",
     )
     temperature: float = Field(
-        default=0.3,
+        default_factory=lambda: _LLM_DEFAULTS["temperature"],
         ge=0.0,
         le=1.0,
-        description="Sampling temperature (0.0=deterministic, 0.3=slight randomness)",
+        description="Sampling temperature (see config.toml for Qwen3 recommendations)",
+    )
+    top_p: float = Field(
+        default_factory=lambda: _LLM_DEFAULTS["top_p"],
+        ge=0.0,
+        le=1.0,
+        description="Top-p (nucleus) sampling",
+    )
+    top_k: int = Field(
+        default_factory=lambda: _LLM_DEFAULTS["top_k"],
+        ge=1,
+        le=100,
+        description="Top-k sampling",
     )
     max_model_len: Optional[int] = Field(
-        default=None,
+        default_factory=lambda: _LLM_DEFAULTS.get("max_model_len"),
         ge=1000,
         description="Maximum context length in tokens (None = auto-detect from server)",
+    )
+    max_completion_tokens: Optional[int] = Field(
+        default_factory=lambda: _LLM_DEFAULTS["max_completion_tokens"],
+        ge=256,
+        le=32768,
+        description="Maximum output tokens",
     )
 
     model_config = SettingsConfigDict(

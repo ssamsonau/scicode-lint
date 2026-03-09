@@ -2,7 +2,7 @@
 
 ## Overview
 
-The scicode-lint linter includes all 44 detection patterns from the catalog.
+The scicode-lint linter includes all 64 detection patterns from the catalog.
 
 ### Package Structure
 
@@ -29,7 +29,7 @@ src/scicode_lint/
 ### Core Components
 
 #### 1. Detection Catalog (`detectors/catalog.py`)
-- Loads all 44 patterns from `detection_catalog.yaml`
+- Loads all 64 patterns from patterns directory
 - Parses pattern metadata: id, category, severity, detection_question, warning_message
 - Provides filtering by severity and category
 
@@ -80,7 +80,7 @@ From `ARCHITECTURE.md` principle #1:
 # Code comes FIRST
 user_prompt = f"{code}\n---\nDetection task: {question}"
 ```
-This enables vLLM prefix caching - the code is the common prefix across all 44 patterns.
+This enables vLLM prefix caching - the code is the common prefix across all 64 patterns.
 
 ### 1.5. Async Batching for Pattern Checks
 
@@ -209,20 +209,17 @@ pytest evals/test_all_patterns.py -v
 
 ## Detection Coverage
 
-All 44 patterns implemented:
+All 64 patterns implemented across 5 categories:
 
-| Category | Patterns | Examples |
-|----------|----------|----------|
-| ML Correctness | 8 | Data leakage, wrong metrics, temporal leakage |
-| PyTorch | 11 | Missing eval mode, gradient issues, dtype errors |
-| Numerical | 6 | Float comparison, overflow, division by zero |
-| Reproducibility | 4 | Missing seeds, CUDA non-determinism |
-| Performance | 5 | Loops vs vectorization, DataLoader bottlenecks |
-| Parallelization | 6 | GIL issues, data duplication, CUDA fork |
-| Python | 2 | Mutable defaults, silent mutations |
-| NumPy | 2 | View mutations, broadcasting errors |
+| Category | Patterns |
+|----------|----------|
+| ai-training | 16 |
+| ai-inference | 13 |
+| scientific-numerical | 10 |
+| scientific-performance | 11 |
+| scientific-reproducibility | 14 |
 
-See `detection_catalog.yaml` for complete list.
+See `patterns/` directory for complete list.
 
 ## Usage Examples
 
@@ -244,7 +241,7 @@ scicode-lint check myfile.py --backend vllm --url http://localhost:8000
 
 Prerequisites:
 - vLLM installed and running
-- Gemma 3 model available
+- Qwen3-8B-FP8 model (downloads automatically)
 
 Test commands:
 ```bash
@@ -280,7 +277,7 @@ Documentation:
 - `USAGE.md` - User guide
 - `IMPLEMENTATION.md` - This file
 - `STRUCTURED_OUTPUT_MIGRATION.md` - Structured output details
-- `Claude.md` - AI agent instructions
+- `CLAUDE.md` - AI agent instructions
 
 Testing:
 - `test_example.py` - Example buggy code
@@ -303,8 +300,7 @@ Testing:
 - **Type coverage**: 100% (all functions have type hints)
 - **Ruff compliance**: 100% (all checks pass)
 - **Mypy compliance**: 100% (strict mode, no errors)
-- **Test patterns**: 1 (ml-001 with eval framework)
-- **Code simplification**: Removed 78 lines of JSON parsing via structured output
+- **Test patterns**: 64 patterns with eval coverage
 
 ## Status
 
@@ -316,5 +312,5 @@ Code quality:
 
 Requirements for use:
 - vLLM installation
-- Gemma 3 model
+- Qwen3-8B-FP8 model (downloads automatically)
 - Evaluation framework for prompt tuning

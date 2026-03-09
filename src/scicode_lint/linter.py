@@ -14,14 +14,20 @@ from scicode_lint.llm.client import create_client
 from scicode_lint.llm.exceptions import ContextLengthError
 from scicode_lint.llm.models import DetectionResult
 from scicode_lint.llm.tokens import check_context_length
-from scicode_lint.output.formatter import Finding, LintError, LintResult, Location
+from scicode_lint.output.formatter import (
+    Finding,
+    LintError,
+    LintResult,
+    Location,
+    PatternCheckResult,
+)
 
 
 class SciCodeLinter:
     """Main linter class for checking scientific Python code.
 
     Designed for both human users and GenAI coding agents.
-    Detects 44 common patterns of bugs in scientific code including
+    Detects 64 common patterns of bugs in scientific code including
     data leakage, PyTorch training issues, numerical errors, and more.
 
     Example:
@@ -187,6 +193,7 @@ class SciCodeLinter:
 
         # Process results
         findings: list[Finding] = []
+        checked_patterns: list[PatternCheckResult] = []
         patterns_checked = 0
         patterns_failed = 0
 
@@ -205,6 +212,19 @@ class SciCodeLinter:
                 f"Pattern {pattern.id} completed in {pattern_elapsed:.2f}s "
                 f"(detected={detection.detected}, confidence={detection.confidence:.2f})"
             )
+            if detection.reasoning:
+                logger.info(f"  Reasoning: {detection.reasoning}")
+
+            # Record all pattern check results (for eval/debugging)
+            checked_patterns.append(
+                PatternCheckResult(
+                    pattern_id=pattern.id,
+                    detected=detection.detected,
+                    confidence=detection.confidence,
+                    reasoning=detection.reasoning,
+                    thinking=detection.thinking,
+                )
+            )
 
             # Add findings if detected (yes or context-dependent)
             if (
@@ -220,7 +240,7 @@ class SciCodeLinter:
             f"{patterns_failed} failed, {len(findings)} findings)"
         )
 
-        return LintResult(file=file_path, findings=findings)
+        return LintResult(file=file_path, findings=findings, checked_patterns=checked_patterns)
 
     async def _check_pattern_async(
         self, code: str, pattern: Any, file_path: Path
@@ -331,6 +351,7 @@ class SciCodeLinter:
             confidence=detection.confidence,
             reasoning=detection.reasoning,
             detection_type=detection_type,
+            thinking=detection.thinking,
         )
 
         return [finding]

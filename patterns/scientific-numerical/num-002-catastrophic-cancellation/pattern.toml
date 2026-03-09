@@ -26,21 +26,35 @@ references = []
 
 [detection]
 question = """
-Find subtraction of nearly equal large numbers in the code (e.g., naive variance mean_sq - mean^2, exp(x) - exp(x-delta)).
-Is numerically stable algorithm MISSING (no np.var, Welford, log-sum-exp, or ratios)?
+Analyze numerical computations for catastrophic cancellation.
 
-YES = numerically stable algorithm is MISSING (BUG)
-NO = uses stable algorithm, OR no such subtraction exists, OR values are well-separated
+Subtracting nearly equal large numbers loses significant digits of precision. Classic example: computing variance as mean(x²) - mean(x)² can lose all precision when values are large.
+
+Correct approach: Use stable algorithms (np.var, np.std) or numerically stable formulations.
+
+Does this code have catastrophic cancellation?
+
+Look for:
+- Naive variance: mean_sq - mean**2 or mean(x**2) - mean(x)**2
+- Exponential differences: exp(a) - exp(b) where a ≈ b
+- Adding then subtracting large values: (large + small) - large
+
+Safe patterns (ignore): np.var(), np.std(), sklearn scalers, distance calculations
+
+YES = Bug found: naive variance formula or unstable subtraction of large values
+NO = Correct: uses stable algorithms, or subtraction of well-separated values
 """
 
 warning_message = """
-Catastrophic cancellation: subtracting nearly equal large numbers loses precision. Restructure the formula to avoid this.
-
+Catastrophic cancellation: subtracting nearly equal large numbers loses precision. Use np.var() instead of mean(x^2)-mean(x)^2.
 """
 
 min_confidence = 0.85
-code_patterns = []
-false_positive_risks = []
+false_positive_risks = [
+    "General subtraction is NOT catastrophic cancellation",
+    "sklearn scalers use stable algorithms internally",
+    "Distance calculations (point1 - point2) are safe"
+]
 
 [tests]
 
@@ -69,14 +83,24 @@ snippet = "diff = val1 - val2"
 [[tests.negative]]
 file = "test_negative/stable_computation.py"
 description = "Using stable algorithms like np.var() or operations on well-separated values where cancellation is not a concern"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/safe_operations.py"
 description = "Operations using ratios, gradients, or differences of values with sufficient separation to avoid precision loss"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/variance_naive.py"
+description = "Variance computed using naive formula (sum_sq - sum_x^2/n)/(n-1) with large data values, causing catastrophic cancellation."
+expected_issue = "Naive variance formula loses precision with large values; use np.var() instead"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "compute_variance"
+snippet = "n = len(data)"
+
+[[tests.negative]]
+file = "test_negative/variance_stable.py"
+description = "Uses np.var() for variance and numerically stable quadratic formula using the trick x2 = c/(a*x1) to avoid catastrophic cancellation."

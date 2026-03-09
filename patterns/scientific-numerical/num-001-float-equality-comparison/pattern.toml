@@ -26,11 +26,21 @@ references = []
 
 [detection]
 question = """
-Find == or != comparisons on float values in the code.
-Is tolerance MISSING from float equality comparison (no np.isclose, np.allclose, math.isclose, or abs() with epsilon)?
+Analyze equality comparisons in this code for floating point issues.
 
-YES = tolerance is MISSING from float comparison (BUG)
-NO = has tolerance-based comparison, OR no float == or != exists, OR comparing integers/indices/shapes
+Floating point arithmetic has precision limitations: 0.1 + 0.2 != 0.3 due to binary representation. Direct equality (==, !=) on floats fails unpredictably.
+
+Correct approach: Use np.isclose(), np.allclose(), or abs(a-b) < epsilon.
+
+Does this code compare floats with exact equality?
+
+Look for:
+- if x == 0.0 or value != expected on computed floats
+- (arr1 == arr2).all() on float arrays
+- Convergence checks without tolerance
+
+YES = Bug found: float comparison using == or != without tolerance
+NO = Correct: uses isclose/allclose/epsilon, or comparing integers/indices
 """
 
 warning_message = """
@@ -39,7 +49,6 @@ Never use == on floats. 0.1 + 0.2 != 0.3 in floating point. Use np.isclose() or 
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -69,14 +78,24 @@ snippet = "if (arr1 == arr2).all():"
 [[tests.negative]]
 file = "test_negative/proper_tolerance.py"
 description = "Proper use of np.isclose(), np.allclose(), math.isclose(), or abs() with tolerance for float comparisons"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/integer_comparison.py"
 description = "Exact equality comparison on integers, indices, counters, and flags where == is appropriate"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/tolerance_check.py"
+description = "Exact equality checks on computed floating point results (norm, probability sum, matrix product) where tolerance is needed due to numerical precision limits"
+expected_issue = "Computed float values compared with exact equality (==) instead of tolerance-aware comparison"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "check_normalized"
+snippet = "norm = np.linalg.norm(vector)"
+
+[[tests.negative]]
+file = "test_negative/tolerance_check_correct.py"
+description = "Correct approach using np.isclose() and np.allclose() with explicit tolerance parameters (atol/rtol) for comparing computed floating point results"

@@ -4,7 +4,7 @@ import numpy as np
 def process_batches(data, batch_size):
     results = []
     for i in range(0, len(data), batch_size):
-        batch = data[i:i + batch_size]
+        batch = data[i : i + batch_size]
         result = np.zeros(batch_size)
         for j, val in enumerate(batch):
             result[j] = val * 2

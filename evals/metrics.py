@@ -34,7 +34,7 @@ class PatternMetrics:
     # Pass/fail status
     passes_thresholds: bool = False
 
-    def calculate_metrics(self, min_precision: float = 0.90, min_recall: float = 0.80) -> None:
+    def calculate_metrics(self, min_precision: float = 1.0, min_recall: float = 1.0) -> None:
         """Calculate precision, recall, F1 and check thresholds."""
         # Precision = TP / (TP + FP)
         if self.true_positives + self.false_positives > 0:
@@ -165,16 +165,16 @@ class MetricsCalculator:
 
     def __init__(
         self,
-        overall_precision_threshold: float = 0.90,
-        overall_recall_threshold: float = 0.80,
+        overall_precision_threshold: float = 1.0,
+        overall_recall_threshold: float = 1.0,
         critical_precision_threshold: float = 0.95,
     ):
         """
         Initialize calculator with threshold values.
 
         Args:
-            overall_precision_threshold: Minimum overall precision (default 0.90)
-            overall_recall_threshold: Minimum overall recall (default 0.80)
+            overall_precision_threshold: Minimum overall precision (default 1.0)
+            overall_recall_threshold: Minimum overall recall (default 1.0)
             critical_precision_threshold: Minimum precision for critical severity (default 0.95)
         """
         self.overall_precision_threshold = overall_precision_threshold

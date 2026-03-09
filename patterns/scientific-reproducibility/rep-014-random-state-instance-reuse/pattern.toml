@@ -1,0 +1,95 @@
+[meta]
+id = "rep-014"
+name = "random-state-instance-reuse"
+category = "scientific-reproducibility"
+severity = "high"
+version = "1.0.0"
+created = "2026-03-08"
+updated = "2026-03-08"
+author = "scicode-lint"
+
+description = """
+Passing a RandomState instance to multiple estimators causes different results on second use because the state advances. Integer seeds create fresh generators each time.
+"""
+
+explanation = """
+Pass integer seeds instead of RandomState instances to random_state parameters. This creates independent random generators for each estimator.
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Analyze RandomState usage for state sharing issues.
+
+Passing the same np.random.RandomState instance to multiple sklearn estimators causes issues. The first estimator advances the state, so the second estimator sees a different state. Integer seeds create fresh generators.
+
+Correct approach: Pass integer to random_state, not RandomState instance.
+
+Does this code reuse a RandomState instance across multiple estimators?
+
+Look for:
+- RandomState instance assigned to variable
+- Same variable passed to multiple random_state parameters
+- Shared RNG state across estimators
+
+YES = Bug found: same RandomState instance passed to multiple estimators
+NO = Correct: integer seeds used, or separate RandomState per estimator
+"""
+
+warning_message = """
+Reusing RandomState instance across estimators produces inconsistent results. Pass integer seeds instead.
+"""
+
+min_confidence = 0.85
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/reused_random_state.py"
+description = "Reusing RandomState instance across estimators"
+expected_issue = "Same RandomState passed to multiple estimators"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "train_ensemble"
+snippet = "random_state=rng"
+
+[[tests.negative]]
+file = "test_negative/numpy_default_rng.py"
+description = "Using numpy default_rng (modern API)"
+
+[[tests.negative]]
+file = "test_negative/no_shared_state.py"
+description = "Separate RandomState per estimator"
+
+[[tests.negative]]
+file = "test_negative/integer_seeds.py"
+description = "Using integer seeds instead of RandomState instances"
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/shared_rng.py"
+description = "RandomState instance shared across multiple estimators (RandomForestClassifier and GradientBoostingClassifier)"
+expected_issue = "Same RandomState passed to train_models; also demonstrates reuse in cross_validate_ensemble loop"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "train_models"
+snippet = "rng = np.random.RandomState(42)"
+
+[[tests.positive]]
+file = "test_positive/shared_rng_bootstrap.py"
+description = "RandomState reused in bootstrap loop and across estimator creation; different estimators receive advancing state"
+expected_issue = "Same RandomState used across multiple resample and DecisionTreeClassifier calls, advancing state on each use"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "bootstrap_samples"
+snippet = "rng = np.random.RandomState(42)"

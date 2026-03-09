@@ -1,0 +1,94 @@
+[meta]
+id = "pt-015"
+name = "device-mismatch-load"
+category = "ai-inference"
+severity = "high"
+version = "1.0.0"
+created = "2026-03-08"
+updated = "2026-03-08"
+author = "scicode-lint"
+
+description = """
+Loading a model with torch.load() without map_location can fail when CUDA is unavailable or when deploying to CPU-only environments. Models saved on GPU will try to load onto that GPU device.
+"""
+
+explanation = """
+Always specify map_location when loading models to ensure portability. Use map_location='cpu' for CPU inference or map_location=device for flexible deployment.
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Analyze model loading for device compatibility.
+
+torch.load() without map_location will attempt to load tensors onto the device they were saved from. If a model was saved on GPU but loaded on a CPU-only machine, this causes a runtime error.
+
+Correct approach: Always use map_location parameter - torch.load(path, map_location='cpu') or map_location=device.
+
+Does this code load models without specifying map_location?
+
+Look for:
+- torch.load(path) without map_location parameter
+- Model loading that will fail on CPU-only systems
+
+YES = Bug found: torch.load() without map_location
+NO = Correct: map_location specified, or weights_only with explicit device handling
+"""
+
+warning_message = """
+torch.load() without map_location can fail on CPU-only systems. Always specify map_location='cpu' or map_location=device for portable model loading.
+"""
+
+min_confidence = 0.85
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/load_without_map_location.py"
+description = "Loading model without map_location parameter"
+expected_issue = "torch.load() without map_location will fail on CPU-only systems"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "load_model"
+snippet = "torch.load(path)"
+
+[[tests.negative]]
+file = "test_negative/jit_load_model.py"
+description = "Using torch.jit.load with map_location"
+
+[[tests.negative]]
+file = "test_negative/model_from_scratch.py"
+description = "Creating model from scratch without loading"
+
+[[tests.negative]]
+file = "test_negative/safetensors_load.py"
+description = "Loading with safetensors (no device mismatch)"
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/load_ensemble.py"
+description = "Loading multiple models in a loop without map_location will fail when models were saved on GPU"
+expected_issue = "torch.load() without map_location in ensemble loading"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "load_ensemble"
+snippet = "torch.load(path)"
+
+[[tests.positive]]
+file = "test_positive/restore_training.py"
+description = "Restoring training checkpoint without map_location will fail on CPU-only systems when checkpoint was saved on GPU"
+expected_issue = "torch.load() without map_location in checkpoint restoration"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "restore_from_checkpoint"
+snippet = "torch.load(path)"

@@ -26,11 +26,16 @@ references = []
 
 [detection]
 question = """
-Find scaler.fit() or fit_transform() calls in the code.
-Is scaler fit() called BEFORE train/test split (on full data)?
+Look for scaler.fit() or fit_transform() or manual mean()/std()/min()/max() calls.
+Is "test" data (named test_data, X_test, test_set, etc.) used BEFORE the statistics are computed?
 
-YES = fit() called on FULL data BEFORE train_test_split (BUG)
-NO = fit() on train-only data, OR no scaler exists
+Check for:
+1. Variables named "test" concatenated with train BEFORE fit/statistics
+2. fit_transform() called BEFORE train_test_split()
+3. Manual stats on combined train+test arrays
+
+YES = test data is included in preprocessing statistics (data leakage)
+NO = test data is NOT used in statistics computation
 """
 
 warning_message = """
@@ -39,7 +44,6 @@ Data leakage: scaler/encoder is fit on full data including test set. Model perfo
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -59,16 +63,41 @@ snippet = "all_data = torch.cat([train_data, test_data])"
 [[tests.negative]]
 file = "test_negative/scaler_after_split.py"
 description = "Correct scaler usage after split"
-max_false_positives = 0
 
 [[tests.context_dependent]]
 file = "test_context_dependent/scaler_on_train_val.py"
-description = "Scaler on train+val combined, test separate"
-context_notes = "Debatable: some accept train+val combined for preprocessing"
-allow_detection = true
+description = "Scaler on train+val combined, test separate - answer should be NO (test not included)"
+context_notes = "Pattern checks for test data inclusion only. train+val combined is a separate concern (validation leakage)."
+allow_detection = false
 allow_skip = true
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+[[tests.positive]]
+file = "test_positive/quantile_transform_leak.py"
+description = "QuantileTransformer fit_transform on full dataset BEFORE train_test_split - leaks test quantiles"
+expected_issue = "Data leakage: QuantileTransformer fitted on full data including test set"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "build_regression_model"
+snippet = "X_scaled = scaler.fit_transform(X)"
+
+[[tests.positive]]
+file = "test_positive/robust_scaler_leakage.py"
+description = "RobustScaler fit_transform on full data before split, plus vstack combining train/test"
+expected_issue = "Data leakage: RobustScaler statistics computed on combined train+test"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "preprocess_features"
+snippet = "X_scaled = scaler.fit_transform(X)"
+
+[[tests.negative]]
+file = "test_negative/robust_scaler_correct.py"
+description = "Correct: train_test_split first, then RobustScaler fit on train only, transform on test"
+
+[[tests.negative]]
+file = "test_negative/robust_scaler_proper.py"
+description = "Correct: split first, fit RobustScaler on training data, transform test data separately"

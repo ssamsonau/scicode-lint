@@ -25,11 +25,14 @@ references = []
 
 [detection]
 question = """
-Find training loops with loss.backward() in the code.
-Is optimizer.zero_grad() MISSING inside the loop before backward()?
+Analyze the PyTorch training loop structure.
 
-YES = zero_grad() is MISSING inside the loop (BUG)
-NO = zero_grad() is called inside the loop before backward(), OR no training loops exist
+PyTorch accumulates gradients by default. Correct training clears gradients INSIDE the batch loop before each backward(). Common bug: calling zero_grad() once before the loop starts, causing gradients to accumulate across batches.
+
+Does this code clear gradients correctly inside each batch iteration?
+
+YES = Bug found: zero_grad() is missing or called outside the per-batch loop
+NO = Correct: zero_grad() is called inside the batch loop before backward()
 """
 
 warning_message = """
@@ -37,7 +40,6 @@ Missing optimizer.zero_grad(): Gradients accumulate across batches instead of be
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -67,14 +69,24 @@ snippet = "p.grad.zero_()"
 [[tests.negative]]
 file = "test_negative/correct_zero_grad.py"
 description = "Correct usage: optimizer.zero_grad() called before backward() in each iteration"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/zero_grad_before_backward.py"
 description = "Correct usage: proper sequence of zero_grad(), backward(), step() in training loop"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/multi_loss_train.py"
+description = "Multi-task training loop with backward() calls but no optimizer.zero_grad() - gradients accumulate across batches"
+expected_issue = "Multi-task training missing optimizer.zero_grad()"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "train_multi_task"
+snippet = "model.train()"
+
+[[tests.negative]]
+file = "test_negative/multi_loss_train_correct.py"
+description = "Correct multi-task training with optimizer.zero_grad() called before backward() in each iteration"

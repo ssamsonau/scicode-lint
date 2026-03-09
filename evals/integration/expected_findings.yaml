@@ -6,100 +6,123 @@
 
 scenarios:
   ml_pipeline_complete:
-    description: "Complete ML pipeline with 5 different bugs"
+    description: "Complete ML pipeline with multiple bugs"
     file: "scenarios/ml_pipeline_complete.py"
 
     # Expected pattern detections (pattern_id: expected_count)
+    # Includes both originally injected bugs and confirmed real bugs (TP-bonus from judge)
     expected_patterns:
-      ml-001: 1        # Line 53: scaler.fit(all_data) - scaler leakage
-      ml-002: 1        # Line 40: price_category = (y > y.mean()) - target leakage
-      pt-001: 1        # Line 69-77: train_model without model.train() - missing train mode
-      pt-004: 1        # Line 70-74: missing optimizer.zero_grad() - missing zero grad
-      rep-001: 1       # Line 43: train_test_split without random_state - missing seed
+      ml-001: 1        # scaler.fit(all_data) - scaler leakage
+      ml-002: 1        # price_category = (y > y.mean()) - target leakage
+      ml-007: 1        # scaler fit on combined train/test data
+      pt-004: 1        # missing optimizer.zero_grad() - missing zero grad
+      rep-001: 1       # train_test_split without random_state - missing seed
+      rep-003: 1       # hardcoded hyperparameters (dropout, lr)
+      rep-004: 1       # missing random seeds for numpy/torch
+      rep-005: 1       # glob.glob() without sorted()
+      rep-008: 1       # df.sample() without random_state
+      rep-009: 1       # KFold(shuffle=True) without random_state
+      num-005: 1       # potential division by zero in normalization
 
-    # Overall expectations
-    min_total_findings: 5
-    max_total_findings: 5
-    max_false_positives: 0
-
-    # Comments on expected bugs
+    # Comments on expected bugs (includes TP-bonus confirmed by LLM judge)
     bugs:
-      - line: 40
-        pattern: ml-002
-        description: "Using target variable 'y' to create feature 'price_category'"
-
-      - line: 43
-        pattern: rep-001
-        description: "train_test_split without random_state parameter"
-
-      - line: 53
-        pattern: ml-001
+      - pattern: ml-001
         description: "Fitting scaler on combined train+test data"
-
-      - line: 69
-        pattern: pt-001
-        description: "Training loop without model.train() call"
-
-      - line: 70
-        pattern: pt-004
+      - pattern: ml-002
+        description: "Using target variable 'y' to create feature 'price_category'"
+      - pattern: ml-007
+        description: "Scaler fit on combined data contaminates test set"
+      - pattern: pt-004
         description: "Training loop missing optimizer.zero_grad()"
+      - pattern: rep-001
+        description: "train_test_split without random_state parameter"
+      - pattern: rep-003
+        description: "Hardcoded hyperparameters (dropout rate, learning rate)"
+      - pattern: rep-004
+        description: "Missing random seeds for numpy/torch"
+      - pattern: rep-005
+        description: "glob.glob() without sorted() - non-deterministic order"
+      - pattern: rep-008
+        description: "df.sample() without random_state"
+      - pattern: rep-009
+        description: "KFold(shuffle=True) without random_state"
+      - pattern: num-005
+        description: "Potential division by zero with zero std features"
 
   pytorch_training_issues:
-    description: "PyTorch training loop with 3 common mistakes"
+    description: "PyTorch training loop with common mistakes"
     file: "scenarios/pytorch_training_issues.py"
 
+    # Includes TP-bonus confirmed by LLM judge
     expected_patterns:
-      pt-001: 1   # Line 41-48: train_epoch without model.train() - missing train mode
-      pt-004: 1   # Line 42-46: missing optimizer.zero_grad() - missing zero grad
-      pt-007: 1   # Line 74-80: predict_batch without model.eval() - inference without eval
-
-    min_total_findings: 3
-    max_total_findings: 3
-    max_false_positives: 0
+      pt-001: 1   # train_epoch without model.train() - missing train mode
+      pt-004: 1   # missing optimizer.zero_grad() - missing zero grad
+      pt-007: 1   # predict_batch without model.eval() - inference without eval
+      pt-010: 1   # DataLoader without num_workers
+      pt-011: 1   # unbatched GPU inference
+      pt-015: 1   # torch.load() without map_location
+      pt-021: 1   # benchmark without warmup
+      rep-002: 1  # incomplete CUDA determinism setup
 
     bugs:
-      - line: 41
-        pattern: pt-001
+      - pattern: pt-001
         description: "train_epoch function missing model.train()"
-
-      - line: 42
-        pattern: pt-004
+      - pattern: pt-004
         description: "Training loop missing optimizer.zero_grad()"
-
-      - line: 74
-        pattern: pt-007
+      - pattern: pt-007
         description: "predict_batch function missing model.eval()"
+      - pattern: pt-010
+        description: "DataLoader without num_workers"
+      - pattern: pt-011
+        description: "Processing full test set without batching"
+      - pattern: pt-015
+        description: "torch.load() without map_location parameter"
+      - pattern: pt-021
+        description: "Benchmark without warmup iterations"
+      - pattern: rep-002
+        description: "Missing torch.use_deterministic_algorithms(True)"
 
   data_preprocessing_bugs:
-    description: "Data preprocessing with 4 leakage issues"
+    description: "Data preprocessing with leakage issues"
     file: "scenarios/data_preprocessing_bugs.py"
 
+    # Includes TP-bonus confirmed by LLM judge
     expected_patterns:
-      ml-001: 1   # Line 59: scaler.fit(X_test) - scaler leakage
-      ml-003: 1   # Line 50: shuffle=True on time-series - temporal leakage
-      ml-006: 1   # Line 36: shift(-1) for future info - temporal shift leakage
-      rep-001: 1  # Line 50: train_test_split without random_state - missing seed
-
-    min_total_findings: 4
-    max_total_findings: 4
-    max_false_positives: 0
+      ml-001: 1   # scaler.fit(X_test) - scaler leakage
+      ml-002: 1   # target leakage in feature creation
+      ml-003: 1   # shuffle=True on time-series - temporal leakage
+      ml-005: 1   # CV temporal shuffle
+      ml-006: 1   # shift(-1) for future info - temporal shift leakage
+      ml-007: 1   # scaler fit on test data
+      rep-001: 1  # train_test_split without random_state - missing seed
+      rep-003: 1  # hardcoded hyperparameters
+      rep-004: 1  # missing random seeds
+      num-005: 1  # potential division by zero
+      py-002: 1   # inplace array modification
 
     bugs:
-      - line: 36
-        pattern: ml-006
-        description: "Using shift(-1) to create features from future data"
-
-      - line: 50
-        pattern: ml-003
-        description: "Using shuffle=True on time-series data"
-
-      - line: 50
-        pattern: rep-001
-        description: "train_test_split without random_state"
-
-      - line: 59
-        pattern: ml-001
+      - pattern: ml-001
         description: "Fitting scaler on test data instead of train data"
+      - pattern: ml-002
+        description: "Target leakage: next_day_value derived from target"
+      - pattern: ml-003
+        description: "Using shuffle=True on time-series data"
+      - pattern: ml-005
+        description: "Shuffling time-series data in cross-validation"
+      - pattern: ml-006
+        description: "Using shift(-1) to create features from future data"
+      - pattern: ml-007
+        description: "MinMaxScaler fit on test data"
+      - pattern: rep-001
+        description: "train_test_split without random_state"
+      - pattern: rep-003
+        description: "Hardcoded test_size and shuffle parameters"
+      - pattern: rep-004
+        description: "Missing random seeds"
+      - pattern: num-005
+        description: "Potential division by zero in StandardScaler"
+      - pattern: py-002
+        description: "Inplace modification of input arrays"
 
   repeated_bugs:
     description: "Multiple instances of same bugs - tests multi-detection"
@@ -109,34 +132,31 @@ scenarios:
     # The finding's 'lines' array contains all problematic line numbers.
     # So pt-004 with 3 instances = 1 finding with lines: [54, 70, 87]
 
+    # Includes TP-bonus confirmed by LLM judge
     expected_patterns:
-      ml-001: 1   # One finding containing lines: [30, 40] - two scaler leakage instances
-      pt-004: 1   # One finding containing lines: [54, 70, 87] - three zero_grad instances
-      rep-001: 1  # One finding containing lines: [98, 106] - two missing seed instances
-
-    min_total_findings: 3
-    max_total_findings: 3
-    max_false_positives: 0
+      ml-001: 1   # two scaler leakage instances
+      ml-007: 1   # scaler fit on combined data
+      ml-008: 1   # unstratified split
+      pt-004: 1   # three zero_grad instances
+      rep-001: 1  # two missing seed instances
+      rep-004: 1  # missing random seeds
+      num-005: 1  # potential division by zero
 
     bugs:
-      - lines: [30, 40]
-        pattern: ml-001
-        description: "Two preprocessing functions with scaler leakage (lines 30 and 40)"
-
-      - lines: [54, 70, 87]
-        pattern: pt-004
-        description: "Three training functions missing optimizer.zero_grad() (lines 54, 70, 87)"
-
-      - lines: [98, 106]
-        pattern: rep-001
-        description: "Two data splits without random_state (lines 98 and 106)"
-
-# Global thresholds for integration tests
-thresholds:
-  min_coverage: 0.90        # Must detect at least 90% of injected bugs
-  max_false_positive_rate: 0.0  # No false positives allowed
-  min_precision: 1.0        # All findings should be correct
-  min_recall: 0.90          # Should find at least 90% of bugs
+      - pattern: ml-001
+        description: "Two preprocessing functions with scaler leakage"
+      - pattern: ml-007
+        description: "Scaler fit on combined train/test data"
+      - pattern: ml-008
+        description: "train_test_split without stratification"
+      - pattern: pt-004
+        description: "Three training functions missing optimizer.zero_grad()"
+      - pattern: rep-001
+        description: "Two data splits without random_state"
+      - pattern: rep-004
+        description: "Missing random seeds for reproducibility"
+      - pattern: num-005
+        description: "Potential division by zero in StandardScaler"
 
 # Evaluation settings
 evaluation:

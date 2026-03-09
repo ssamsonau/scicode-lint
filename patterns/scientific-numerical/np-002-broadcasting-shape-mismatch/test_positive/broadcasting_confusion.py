@@ -1,21 +1,25 @@
 import numpy as np
 
 
-def compute_distances(points, centers):
-    diffs = points - centers
-    distances = np.sqrt(np.sum(diffs**2, axis=1))
-    return distances
+def normalize_features(X):
+    feature_means = X.mean(axis=0)
+    centered = X - feature_means
+
+    feature_std = X.std(axis=0)
+    normalized = centered / feature_std
+    return normalized
 
 
-def apply_transformation(data, transform_matrix):
-    result = data @ transform_matrix
-    return result
+def batch_normalize(batch):
+    batch_mean = batch.mean(axis=1)
+    batch_std = batch.std(axis=1)
+
+    normalized = (batch - batch_mean) / batch_std
+    return normalized
 
 
-pts = np.random.rand(1000, 3)
-ctrs = np.random.rand(10, 3)
-dists = compute_distances(pts, ctrs)
+X = np.random.rand(100, 50)  # (samples, features)
+X_norm = normalize_features(X)
 
-data = np.random.rand(50, 100)
-trans = np.random.rand(50, 50)
-transformed = apply_transformation(data, trans)
+batch = np.random.rand(32, 128)
+batch_norm = batch_normalize(batch)

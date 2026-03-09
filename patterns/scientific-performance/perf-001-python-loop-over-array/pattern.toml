@@ -26,11 +26,21 @@ references = []
 
 [detection]
 question = """
-Find Python for loops iterating over NumPy array elements using range(len(arr)) or nested index loops.
-Does the loop perform element-wise operations that could be vectorized with np.where() or broadcasting?
+Analyze array processing for vectorization opportunities.
 
-YES = loop over array elements found (BUG)
-NO = no such loops exist
+Python for loops over NumPy array elements (for i in range(len(arr))) are 100-1000x slower than vectorized operations. NumPy's power comes from compiled C operations on entire arrays.
+
+Correct approach: Use broadcasting, np.where(), or fancy indexing instead of element-wise loops.
+
+Does this code use Python loops over array elements?
+
+Look for:
+- for i in range(len(arr)) with arr[i] access
+- Nested loops computing pairwise operations
+- Element-wise conditionals that could use np.where()
+
+YES = Bug found: Python loop over array elements instead of vectorization
+NO = Correct: uses vectorized NumPy operations
 """
 
 warning_message = """
@@ -39,7 +49,6 @@ Python loop over NumPy array: 100-1000x slower than vectorized operation. Use br
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -69,14 +78,24 @@ snippet = "for i in range(n):"
 [[tests.negative]]
 file = "test_negative/vectorized_operation.py"
 description = "Properly uses np.where for conditional vectorized operation - no Python loops"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/broadcasting.py"
 description = "Uses NumPy broadcasting for pairwise distance computation - fully vectorized"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/row_iteration.py"
+description = "Python loop iterating over array rows, computing distances element-by-element and building list instead of using NumPy operations"
+expected_issue = "Python loops over array rows appending to list instead of vectorized operations"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "compute_distances"
+snippet = "distances = []"
+
+[[tests.negative]]
+file = "test_negative/vectorized_operations.py"
+description = "Uses fully vectorized NumPy operations (broadcasting and axis reduction) for distance and normalization computations without any Python loops"

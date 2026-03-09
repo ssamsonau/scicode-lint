@@ -1,266 +1,343 @@
-"""Main evaluation runner for scicode-lint patterns.
+"""LLM-as-judge evaluation for scicode-lint patterns.
 
-Orchestrates running the linter on test cases, validating findings,
-calculating metrics, and generating reports.
+Evaluates pattern detection quality using LLM to judge semantic correctness
+of linter outputs against test case expectations.
 """
 
 import argparse
+import asyncio
 import json
-import subprocess
 import sys
+import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Literal
 
-import yaml
 from loguru import logger
+
+from scicode_lint.llm.client import LLMClient
 
 # Handle both module and script execution
 if __name__ == "__main__" and __package__ is None:
-    # Running as script - add parent directory to path
     sys.path.insert(0, str(Path(__file__).parent.parent))
-    from evals.metrics import MetricsCalculator, PatternMetrics
-    from evals.report_generator import ReportGenerator
-    from evals.validators import (
-        ActualFinding,
-        ExpectedFinding,
-        FindingValidator,
-        LocationMatcher,
+    from evals.judge_models import (
+        JudgeVerdict,
+        OverallJudgeMetrics,
+        PatternJudgeMetrics,
+        TestCaseEvaluation,
+    )
+    from evals.prompts.judge_system_prompt import (
+        JUDGE_SYSTEM_PROMPT,
+        generate_judge_prompt,
     )
 else:
-    # Running as module
-    from .metrics import MetricsCalculator, PatternMetrics
-    from .report_generator import ReportGenerator
-    from .validators import (
-        ActualFinding,
-        ExpectedFinding,
-        FindingValidator,
-        LocationMatcher,
+    from .judge_models import (
+        JudgeVerdict,
+        OverallJudgeMetrics,
+        PatternJudgeMetrics,
+        TestCaseEvaluation,
+    )
+    from .prompts.judge_system_prompt import (
+        JUDGE_SYSTEM_PROMPT,
+        generate_judge_prompt,
     )
 
+# Import scicode_lint components
+try:
+    from scicode_lint.config import LLMConfig, get_default_patterns_dir
+    from scicode_lint.llm.client import create_client
+    from scicode_lint.vllm import VLLMMetricsMonitor
+except ImportError:
+    logger.error("Failed to import scicode_lint. Is it installed?")
+    sys.exit(1)
 
-class EvalRunner:
-    """Main orchestration class for running evaluations."""
 
-    def __init__(self, patterns_dir: Path, test_definitions_path: Path, linter_timeout: int = 30):
+class LLMJudgeEvaluator:
+    """Evaluate linter outputs using LLM as judge."""
+
+    def __init__(
+        self,
+        llm_client: LLMClient,
+        patterns_dir: Path,
+        llm_config: LLMConfig,
+        max_concurrent: int = 200,
+        skip_judge: bool = False,
+    ):
         """
-        Initialize evaluation runner.
+        Initialize evaluator.
 
         Args:
-            patterns_dir: Directory containing pattern test cases
-            test_definitions_path: Path to test_definitions.yaml
-            linter_timeout: Timeout for linter execution in seconds
+            llm_client: LLM client for judge evaluations
+            patterns_dir: Directory containing patterns
+            llm_config: LLM configuration (used for timeout)
+            max_concurrent: Max concurrent test evaluations (default 200).
+                           Higher values improve GPU utilization but use more memory.
+            skip_judge: If True, skip LLM judge evaluation (only compute direct metrics)
         """
+        self.llm = llm_client
         self.patterns_dir = Path(patterns_dir)
-        self.test_definitions_path = Path(test_definitions_path)
-        self.linter_timeout = linter_timeout
+        self.timeout = llm_config.timeout
+        self._semaphore = asyncio.Semaphore(max_concurrent)
+        self.skip_judge = skip_judge
 
-        # Load test definitions
-        with open(self.test_definitions_path) as f:
-            self.config = yaml.safe_load(f)
-
-        # Initialize components
-        self.validator = FindingValidator(LocationMatcher())
-        self.metrics_calculator = MetricsCalculator(
-            overall_precision_threshold=self.config.get("thresholds", {}).get(
-                "overall_precision", 0.90
-            ),
-            overall_recall_threshold=self.config.get("thresholds", {}).get("overall_recall", 0.80),
-            critical_precision_threshold=self.config.get("thresholds", {}).get(
-                "critical_precision", 0.95
-            ),
-        )
-
-    def run_linter(self, file_path: Path, pattern_id: Optional[str] = None) -> list[ActualFinding]:
+    async def run_linter(self, file_path: Path, pattern_id: str | None = None) -> dict[str, Any]:
         """
-        Run the linter on a file and parse findings.
+        Run linter on file and parse output (async to avoid blocking event loop).
 
         Args:
-            file_path: Path to Python file to lint
-            pattern_id: Optional pattern ID to check (e.g., "ml-001-scaler-leakage")
-                       If not provided, checks all patterns
+            file_path: Path to test file
+            pattern_id: Optional pattern ID to filter to single pattern
 
         Returns:
-            List of ActualFinding objects
-
-        Note:
-            This will fail until the actual linter is implemented.
-            For now, it returns an empty list.
+            Dictionary with detection results
         """
         try:
-            # Build linter command
-            cmd = [
-                "python",
-                "-m",
-                "scicode_lint",
-                "check",
-                str(file_path),
-                "--format",
-                "json",
-            ]
-
-            # Add pattern filter if specified
+            cmd = ["python", "-m", "scicode_lint", "check", str(file_path), "--format", "json"]
+            # Add pattern filter to check only the relevant pattern (speeds up evaluation)
             if pattern_id:
                 cmd.extend(["--pattern", pattern_id])
 
-            # Run linter
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=self.linter_timeout,
-                check=False,
+            # Use asyncio.create_subprocess_exec for truly async subprocess
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
 
-            if result.returncode != 0:
-                # Linter doesn't exist yet or file has findings
-                # Try to parse JSON output anyway
-                pass
+            # Wait for process with timeout
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(), timeout=float(self.timeout)
+                )
+                stdout_text = stdout.decode()
+                _stderr_text = stderr.decode()
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                raise RuntimeError(f"Linter timed out after {self.timeout}s on {file_path}")
 
-            # Parse JSON output
-            if result.stdout:
-                output = json.loads(result.stdout)
-                findings = []
-
-                # Handle list format (linter returns list of file results)
+            if stdout_text:
+                output = json.loads(stdout_text)
+                # Linter returns a list of file results
                 if isinstance(output, list) and len(output) > 0:
-                    # Get findings from first file result
-                    for finding_data in output[0].get("findings", []):
-                        findings.append(ActualFinding.model_validate(finding_data))
-                # Handle dict format (legacy or alternative format)
-                elif isinstance(output, dict):
-                    for finding_data in output.get("findings", []):
-                        findings.append(ActualFinding.model_validate(finding_data))
+                    file_result = output[0]
+                    findings = file_result.get("findings", [])
+                    if findings:
+                        # Return first finding with new format (lines, snippet, reasoning)
+                        finding = findings[0]
+                        location = finding.get("location", {})
+                        return {
+                            "detected": finding.get(
+                                "detection_type", "yes"
+                            ),  # "yes"/"context-dependent"
+                            "lines": location.get("lines", []),
+                            "snippet": location.get("snippet", ""),
+                            "reasoning": finding.get("reasoning", ""),
+                            "issue": finding.get("issue", ""),
+                            "confidence": finding.get("confidence", 0.0),
+                            "explanation": finding.get("explanation", ""),
+                            "thinking": finding.get("thinking"),
+                        }
 
-                return findings
-            else:
-                return []
+                    # No findings - check checked_patterns for reasoning (new field)
+                    checked_patterns = file_result.get("checked_patterns", [])
+                    if checked_patterns:
+                        # Use the first (or only) pattern check result
+                        check_result = checked_patterns[0]
+                        return {
+                            "detected": check_result.get("detected", "no"),
+                            "lines": [],
+                            "snippet": "",
+                            "reasoning": check_result.get("reasoning", ""),
+                            "issue": None,
+                            "confidence": check_result.get("confidence", 0.0),
+                            "explanation": None,
+                            "thinking": check_result.get("thinking"),
+                        }
+
+            return {
+                "detected": "no",
+                "lines": [],
+                "snippet": "",
+                "reasoning": "",
+                "issue": None,
+                "confidence": 0.0,
+                "explanation": None,
+                "thinking": None,
+            }
 
         except FileNotFoundError:
-            # Linter not installed yet - expected during initial development
-            logger.warning(f"Linter not found. Skipping {file_path}")
-            return []
-        except subprocess.TimeoutExpired:
-            logger.error(f"Linter timed out on {file_path}")
-            return []
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse linter output for {file_path}: {e}")
-            return []
+            logger.warning("Linter not found. Skipping linter execution.")
+            return {
+                "detected": "no",
+                "lines": [],
+                "snippet": "",
+                "reasoning": "",
+                "issue": None,
+                "confidence": 0.0,
+                "explanation": "Linter not available",
+                "thinking": None,
+            }
         except Exception as e:
-            logger.error(f"Unexpected error running linter on {file_path}: {e}")
-            return []
+            logger.error(f"Error running linter on {file_path}: {e}")
+            return {
+                "detected": "no",
+                "lines": [],
+                "snippet": "",
+                "reasoning": "",
+                "issue": None,
+                "confidence": 0.0,
+                "explanation": f"Error: {e}",
+                "thinking": None,
+            }
 
-    def load_ground_truth(self, pattern_dir: Path) -> dict[str, Any]:
+    def _evaluate_direct(
+        self,
+        test_type: Literal["positive", "negative", "context_dependent"],
+        linter_output: dict[str, Any],
+        min_confidence: float = 0.80,
+    ) -> tuple[bool, str]:
         """
-        Load ground truth from pattern.toml or evaluation.yaml.
-
-        Tries pattern.toml first (new format), falls back to evaluation.yaml (legacy).
-
-        Args:
-            pattern_dir: Directory containing pattern test cases
+        Evaluate using direct metrics logic.
 
         Returns:
-            Ground truth configuration dictionary
+            (passed, reason) tuple
         """
-        # Try new TOML format first
-        pattern_toml = pattern_dir / "pattern.toml"
-        if pattern_toml.exists():
-            return self._load_from_toml(pattern_toml)
+        detected = linter_output.get("detected", "no")
+        confidence = linter_output.get("confidence", 0.0)
 
-        # Fall back to legacy YAML format
-        ground_truth_yaml = pattern_dir / "evaluation.yaml"
-        if ground_truth_yaml.exists():
-            with open(ground_truth_yaml) as f:
-                result = yaml.safe_load(f)
-                if not isinstance(result, dict):
-                    raise ValueError(f"Invalid ground truth file: {ground_truth_yaml}")
-                return result
+        if test_type == "positive":
+            # Should detect the bug
+            if detected == "no":
+                return False, "Bug not detected (expected detection)"
+            if confidence < min_confidence:
+                return False, f"Confidence {confidence:.2f} below threshold {min_confidence}"
+            return True, "Bug detected with sufficient confidence"
 
-        raise FileNotFoundError(f"No pattern.toml or evaluation.yaml found in {pattern_dir}")
+        elif test_type == "negative":
+            # Should NOT detect a bug
+            if detected in ("yes", "context-dependent"):
+                return False, "False positive - bug detected in clean code"
+            return True, "Correctly identified as clean code"
 
-    def _load_from_toml(self, toml_path: Path) -> dict[str, Any]:
+        else:  # context_dependent
+            # Either detection or non-detection is acceptable
+            return True, f"Context-dependent: detected={detected}"
+
+    def _determine_alignment(
+        self,
+        direct_passed: bool,
+        judge_verdict: Literal["yes", "no", "partial"],
+    ) -> Literal["both_pass", "both_fail", "quality_issue", "overly_strict"]:
+        """Determine alignment category between direct metrics and judge."""
+        judge_passed = judge_verdict in ("yes", "partial")
+
+        if direct_passed and judge_passed:
+            return "both_pass"
+        elif not direct_passed and not judge_passed:
+            return "both_fail"
+        elif direct_passed and not judge_passed:
+            return "quality_issue"
+        else:  # not direct_passed and judge_passed
+            return "overly_strict"
+
+    async def evaluate_test_file(
+        self,
+        test_file: Path,
+        test_type: Literal["positive", "negative", "context_dependent"],
+        pattern_id: str,
+        expected_behavior: str,
+        min_confidence: float = 0.80,
+    ) -> TestCaseEvaluation:
         """
-        Convert TOML pattern to evaluation format.
+        Evaluate a single test file using LLM judge.
 
         Args:
-            toml_path: Path to pattern.toml
+            test_file: Path to test file
+            test_type: "positive", "negative", or "context_dependent"
+            pattern_id: Pattern identifier
+            expected_behavior: Expected behavior from pattern.toml
 
         Returns:
-            Dictionary in the format expected by evaluate_pattern()
+            TestCaseEvaluation with judge verdict
         """
-        import sys
+        # Semaphore limits concurrent evaluations to avoid overwhelming vLLM/system
+        async with self._semaphore:
+            # Run linter (filter to just this pattern for speed)
+            linter_output = await self.run_linter(test_file, pattern_id=pattern_id)
 
-        if sys.version_info >= (3, 11):
-            import tomllib
-        else:
-            try:
-                import tomli as tomllib
-            except ImportError:
-                raise ImportError("tomli is required for Python < 3.11")
-
-        with open(toml_path, "rb") as f:
-            pattern_data = tomllib.load(f)
-
-        # Convert to evaluation format
-        result = {
-            "pattern_id": pattern_data["meta"]["id"],
-            "category": pattern_data["meta"]["category"],
-            "severity": pattern_data["meta"]["severity"],
-            "positive_cases": [],
-            "negative_cases": [],
-            "context_dependent_cases": [],  # Keep legacy name for now, will rename later
-        }
-
-        # Convert positive test cases
-        for test in pattern_data.get("tests", {}).get("positive", []):
-            result["positive_cases"].append(
-                {
-                    "file": test["file"],
-                    "expected_findings": [
-                        {
-                            "location": {
-                                "type": test["expected_location"]["type"],
-                                "name": test["expected_location"]["name"],
-                                "snippet": test["expected_location"].get("snippet", ""),
-                            },
-                            "issue": test.get("expected_issue", ""),
-                            "min_confidence": test.get("min_confidence", 0.85),
-                        }
-                    ],
-                }
+            # Evaluate with direct metrics
+            direct_passed, direct_reason = self._evaluate_direct(
+                test_type, linter_output, min_confidence
             )
 
-        # Convert negative test cases
-        for test in pattern_data.get("tests", {}).get("negative", []):
-            result["negative_cases"].append(
-                {
-                    "file": test["file"],
-                    "max_false_positives": test.get("max_false_positives", 0),
-                }
+            # Get judge verdict (skip if --skip-judge flag is set)
+            if self.skip_judge:
+                # Use direct metrics result as proxy for judge verdict
+                verdict = JudgeVerdict(
+                    verdict="yes" if direct_passed else "no",
+                    reasoning="Judge skipped (--skip-judge flag)",
+                    confidence=1.0 if direct_passed else 0.0,
+                )
+            else:
+                # Generate judge prompt
+                judge_prompt = generate_judge_prompt(
+                    test_file_path=str(test_file.relative_to(self.patterns_dir.parent)),
+                    test_type=test_type,
+                    expected_behavior=expected_behavior,
+                    linter_output=linter_output,
+                )
+
+                # Get judge verdict using async for better concurrency
+                try:
+                    verdict = await self.llm.async_complete_structured(
+                        system_prompt=JUDGE_SYSTEM_PROMPT,
+                        user_prompt=judge_prompt,
+                        schema=JudgeVerdict,
+                    )
+                except Exception as e:
+                    logger.error(f"Judge evaluation failed for {test_file}: {e}")
+                    # Default to "no" verdict on error
+                    verdict = JudgeVerdict(
+                        verdict="no",
+                        reasoning=f"Evaluation failed: {e}",
+                        confidence=0.0,
+                    )
+
+            # Determine alignment
+            alignment = self._determine_alignment(direct_passed, verdict.verdict)
+
+            # Build evaluation result
+            return TestCaseEvaluation(
+                test_file=str(test_file.relative_to(self.patterns_dir.parent)),
+                test_type=test_type,
+                expected_behavior=expected_behavior,
+                linter_detected=linter_output["detected"],
+                linter_lines=linter_output.get("lines", []),
+                linter_snippet=linter_output.get("snippet", ""),
+                linter_reasoning=linter_output.get("reasoning", ""),
+                linter_issue=linter_output.get("issue", ""),
+                linter_confidence=linter_output["confidence"],
+                linter_thinking=linter_output.get("thinking"),
+                judge_verdict=verdict.verdict,
+                judge_reasoning=verdict.reasoning,
+                judge_confidence=verdict.confidence,
+                judge_thinking=verdict.thinking,
+                direct_passed=direct_passed,
+                direct_reason=direct_reason,
+                alignment=alignment,
             )
 
-        # Convert context-dependent test cases (formerly ambiguous)
-        for test in pattern_data.get("tests", {}).get("context_dependent", []):
-            result["context_dependent_cases"].append(
-                {
-                    "file": test["file"],
-                    "allow_detection": test.get("allow_detection", True),
-                    "allow_skip": test.get("allow_skip", True),
-                }
-            )
-
-        return result
-
-    def evaluate_pattern(self, pattern_id: str) -> Optional[PatternMetrics]:
+    async def evaluate_pattern(self, pattern_id: str) -> PatternJudgeMetrics | None:
         """
-        Evaluate a single pattern.
+        Evaluate all test files for a pattern.
 
         Args:
-            pattern_id: Pattern identifier (e.g., "ml-001")
+            pattern_id: Pattern identifier (e.g., "ml-001-scaler-leakage")
 
         Returns:
-            PatternMetrics or None if pattern not found
+            PatternJudgeMetrics or None if pattern not found
         """
-        # Search for pattern in category subdirectories
+        # Find pattern directory
         pattern_dir = None
         for category_dir in self.patterns_dir.iterdir():
             if category_dir.is_dir():
@@ -269,198 +346,436 @@ class EvalRunner:
                     pattern_dir = candidate
                     break
 
-        if pattern_dir is None:
-            logger.error(f"Pattern directory not found: {pattern_id}")
+        if not pattern_dir:
+            logger.error(f"Pattern not found: {pattern_id}")
             return None
 
-        # Load ground truth
+        # Load and validate pattern using Pydantic models
+        from scicode_lint.detectors.pattern_loader import PatternLoader
+
+        loader = PatternLoader(self.patterns_dir)
         try:
-            ground_truth = self.load_ground_truth(pattern_dir)
-        except FileNotFoundError:
-            logger.error(f"evaluation.yaml not found for {pattern_id}")
-            return None
-        except yaml.YAMLError as e:
-            logger.error(f"Failed to parse evaluation.yaml for {pattern_id}: {e}")
+            pattern_toml_obj = loader.load_pattern_toml(pattern_dir)
+        except Exception as e:
+            logger.error(f"Failed to load pattern {pattern_id}: {e}")
             return None
 
-        # Extract metadata
-        category = ground_truth.get("category", "unknown")
-        severity = ground_truth.get("severity", "medium")
+        actual_pattern_id = pattern_toml_obj.meta.id
+        logger.debug(f"Pattern directory: {pattern_id}, actual ID: {actual_pattern_id}")
 
-        # Get the actual pattern ID from ground truth (e.g., "ml-001" not "ml-001-scaler-leakage")
-        actual_pattern_id = ground_truth.get("pattern_id", pattern_id)
+        # Build mapping of test file paths to (expected_behavior, min_confidence)
+        # Uses TOML descriptions to avoid "data leakage"
+        test_expectations: dict[str, tuple[str, float]] = {}
 
-        # Initialize counters
-        total_tp = 0
-        total_fp = 0
-        total_fn = 0
-        positive_count = 0
-        negative_count = 0
-        context_dependent_count = 0
+        for pos_test in pattern_toml_obj.tests.positive:
+            description = pos_test.description
+            expected_issue = pos_test.expected_issue
+            min_confidence = pos_test.min_confidence
+            # Combine description and expected_issue for positive tests
+            expected = f"{description}\n\nExpected issue: {expected_issue}"
+            test_expectations[pos_test.file] = (expected, min_confidence)
 
-        # Process positive cases
-        for case in ground_truth.get("positive_cases", []):
-            positive_count += 1
-            case_file = pattern_dir / case["file"]
+        for neg_test in pattern_toml_obj.tests.negative:
+            test_expectations[neg_test.file] = (neg_test.description, 0.80)
 
-            if not case_file.exists():
-                logger.warning(f"Positive case file not found: {case_file}")
-                continue
+        for ctx_test in pattern_toml_obj.tests.context_dependent:
+            test_expectations[ctx_test.file] = (ctx_test.description, 0.80)
 
-            # Run linter on this specific pattern only
-            actual_findings = self.run_linter(case_file, pattern_id=actual_pattern_id)
+        # Collect all test files with (path, type, expected_behavior, min_confidence)
+        TestType = Literal["positive", "negative", "context_dependent"]
+        test_files: list[tuple[Path, TestType, str, float]] = []
 
-            # Parse expected findings
-            expected_findings = [
-                ExpectedFinding.model_validate(ef) for ef in case.get("expected_findings", [])
-            ]
+        # Positive tests
+        positive_dir = pattern_dir / "test_positive"
+        if positive_dir.exists():
+            for py_file in positive_dir.glob("**/*.py"):
+                rel_path = str(py_file.relative_to(pattern_dir))
+                expected, min_conf = test_expectations.get(rel_path, ("", 0.80))
+                if not expected:
+                    logger.warning(f"No description in pattern.toml for {py_file}, using default")
+                    expected = f"Positive test case for {pattern_id}"
+                test_files.append((py_file, "positive", expected, min_conf))
 
-            # Validate
-            result = self.validator.validate_positive_case(expected_findings, actual_findings)
+        # Negative tests
+        negative_dir = pattern_dir / "test_negative"
+        if negative_dir.exists():
+            for py_file in negative_dir.glob("**/*.py"):
+                rel_path = str(py_file.relative_to(pattern_dir))
+                expected, min_conf = test_expectations.get(rel_path, ("", 0.80))
+                if not expected:
+                    logger.warning(f"No description in pattern.toml for {py_file}, using default")
+                    expected = f"Negative test case for {pattern_id}"
+                test_files.append((py_file, "negative", expected, min_conf))
 
-            total_tp += result.true_positives
-            total_fp += result.false_positives
-            total_fn += result.false_negatives
+        # Context-dependent tests
+        context_dir = pattern_dir / "test_context_dependent"
+        if context_dir.exists():
+            for py_file in context_dir.glob("**/*.py"):
+                rel_path = str(py_file.relative_to(pattern_dir))
+                expected, min_conf = test_expectations.get(rel_path, ("", 0.80))
+                if not expected:
+                    logger.warning(f"No description in pattern.toml for {py_file}, using default")
+                    expected = f"Context-dependent test case for {pattern_id}"
+                test_files.append((py_file, "context_dependent", expected, min_conf))
 
-        # Process negative cases
-        for case in ground_truth.get("negative_cases", []):
-            negative_count += 1
-            case_file = pattern_dir / case["file"]
+        if not test_files:
+            logger.warning(f"No test files found for {pattern_id}")
+            return None
 
-            if not case_file.exists():
-                logger.warning(f"Negative case file not found: {case_file}")
-                continue
+        logger.info(f"Evaluating {len(test_files)} test files for {pattern_id}")
 
-            # Run linter on this specific pattern only
-            actual_findings = self.run_linter(case_file, pattern_id=actual_pattern_id)
-
-            # Validate (all findings are FPs)
-            max_fps = case.get("max_false_positives", 0)
-            result = self.validator.validate_negative_case(actual_findings, max_fps)
-
-            total_fp += result.false_positives
-
-        # Process ambiguous cases (informational only)
-        context_dependent_count = len(ground_truth.get("context_dependent_cases", []))
+        # Evaluate all test files in parallel - vLLM handles concurrent requests efficiently
+        # with continuous batching, PagedAttention, and KV cache sharing
+        evaluation_tasks = [
+            self.evaluate_test_file(
+                test_file, test_type, actual_pattern_id, expected_behavior, min_conf
+            )
+            for test_file, test_type, expected_behavior, min_conf in test_files
+        ]
+        evaluations = await asyncio.gather(*evaluation_tasks)
 
         # Calculate metrics
-        metrics = self.metrics_calculator.calculate_pattern_metrics(
-            pattern_id=pattern_id,
-            category=category,
-            severity=severity,
-            true_positives=total_tp,
-            false_positives=total_fp,
-            false_negatives=total_fn,
-            positive_cases=positive_count,
-            negative_cases=negative_count,
-            context_dependent_cases=context_dependent_count,
+        return self._calculate_pattern_metrics(pattern_id, evaluations)
+
+    def _calculate_pattern_metrics(
+        self, pattern_id: str, evaluations: list[TestCaseEvaluation]
+    ) -> PatternJudgeMetrics:
+        """Calculate metrics from evaluations."""
+        # Count by verdict
+        correct = sum(1 for e in evaluations if e.judge_verdict == "yes")
+        partial = sum(1 for e in evaluations if e.judge_verdict == "partial")
+        incorrect = sum(1 for e in evaluations if e.judge_verdict == "no")
+
+        # Calculate accuracy by test type
+        positive_evals = [e for e in evaluations if e.test_type == "positive"]
+        negative_evals = [e for e in evaluations if e.test_type == "negative"]
+        context_evals = [e for e in evaluations if e.test_type == "context_dependent"]
+
+        positive_accuracy = (
+            sum(1 for e in positive_evals if e.judge_verdict == "yes") / len(positive_evals)
+            if positive_evals
+            else 0.0
         )
 
-        return metrics
+        negative_accuracy = (
+            sum(1 for e in negative_evals if e.judge_verdict == "yes") / len(negative_evals)
+            if negative_evals
+            else 0.0
+        )
 
-    def evaluate_all_patterns(
-        self, pattern_filter: Optional[list[str]] = None
-    ) -> list[PatternMetrics]:
-        """
-        Evaluate all patterns (or filtered subset).
+        # For context tests, both "yes" and "partial" are acceptable
+        context_accuracy = (
+            sum(1 for e in context_evals if e.judge_verdict in ["yes", "partial"])
+            / len(context_evals)
+            if context_evals
+            else 1.0  # Default to 1.0 if no context tests
+        )
 
-        Args:
-            pattern_filter: Optional list of pattern IDs to evaluate
+        # Overall accuracy: correct + 0.5 * partial
+        overall_accuracy = (correct + 0.5 * partial) / len(evaluations)
 
-        Returns:
-            List of PatternMetrics
-        """
-        # Get all pattern directories from category subdirectories
-        pattern_dirs = []
-        for category_dir in self.patterns_dir.iterdir():
-            if category_dir.is_dir():
-                for pattern_dir in category_dir.iterdir():
-                    if pattern_dir.is_dir() and (
-                        (pattern_dir / "pattern.toml").exists()
-                        or (pattern_dir / "evaluation.yaml").exists()
-                    ):
-                        pattern_dirs.append(pattern_dir)
+        # Calculate alignment metrics (direct vs judge)
+        aligned_count = sum(1 for e in evaluations if e.aligned)
+        both_pass_count = sum(1 for e in evaluations if e.alignment == "both_pass")
+        both_fail_count = sum(1 for e in evaluations if e.alignment == "both_fail")
+        quality_issue_count = sum(1 for e in evaluations if e.alignment == "quality_issue")
+        overly_strict_count = sum(1 for e in evaluations if e.alignment == "overly_strict")
 
-        # Filter if requested
-        if pattern_filter:
-            pattern_dirs = [d for d in pattern_dirs if d.name in pattern_filter]
+        return PatternJudgeMetrics(
+            pattern_id=pattern_id,
+            total_tests=len(evaluations),
+            positive_accuracy=positive_accuracy,
+            negative_accuracy=negative_accuracy,
+            context_accuracy=context_accuracy,
+            overall_accuracy=overall_accuracy,
+            correct_count=correct,
+            partial_count=partial,
+            incorrect_count=incorrect,
+            aligned_count=aligned_count,
+            both_pass_count=both_pass_count,
+            both_fail_count=both_fail_count,
+            quality_issue_count=quality_issue_count,
+            overly_strict_count=overly_strict_count,
+            evaluations=evaluations,
+        )
 
-        # Evaluate each pattern
-        all_metrics = []
-        for pattern_dir in sorted(pattern_dirs):
-            pattern_id = pattern_dir.name
-            logger.info(f"Evaluating pattern: {pattern_id}")
 
-            metrics = self.evaluate_pattern(pattern_id)
-            if metrics:
-                all_metrics.append(metrics)
+def _compute_variance_report(
+    all_run_results: list[list[PatternJudgeMetrics]], pattern_ids: list[str]
+) -> dict[str, Any]:
+    """
+    Compute variance across multiple runs to identify unstable patterns.
 
-        return all_metrics
+    Returns a report with:
+    - Per-pattern variance in accuracy
+    - Unstable patterns (where results differ across runs)
+    - Overall variance statistics
+    """
+    import statistics
 
-    def run(
-        self,
-        pattern_filter: Optional[list[str]] = None,
-        output_dir: Optional[Path] = None,
-        output_format: str = "all",
-    ) -> int:
-        """
-        Run full evaluation and generate reports.
+    # Build pattern_id -> list of accuracies across runs
+    pattern_accuracies: dict[str, list[float]] = {pid: [] for pid in pattern_ids}
+    overall_accuracies: list[float] = []
 
-        Args:
-            pattern_filter: Optional list of pattern IDs to evaluate
-            output_dir: Directory for reports (default: evals/reports)
-            output_format: Output format: "json", "markdown", or "all"
+    for run_results in all_run_results:
+        run_total_correct = 0
+        run_total_tests = 0
+        for pm in run_results:
+            pattern_accuracies[pm.pattern_id].append(pm.overall_accuracy)
+            run_total_correct += pm.correct_count
+            run_total_tests += pm.total_tests
 
-        Returns:
-            Exit code (0 = success, 1 = failure)
-        """
-        # Determine output directory
-        if output_dir is None:
-            output_dir = self.patterns_dir.parent / "evals" / "reports"
+        if run_total_tests > 0:
+            overall_accuracies.append(run_total_correct / run_total_tests)
 
-        # Run evaluations
-        logger.info("Starting evaluation...")
-        logger.info(f"Patterns directory: {self.patterns_dir}")
-        logger.info("")
+    # Compute per-pattern stats
+    pattern_stats: list[dict[str, Any]] = []
+    unstable_patterns: list[str] = []
 
-        pattern_metrics = self.evaluate_all_patterns(pattern_filter)
+    for pid, accuracies in pattern_accuracies.items():
+        if len(accuracies) < 2:
+            continue
 
-        if not pattern_metrics:
-            logger.error("No patterns evaluated")
-            return 1
+        mean_acc = statistics.mean(accuracies)
+        stdev_acc = statistics.stdev(accuracies) if len(accuracies) > 1 else 0.0
+        min_acc = min(accuracies)
+        max_acc = max(accuracies)
+        variance = max_acc - min_acc
 
-        # Calculate overall metrics
-        overall_metrics = self.metrics_calculator.aggregate_metrics(pattern_metrics)
+        stat = {
+            "pattern_id": pid,
+            "mean_accuracy": mean_acc,
+            "stdev": stdev_acc,
+            "min": min_acc,
+            "max": max_acc,
+            "variance": variance,
+            "accuracies": accuracies,
+        }
+        pattern_stats.append(stat)
 
-        # Generate reports
-        logger.info("\nGenerating reports...")
-        generator = ReportGenerator(output_dir)
+        # Flag as unstable if variance > 10% or stdev > 5%
+        if variance > 0.10 or stdev_acc > 0.05:
+            unstable_patterns.append(pid)
 
-        if output_format in ["json", "all"]:
-            json_path = generator.generate_json_report(overall_metrics)
-            logger.info(f"JSON report: {json_path}")
+    # Sort by variance (most unstable first)
+    pattern_stats.sort(key=lambda x: x["variance"], reverse=True)
 
-        if output_format in ["markdown", "all"]:
-            md_path = generator.generate_markdown_report(overall_metrics)
-            logger.info(f"Markdown report: {md_path}")
+    # Overall stats
+    overall_mean = statistics.mean(overall_accuracies) if overall_accuracies else 0.0
+    overall_stdev = statistics.stdev(overall_accuracies) if len(overall_accuracies) > 1 else 0.0
 
-        # Print summary
-        logger.info("\n" + generator.generate_summary_text(overall_metrics))
+    return {
+        "num_runs": len(all_run_results),
+        "overall_mean_accuracy": overall_mean,
+        "overall_stdev": overall_stdev,
+        "overall_accuracies": overall_accuracies,
+        "pattern_stats": pattern_stats,
+        "unstable_patterns": unstable_patterns,
+    }
 
-        # Return exit code based on thresholds
-        if overall_metrics.meets_overall_thresholds and overall_metrics.meets_critical_threshold:
-            return 0
+
+def _print_variance_report(report: dict[str, Any], output_dir: Path) -> None:
+    """Print and save variance report from multi-run evaluation."""
+    lines = [
+        "",
+        "=" * 70,
+        f"VARIANCE REPORT ({report['num_runs']} runs)",
+        "=" * 70,
+        "",
+        f"Overall Mean Accuracy: {report['overall_mean_accuracy']:.2%}",
+        f"Overall Std Dev:       {report['overall_stdev']:.2%}",
+        f"Per-run accuracies:    {[f'{a:.2%}' for a in report['overall_accuracies']]}",
+        "",
+    ]
+
+    if report["unstable_patterns"]:
+        lines.extend(
+            [
+                "UNSTABLE PATTERNS (variance > 10% or stdev > 5%)",
+                "-" * 70,
+            ]
+        )
+        for pid in report["unstable_patterns"]:
+            stat = next(s for s in report["pattern_stats"] if s["pattern_id"] == pid)
+            accs = [f"{a:.0%}" for a in stat["accuracies"]]
+            lines.append(
+                f"  {pid}: {stat['mean_accuracy']:.1%} mean, "
+                f"{stat['variance']:.0%} range [{stat['min']:.0%}-{stat['max']:.0%}], "
+                f"runs: {accs}"
+            )
+        lines.extend(
+            [
+                "",
+                ">> These patterns have ambiguous detection questions.",
+                ">> Run with --verbose to see LLM reasoning differences.",
+                "",
+            ]
+        )
+    else:
+        lines.append("All patterns are stable across runs (variance < 10%).")
+        lines.append("")
+
+    lines.append("=" * 70)
+
+    # Print to console
+    print("\n".join(lines))
+
+    # Save variance report
+    variance_path = output_dir / "variance_report.json"
+    variance_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(variance_path, "w") as f:
+        json.dump(report, f, indent=2)
+    logger.info(f"Variance report saved to {variance_path}")
+
+
+class JudgeReportGenerator:
+    """Generate reports from LLM-as-judge evaluations."""
+
+    @staticmethod
+    def generate_summary_text(metrics: OverallJudgeMetrics) -> str:
+        """Generate human-readable summary."""
+        lines = [
+            "",
+            "=" * 70,
+            "LLM-AS-JUDGE EVALUATION SUMMARY",
+            "=" * 70,
+            "",
+            f"Total Patterns: {metrics.total_patterns}",
+            f"Total Tests: {metrics.total_tests}",
+            "",
+            "ACCURACY BY TEST TYPE",
+            "-" * 70,
+            f"Positive Tests:  {metrics.positive_accuracy:.2%}",
+            f"Negative Tests:  {metrics.negative_accuracy:.2%}",
+            f"Context Tests:   {metrics.context_accuracy:.2%}",
+            "",
+            f"Overall Accuracy: {metrics.overall_accuracy:.2%}",
+            f"Avg Judge Confidence: {metrics.avg_judge_confidence:.2f}",
+            "",
+            f"Patterns Above Threshold (≥85%): "
+            f"{metrics.patterns_above_threshold}/{metrics.total_patterns}",
+            "",
+            "ALIGNMENT METRICS (Direct vs Judge)",
+            "-" * 70,
+            f"Semantic Alignment:           {metrics.semantic_alignment:.1%}",
+        ]
+        # Handle conditional formatting for counts
+        if metrics.total_tests > 0:
+            both_pass_pct = metrics.both_pass_count / metrics.total_tests
+            both_fail_pct = metrics.both_fail_count / metrics.total_tests
+            cnt = metrics.both_pass_count
+            lines.append(f"  - Both Pass:                {cnt} ({both_pass_pct:.1%})")
+            cnt = metrics.both_fail_count
+            lines.append(f"  - Both Fail:                {cnt} ({both_fail_pct:.1%})")
         else:
-            return 1
+            lines.append("  - Both Pass:                0 (0.0%)")
+            lines.append("  - Both Fail:                0 (0.0%)")
+
+        lines.extend(
+            [
+                "",
+                f"Quality Issue Rate:           {metrics.quality_issue_rate:.1%} "
+                f"({metrics.quality_issue_count} cases)",
+                "  (Direct passes, Judge fails - right location, wrong explanation)",
+                "",
+                f"Ground Truth Strictness Rate: {metrics.ground_truth_strictness_rate:.1%} "
+                f"({metrics.overly_strict_count} cases)",
+                "  (Direct fails, Judge passes - ground truth too rigid)",
+                "",
+                "=" * 70,
+            ]
+        )
+        return "\n".join(lines)
+
+    @staticmethod
+    def save_json_report(metrics: OverallJudgeMetrics, output_path: Path) -> None:
+        """Save metrics as JSON."""
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, "w") as f:
+            json.dump(metrics.model_dump(), f, indent=2)
+        logger.info(f"JSON report saved to {output_path}")
+
+    @staticmethod
+    def save_markdown_report(metrics: OverallJudgeMetrics, output_path: Path) -> None:
+        """Save metrics as Markdown."""
+        lines = [
+            "# LLM-as-Judge Evaluation Report",
+            "",
+            f"**Total Patterns:** {metrics.total_patterns}  ",
+            f"**Total Tests:** {metrics.total_tests}  ",
+            f"**Overall Accuracy:** {metrics.overall_accuracy:.2%}  ",
+            "",
+            "## Accuracy by Test Type",
+            "",
+            "| Test Type | Accuracy |",
+            "|-----------|----------|",
+            f"| Positive | {metrics.positive_accuracy:.2%} |",
+            f"| Negative | {metrics.negative_accuracy:.2%} |",
+            f"| Context-Dependent | {metrics.context_accuracy:.2%} |",
+            "",
+            "## Alignment Metrics (Direct vs Judge)",
+            "",
+            "| Metric | Value |",
+            "|--------|-------|",
+            f"| Semantic Alignment | {metrics.semantic_alignment:.1%} |",
+            f"| Quality Issue Rate | {metrics.quality_issue_rate:.1%} |",
+            f"| Ground Truth Strictness Rate | {metrics.ground_truth_strictness_rate:.1%} |",
+            "",
+            "**Interpretation:**",
+            "- **Quality Issues**: Direct metrics pass but judge fails "
+            "(right location, wrong explanation)",
+            "- **Overly Strict**: Direct metrics fail but judge passes (ground truth too rigid)",
+            "",
+            "## Per-Pattern Results",
+            "",
+            "| Pattern ID | Tests | Accuracy | Aligned | Quality Issues | Overly Strict |",
+            "|------------|-------|----------|---------|----------------|---------------|",
+        ]
+
+        for pattern in sorted(metrics.patterns, key=lambda p: p.overall_accuracy, reverse=True):
+            lines.append(
+                f"| {pattern.pattern_id} | {pattern.total_tests} | "
+                f"{pattern.overall_accuracy:.2%} | {pattern.alignment_rate:.0%} | "
+                f"{pattern.quality_issue_count} | {pattern.overly_strict_count} |"
+            )
+
+        # Add divergent cases section if any exist
+        divergent_patterns = [
+            p for p in metrics.patterns if p.quality_issue_count > 0 or p.overly_strict_count > 0
+        ]
+        if divergent_patterns:
+            lines.extend(
+                [
+                    "",
+                    "## Divergent Cases (Need Attention)",
+                    "",
+                ]
+            )
+            for pattern in divergent_patterns:
+                divergent_cases = [e for e in pattern.evaluations if not e.aligned]
+                if divergent_cases:
+                    lines.append(f"### {pattern.pattern_id}")
+                    lines.append("")
+                    for case in divergent_cases:
+                        emoji = "!!" if case.alignment == "quality_issue" else ">>"
+                        lines.append(f"- {emoji} **[{case.alignment}]** `{case.test_file}`")
+                        direct_status = "PASS" if case.direct_passed else "FAIL"
+                        lines.append(f"  - Direct: {direct_status} - {case.direct_reason}")
+                        reason_truncated = case.judge_reasoning[:80]
+                        lines.append(f"  - Judge: {case.judge_verdict} - {reason_truncated}...")
+                    lines.append("")
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, "w") as f:
+            f.write("\n".join(lines))
+        logger.info(f"Markdown report saved to {output_path}")
 
 
-def main() -> None:
-    """CLI entry point."""
-    # Configure logging
-    logger.remove()
-    logger.add(sys.stderr, level="INFO", format="<level>{message}</level>")
-
-    parser = argparse.ArgumentParser(description="Run scicode-lint evaluation framework")
+async def main() -> int:
+    """Main evaluation runner."""
+    parser = argparse.ArgumentParser(
+        description="Run LLM-as-judge evaluation for scicode-lint patterns"
+    )
     parser.add_argument(
         "--pattern",
         "-p",
@@ -469,21 +784,24 @@ def main() -> None:
         help="Evaluate specific pattern(s) only (can be used multiple times)",
     )
     parser.add_argument(
-        "--patterns-dir",
-        type=Path,
-        default=Path(__file__).parent.parent / "patterns",
-        help="Directory containing pattern test cases",
+        "--category",
+        "-c",
+        action="append",
+        dest="categories",
+        help="Evaluate specific category/categories only (can be used multiple times). "
+        "Available: ai-inference, ai-training, scientific-numerical, "
+        "scientific-performance, scientific-reproducibility",
     )
     parser.add_argument(
-        "--config",
+        "--patterns-dir",
         type=Path,
-        default=Path(__file__).parent / "test_definitions.yaml",
-        help="Path to test_definitions.yaml",
+        default=get_default_patterns_dir(),
+        help="Directory containing pattern test cases",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
-        help="Output directory for reports (default: evals/reports)",
+        help="Output directory for reports (default: evals/reports/judge)",
     )
     parser.add_argument(
         "--format",
@@ -491,62 +809,267 @@ def main() -> None:
         default="all",
         help="Report format",
     )
-    parser.add_argument("--timeout", type=int, default=30, help="Linter timeout in seconds")
+    parser.add_argument(
+        "--llm-base-url",
+        default="http://localhost:5001",
+        help="LLM API base URL (without /v1 suffix)",
+    )
     parser.add_argument(
         "--no-auto-server",
         action="store_true",
         help="Don't auto-start vLLM server (assume already running)",
     )
     parser.add_argument(
-        "--vllm-port",
+        "--max-concurrent",
         type=int,
-        default=5001,
-        help="vLLM server port (default: 5001)",
+        default=200,
+        help="Max concurrent test evaluations (default: 200). "
+        "Higher = better GPU utilization but more memory.",
+    )
+    parser.add_argument(
+        "--monitor-interval",
+        type=float,
+        default=5.0,
+        help="vLLM metrics monitoring interval in seconds (default: 5.0, set to 0 to disable).",
+    )
+    parser.add_argument(
+        "--skip-judge",
+        action="store_true",
+        help="Skip LLM judge evaluation (only compute direct metrics). "
+        "Faster but no semantic evaluation.",
+    )
+    parser.add_argument(
+        "--runs",
+        type=int,
+        default=1,
+        help="Number of evaluation runs for consistency checking (default: 1). "
+        "Use 3 to detect LLM variance and identify ambiguous patterns.",
     )
 
     args = parser.parse_args()
 
-    def run_evaluation() -> int:
-        """Run the actual evaluation."""
-        runner = EvalRunner(
-            patterns_dir=args.patterns_dir,
-            test_definitions_path=args.config,
-            linter_timeout=args.timeout,
-        )
-        return runner.run(
-            pattern_filter=args.patterns,
-            output_dir=args.output_dir,
-            output_format=args.format,
-        )
+    # Configure logging
+    logger.remove()
+    logger.add(sys.stderr, level="INFO", format="<level>{message}</level>")
 
     # Auto-start vLLM server if needed
-    if args.no_auto_server:
-        exit_code = run_evaluation()
-    else:
+    vllm_server = None
+    if not args.no_auto_server:
         try:
             from scicode_lint.vllm import VLLMServer, get_server_info
 
+            # Extract port from base URL
+            port = int(args.llm_base_url.split(":")[-1])
+
             # Check if server is already running
-            base_url = f"http://localhost:{args.vllm_port}"
-            server_info = get_server_info(base_url=base_url)
+            server_info = get_server_info(base_url=args.llm_base_url)
             if server_info.is_running:
                 logger.info(f"vLLM server already running at {server_info.base_url}")
-                exit_code = run_evaluation()
             else:
-                logger.info("Starting vLLM server automatically...")
-                with VLLMServer(port=args.vllm_port, wait_timeout=120) as server:
-                    logger.info(f"vLLM server ready at {server.base_url}")
-                    exit_code = run_evaluation()
+                logger.info("Starting vLLM server...")
+                vllm_server = VLLMServer(port=port, wait_timeout=120)
+                vllm_server.__enter__()
+                logger.info(f"vLLM server ready at {vllm_server.base_url}")
         except ImportError:
-            logger.warning("vLLM utilities not available, running without auto-start")
-            exit_code = run_evaluation()
+            logger.warning("vLLM utilities not available, assuming server is running")
         except Exception as e:
             logger.error(f"Failed to start vLLM server: {e}")
             logger.info("Try running with --no-auto-server if server is already running")
-            sys.exit(1)
+            return 1
 
-    sys.exit(exit_code)
+    try:
+        # Setup LLM client for judge
+        # Use LLMConfig defaults (temperature=0.6, top_p=0.95 for Qwen3 thinking mode)
+        llm_config = LLMConfig(base_url=args.llm_base_url)
+        llm_client = create_client(llm_config)
+
+        # Create evaluator with concurrency limit
+        evaluator = LLMJudgeEvaluator(
+            llm_client,
+            args.patterns_dir,
+            llm_config,
+            max_concurrent=args.max_concurrent,
+            skip_judge=args.skip_judge,
+        )
+
+        # Determine which patterns to evaluate
+        if args.patterns:
+            pattern_ids = args.patterns
+        else:
+            # Find all patterns, optionally filtered by category
+            pattern_ids = []
+            for category_dir in args.patterns_dir.iterdir():
+                if category_dir.is_dir() and not category_dir.name.startswith("."):
+                    # Filter by category if specified
+                    if args.categories and category_dir.name not in args.categories:
+                        continue
+                    for pattern_dir in category_dir.iterdir():
+                        if pattern_dir.is_dir() and (pattern_dir / "pattern.toml").exists():
+                            pattern_ids.append(pattern_dir.name)
+
+        if args.categories:
+            logger.info(
+                f"Evaluating {len(pattern_ids)} patterns from {len(args.categories)} "
+                f"category(s): {', '.join(args.categories)}"
+            )
+        else:
+            logger.info(f"Evaluating {len(pattern_ids)} patterns (all categories)")
+
+        # Multi-run consistency checking
+        num_runs = args.runs
+        all_run_results: list[list[PatternJudgeMetrics]] = []
+
+        for run_idx in range(num_runs):
+            if num_runs > 1:
+                logger.info(f"\n=== Run {run_idx + 1}/{num_runs} ===")
+
+            # Start metrics monitor if enabled (only on first run)
+            monitor = None
+            if args.monitor_interval > 0 and run_idx == 0:
+                monitor = VLLMMetricsMonitor(
+                    base_url=args.llm_base_url,
+                    interval=args.monitor_interval,
+                    output_file="evals/reports/vllm_metrics.log",
+                    console=True,
+                )
+                monitor.start()
+
+            eval_start = time.time()
+            try:
+                # Evaluate ALL patterns in parallel - vLLM handles batching efficiently
+                pattern_tasks = [evaluator.evaluate_pattern(pid) for pid in pattern_ids]
+                all_results = await asyncio.gather(*pattern_tasks)
+                pattern_metrics = [m for m in all_results if m is not None]
+                all_run_results.append(pattern_metrics)
+            finally:
+                if monitor:
+                    await monitor.stop()
+                eval_elapsed = time.time() - eval_start
+                logger.info(f"Run {run_idx + 1} completed in {eval_elapsed:.1f}s")
+
+        if not all_run_results or not all_run_results[0]:
+            logger.error("No patterns were evaluated")
+            return 1
+
+        # Use first run for primary metrics, but compute variance if multiple runs
+        pattern_metrics = all_run_results[0]
+
+        # Calculate overall metrics from first run
+        total_tests = sum(p.total_tests for p in pattern_metrics)
+        total_correct = sum(p.correct_count for p in pattern_metrics)
+        total_partial = sum(p.partial_count for p in pattern_metrics)
+
+        # Aggregate by test type
+        all_positive = [
+            e for p in pattern_metrics for e in p.evaluations if e.test_type == "positive"
+        ]
+        all_negative = [
+            e for p in pattern_metrics for e in p.evaluations if e.test_type == "negative"
+        ]
+        all_context = [
+            e for p in pattern_metrics for e in p.evaluations if e.test_type == "context_dependent"
+        ]
+
+        positive_accuracy = (
+            sum(1 for e in all_positive if e.judge_verdict == "yes") / len(all_positive)
+            if all_positive
+            else 0.0
+        )
+        negative_accuracy = (
+            sum(1 for e in all_negative if e.judge_verdict == "yes") / len(all_negative)
+            if all_negative
+            else 0.0
+        )
+        context_accuracy = (
+            sum(1 for e in all_context if e.judge_verdict in ["yes", "partial"]) / len(all_context)
+            if all_context
+            else 1.0
+        )
+
+        overall_accuracy = (total_correct + 0.5 * total_partial) / total_tests
+
+        # Average judge confidence
+        all_evals = [e for p in pattern_metrics for e in p.evaluations]
+        avg_confidence = sum(e.judge_confidence for e in all_evals) / len(all_evals)
+
+        # Patterns above threshold
+        patterns_above_threshold = sum(1 for p in pattern_metrics if p.overall_accuracy >= 0.85)
+
+        # Aggregate alignment metrics
+        total_aligned = sum(p.aligned_count for p in pattern_metrics)
+        total_both_pass = sum(p.both_pass_count for p in pattern_metrics)
+        total_both_fail = sum(p.both_fail_count for p in pattern_metrics)
+        total_quality_issues = sum(p.quality_issue_count for p in pattern_metrics)
+        total_overly_strict = sum(p.overly_strict_count for p in pattern_metrics)
+
+        semantic_alignment = total_aligned / total_tests if total_tests > 0 else 0.0
+        quality_issue_rate = total_quality_issues / total_tests if total_tests > 0 else 0.0
+        ground_truth_strictness_rate = total_overly_strict / total_tests if total_tests > 0 else 0.0
+
+        overall_metrics = OverallJudgeMetrics(
+            total_patterns=len(pattern_metrics),
+            total_tests=total_tests,
+            positive_accuracy=positive_accuracy,
+            negative_accuracy=negative_accuracy,
+            context_accuracy=context_accuracy,
+            overall_accuracy=overall_accuracy,
+            patterns=pattern_metrics,
+            avg_judge_confidence=avg_confidence,
+            patterns_above_threshold=patterns_above_threshold,
+            semantic_alignment=semantic_alignment,
+            quality_issue_rate=quality_issue_rate,
+            ground_truth_strictness_rate=ground_truth_strictness_rate,
+            aligned_count=total_aligned,
+            both_pass_count=total_both_pass,
+            both_fail_count=total_both_fail,
+            quality_issue_count=total_quality_issues,
+            overly_strict_count=total_overly_strict,
+        )
+
+        # Compute variance across runs if multiple runs
+        variance_report: dict[str, Any] | None = None
+        if num_runs > 1:
+            variance_report = _compute_variance_report(all_run_results, pattern_ids)
+
+        # Determine output directory
+        if args.output_dir is None:
+            base_output = args.patterns_dir.parent / "evals" / "reports" / "judge"
+            # Use category-specific subdirectory if filtering by category
+            if args.categories and len(args.categories) == 1:
+                output_dir = base_output / args.categories[0]
+            else:
+                output_dir = base_output
+        else:
+            output_dir = args.output_dir
+
+        # Generate reports
+        reporter = JudgeReportGenerator()
+
+        if args.format in ["json", "all"]:
+            reporter.save_json_report(overall_metrics, output_dir / "llm_judge_report.json")
+
+        if args.format in ["markdown", "all"]:
+            reporter.save_markdown_report(overall_metrics, output_dir / "llm_judge_report.md")
+
+        # Print summary
+        print(reporter.generate_summary_text(overall_metrics))
+
+        # Print variance report if multiple runs
+        if variance_report:
+            _print_variance_report(variance_report, output_dir)
+
+        return 0
+
+    finally:
+        # Cleanup vLLM server if we started it
+        if vllm_server is not None:
+            try:
+                vllm_server.__exit__(None, None, None)
+                logger.info("vLLM server stopped")
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
-    main()
+    exit_code = asyncio.run(main())
+    sys.exit(exit_code)

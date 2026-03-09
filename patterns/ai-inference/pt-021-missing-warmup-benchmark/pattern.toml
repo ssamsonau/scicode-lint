@@ -1,0 +1,91 @@
+[meta]
+id = "pt-021"
+name = "missing-warmup-benchmark"
+category = "ai-inference"
+severity = "medium"
+version = "1.0.0"
+created = "2026-03-08"
+updated = "2026-03-08"
+author = "scicode-lint"
+
+description = """
+Benchmarking inference without warmup iterations produces inflated timing measurements. First passes incur JIT compilation, CUDA kernel launches, and memory allocation overhead.
+"""
+
+explanation = """
+Always run warmup iterations before timing inference. The first few forward passes include one-time overhead that doesn't represent steady-state performance.
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Does this benchmark code time ALL model iterations without any warmup handling?
+
+ONLY flag if: timing measures from first pass AND results include first passes.
+
+NOT a bug (answer NO):
+- Warmup loop runs BEFORE timing starts
+- First N iterations discarded from results
+- Using torch.profiler (handles warmup internally)
+
+YES = Bug: all iterations timed and averaged, no warmup or discard
+NO = Clean: warmup before timing, or first iterations discarded
+"""
+
+warning_message = """
+Benchmark without warmup includes one-time overhead. Run 10-50 warmup iterations before timing for accurate measurements.
+"""
+
+min_confidence = 0.85
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/benchmark_no_warmup.py"
+description = "Benchmarking from first iteration without warmup"
+expected_issue = "Timing starts from first forward pass without warmup"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "benchmark_model"
+snippet = "time.perf_counter()"
+
+[[tests.negative]]
+file = "test_negative/profiler_benchmark.py"
+description = "Using torch.profiler for benchmarking"
+
+[[tests.negative]]
+file = "test_negative/cpu_timing.py"
+description = "CPU-only timing without GPU warmup needs"
+
+[[tests.negative]]
+file = "test_negative/warmup_benchmark.py"
+description = "Proper benchmarking with warmup iterations"
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/profile_model.py"
+description = "Profiling inference timing without warmup iterations before measurement loop"
+expected_issue = "Timing includes overhead from first inference pass, producing inaccurate baseline measurements"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "profile_inference"
+snippet = "model.cuda()"
+
+[[tests.positive]]
+file = "test_positive/throughput_test.py"
+description = "Measuring throughput by timing batches without warming up model first"
+expected_issue = "First batch includes JIT compilation and cuDNN autotuning overhead, skewing throughput calculation"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "measure_throughput"
+snippet = "model.cuda()"

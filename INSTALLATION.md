@@ -1,13 +1,13 @@
 # Installation Guide
 
 **Local/Institutional vLLM Required:** scicode-lint uses vLLM for inference. You need either:
-- Local GPU (20GB+ VRAM with native FP8 support)
+- Local GPU (16GB+ VRAM with native FP8 support)
 - Access to institutional GPU cluster with vLLM server
 
 **Hardware requirements:**
-- Minimum 20GB VRAM
+- Minimum 16GB VRAM
 - Native FP8 support (compute capability >= 8.9)
-- Examples: RTX 4090, RTX 4000 Ada, RTX 5000 Ada, L4, L40, A10
+- Examples: RTX 4060 Ti 16GB, RTX 4070+, RTX 4090, RTX 4000 Ada, L4, L40, A10
 
 **No cloud APIs:** OpenAI, Anthropic, etc. not supported (by design) to prevent accidental costs and keep code private.
 
@@ -18,9 +18,9 @@
 pip install -e ".[vllm-server]"
 
 # 2. Start vLLM server (downloads model on first run - see "Model Storage" below)
-vllm serve --model RedHatAI/gemma-3-12b-it-FP8-dynamic \
+vllm serve Qwen/Qwen3-8B-FP8 \
     --trust-remote-code --gpu-memory-utilization 0.9 \
-    --max-model-len 16000
+    --max-model-len 24000
 
 # 3. Run the linter (in another terminal)
 scicode-lint check path/to/code.py
@@ -78,7 +78,7 @@ pip install vllm-cpu scicode-lint
 - Supports both GPU and CPU
 
 **Cons:**
-- GPU: Requires CUDA GPU with 20GB+ VRAM and native FP8 support
+- GPU: Requires CUDA GPU with 16GB+ VRAM and native FP8 support
 - CPU-only: Not supported
 - ~2-3GB download for vLLM + ~13GB for model
 
@@ -87,10 +87,10 @@ pip install vllm-cpu scicode-lint
 vllm serve \
     --host 0.0.0.0 \
     --port 5001 \
-    --model RedHatAI/gemma-3-12b-it-FP8-dynamic \
+    --model Qwen/Qwen3-8B-FP8 \
     --trust-remote-code \
     --gpu-memory-utilization 0.9 \
-    --max-model-len 16000  # 16K context supports ~1,500 line files (90th percentile coverage)
+    --max-model-len 24000  # 24K context (16K input + 8K response for thinking)
 ```
 
 Or use the convenience script (auto-verifies hardware):
@@ -98,14 +98,14 @@ Or use the convenience script (auto-verifies hardware):
 bash src/scicode_lint/vllm/start_vllm.sh
 ```
 
-The script will exit with an error if your hardware doesn't meet requirements (20GB+ VRAM, compute cap >= 8.9).
+The script will exit with an error if your hardware doesn't meet requirements (16GB+ VRAM, compute cap >= 8.9).
 
 **Starting vLLM (CPU):**
 ```bash
 vllm serve \
-    --model RedHatAI/gemma-3-12b-it-FP8-dynamic \
+    --model Qwen/Qwen3-8B-FP8 \
     --trust-remote-code \
-    --max-model-len 16000 \
+    --max-model-len 24000 \
     --device cpu
 ```
 
@@ -116,7 +116,7 @@ vllm serve \
 Colab is not supported. Use cloud providers with L4/A10 GPUs instead.
 
 **Requirements:**
-- 20GB+ VRAM
+- 16GB+ VRAM
 - Native FP8 support (compute capability >= 8.9)
 
 **Setup in Colab:**
@@ -128,9 +128,9 @@ Colab is not supported. Use cloud providers with L4/A10 GPUs instead.
 # 2. Start vLLM server in background
 # NOTE: First run downloads ~13GB model to /root/.cache/huggingface/ (takes 2-5 min)
 !nohup vllm serve \
-    --model RedHatAI/gemma-3-12b-it-FP8-dynamic \
+    --model Qwen/Qwen3-8B-FP8 \
     --trust-remote-code \
-    --max-model-len 16000 \
+    --max-model-len 24000 \
     --gpu-memory-utilization 0.85 \
     --host 0.0.0.0 \
     --port 5001 > /tmp/vllm.log 2>&1 &
@@ -195,7 +195,7 @@ for finding in result.findings:
 
 2. **Use dedicated inference nodes**
    - Use if your cluster has dedicated inference nodes (L4, A10)
-   - Requires 20GB+ VRAM and native FP8 support (compute cap >= 8.9)
+   - Requires 16GB+ VRAM and native FP8 support (compute cap >= 8.9)
    - Check with your HPC admin first
 
 **Example: Using institutional vLLM server**
@@ -276,14 +276,14 @@ mypy src/
 
 ## System Requirements
 
-**For Gemma 3 12B FP8:**
+**For FP8 models (default: Qwen3-8B-FP8):**
 
 - **Python:** 3.9+
 - **GPU:** NVIDIA with native FP8 support
-  - **VRAM:** 20GB minimum (16K context, up to ~1,500 lines)
+  - **VRAM:** 16GB minimum (24K context: 16K input + 8K response)
   - **Compute capability:** >= 8.9 (native FP8 tensor cores)
   - **Supported GPUs:**
-    - Consumer: RTX 4090 (24GB)
+    - Consumer: RTX 4060 Ti 16GB, RTX 4070+ (16GB+), RTX 4090 (24GB)
     - Workstation: RTX 4000 Ada (20GB), RTX 5000 Ada (32GB)
     - Cloud/HPC inference: L4 (24GB), L40 (48GB), A10 (24GB)
 - **Disk space:** ~15GB free for model weights (see "Model Storage" section below)
@@ -303,20 +303,20 @@ When you first start vLLM with a model, it will automatically download the model
 ```
 
 **Disk space requirements:**
-- **FP8 model** (RedHatAI/gemma-3-12b-it-FP8-dynamic): ~13GB
+- **FP8 model** (Qwen/Qwen3-8B-FP8): ~13GB
 - **Recommended free space:** ~15GB (allows for updates and cache)
 
 **First run behavior:**
 ```bash
 # First time running vLLM - downloads model (2-5 minutes depending on connection)
-vllm serve --model RedHatAI/gemma-3-12b-it-FP8-dynamic --trust-remote-code
+vllm serve Qwen/Qwen3-8B-FP8 --trust-remote-code
 
 # Output will show:
 # Downloading model from HuggingFace...
 # ━━━━━━━━━━━━━━━━━━━━━ 100% 13.3GB/13.3GB
 
 # Subsequent runs - uses cached model (starts in seconds)
-vllm serve --model RedHatAI/gemma-3-12b-it-FP8-dynamic --trust-remote-code
+vllm serve Qwen/Qwen3-8B-FP8 --trust-remote-code
 ```
 
 **Customizing cache location:**
@@ -326,7 +326,7 @@ Set the `HF_HOME` environment variable to change where models are stored:
 ```bash
 # Store models in custom location (e.g., larger disk partition)
 export HF_HOME=/mnt/data/huggingface
-vllm serve --model RedHatAI/gemma-3-12b-it-FP8-dynamic
+vllm serve Qwen/Qwen3-8B-FP8
 ```
 
 **Managing cached models:**
@@ -352,13 +352,13 @@ Model downloads to `~/.cache/huggingface/` on first use (~13GB). You can pre-dow
 
 ```bash
 # Pre-download FP8 model
-python3 -c "from huggingface_hub import snapshot_download; snapshot_download('RedHatAI/gemma-3-12b-it-FP8-dynamic')"
+python3 -c "from huggingface_hub import snapshot_download; snapshot_download('Qwen/Qwen3-8B-FP8')"
 ```
 
 To use a custom download location:
 ```bash
 export HF_HOME=/path/to/large/disk
-python3 -c "from huggingface_hub import snapshot_download; snapshot_download('RedHatAI/gemma-3-12b-it-FP8-dynamic')"
+python3 -c "from huggingface_hub import snapshot_download; snapshot_download('Qwen/Qwen3-8B-FP8')"
 ```
 
 ### WSL2 issues
@@ -374,7 +374,7 @@ Create a `config.toml` in your project or `~/.config/scicode-lint/`:
 ```toml
 [llm]
 # base_url = "http://localhost:5001"  # Optional, auto-detects if not set
-# model = "RedHatAI/gemma-3-12b-it-FP8-dynamic"  # Optional, auto-detects if not set
+# model = "Qwen/Qwen3-8B-FP8"  # Optional, auto-detects if not set
 temperature = 0.3
 
 [linter]

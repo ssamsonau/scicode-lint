@@ -1,0 +1,98 @@
+[meta]
+id = "pt-018"
+name = "dynamic-shape-onnx-export"
+category = "ai-inference"
+severity = "high"
+version = "1.0.0"
+created = "2026-03-08"
+updated = "2026-03-08"
+author = "scicode-lint"
+
+description = """
+Exporting a model to ONNX without dynamic_axes creates a model that only accepts inputs with the exact shape used during export. Different batch sizes or input dimensions will cause runtime errors.
+"""
+
+explanation = """
+Always specify dynamic_axes in torch.onnx.export() for dimensions that may vary at runtime, like batch size or sequence length.
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Analyze ONNX export for dynamic shape handling.
+
+torch.onnx.export() without dynamic_axes parameter creates a model locked to the exact input shapes used during export. Any input with different batch size or dimensions will fail at runtime.
+
+Correct approach: Specify dynamic_axes for variable dimensions like batch_size and sequence_length.
+
+Does this code export to ONNX without dynamic_axes?
+
+Look for:
+- torch.onnx.export() without dynamic_axes parameter
+- ONNX export that will fail with variable batch sizes
+
+YES = Bug found: ONNX export without dynamic_axes
+NO = Correct: dynamic_axes specified for variable dimensions
+"""
+
+warning_message = """
+ONNX export without dynamic_axes creates a fixed-shape model. Specify dynamic_axes for batch_size and other variable dimensions.
+"""
+
+min_confidence = 0.85
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/onnx_without_dynamic.py"
+description = "ONNX export without dynamic_axes"
+expected_issue = "torch.onnx.export() missing dynamic_axes parameter"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "export_model"
+snippet = "torch.onnx.export"
+
+[[tests.negative]]
+file = "test_negative/torchscript_export.py"
+description = "TorchScript export instead of ONNX"
+
+[[tests.negative]]
+file = "test_negative/model_inference_only.py"
+description = "Model inference without export"
+
+[[tests.negative]]
+file = "test_negative/onnx_with_dynamic_axes.py"
+description = "ONNX export with dynamic_axes for batch_size and sequence_length"
+
+[[tests.negative]]
+file = "test_negative/onnx_class_exporter_dynamic.py"
+description = "Class-based ONNX exporter with dynamic_axes for variable batch size"
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/onnx_export_fixed_shape.py"
+description = "ONNX export with only input_names and output_names, missing dynamic_axes parameter."
+expected_issue = "torch.onnx.export() missing dynamic_axes parameter for variable batch size"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "class"
+name = "SimpleClassifier"
+snippet = "class SimpleClassifier"
+
+[[tests.positive]]
+file = "test_positive/onnx_fixed_batch.py"
+description = "ONNX export with minimal parameters, no dynamic_axes specified."
+expected_issue = "torch.onnx.export() missing dynamic_axes parameter"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "class"
+name = "SimpleNet"
+snippet = "class SimpleNet"

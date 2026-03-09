@@ -5,11 +5,14 @@ This module implements an end-to-end machine learning pipeline
 for predicting prices using neural networks.
 """
 
+import glob
+
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import KFold, train_test_split
 from sklearn.preprocessing import StandardScaler
 
 
@@ -89,6 +92,34 @@ def evaluate_model(model, X_test, y_test):
         mse = nn.MSELoss()(predictions, y_tensor)
 
     return mse.item()
+
+
+def load_data_files(data_dir):
+    """Load all CSV files from a directory."""
+    all_data = []
+    for filepath in glob.glob(f"{data_dir}/*.csv"):
+        df = pd.read_csv(filepath)
+        all_data.append(df)
+    return pd.concat(all_data, ignore_index=True)
+
+
+def sample_training_data(df, frac=0.1):
+    """Sample a fraction of the data for quick experiments."""
+    return df.sample(frac=frac)
+
+
+def cross_validate(X, y, n_splits=5):
+    """Perform k-fold cross-validation."""
+    kf = KFold(n_splits=n_splits, shuffle=True)
+    scores = []
+    for train_idx, val_idx in kf.split(X):
+        X_train_cv, X_val = X[train_idx], X[val_idx]
+        y_train_cv, y_val = y[train_idx], y[val_idx]
+        model = PredictionModel(input_dim=X_train_cv.shape[1])
+        model = train_model(model, X_train_cv, y_train_cv, epochs=10)
+        mse = evaluate_model(model, X_val, y_val)
+        scores.append(mse)
+    return np.mean(scores)
 
 
 def main():

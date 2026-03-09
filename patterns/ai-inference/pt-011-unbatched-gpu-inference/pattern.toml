@@ -26,11 +26,21 @@ references = []
 
 [detection]
 question = """
-Find model() calls on test/evaluation data.
-Is batching MISSING for GPU inference?
+Analyze GPU inference for memory efficiency.
 
-YES = entire dataset passed to model WITHOUT batching (BUG)
-NO = has DataLoader or batch loop, OR no full-dataset inference exists
+Sending entire test datasets to GPU in a single forward pass causes out-of-memory errors on large datasets. GPU memory is limited and cannot hold millions of samples at once.
+
+Correct approach: Process data in batches using DataLoader or manual batch loops.
+
+Does this code pass entire datasets to GPU without batching?
+
+Look for:
+- model(X_test.cuda()) or model(X_test.to(device)) on full dataset
+- Entire test set moved to GPU before single forward pass
+- No DataLoader or batch loop for evaluation
+
+YES = Bug found: entire dataset sent to GPU in single forward pass
+NO = Correct: batched evaluation using DataLoader or batch loops
 """
 
 warning_message = """
@@ -39,7 +49,6 @@ Sending the entire test set to GPU at once causes OOM on large datasets. Evaluat
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -69,14 +78,24 @@ snippet = "X_test = X_test.cuda()"
 [[tests.negative]]
 file = "test_negative/batched_evaluation.py"
 description = "Properly batched evaluation using data loaders to process test set in chunks"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/proper_batch_processing.py"
 description = "Correct implementation using DataLoader for batch-wise GPU processing"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/real_time_processor.py"
+description = "Real-time inference that processes individual items without buffering, sending each sample to GPU separately instead of batching"
+expected_issue = "The process_stream and RealtimeClassifier functions handle each item individually and send it to GPU, which is inefficient for throughput but acceptable for true streaming if latency is critical"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "process_stream"
+snippet = "model.to(device)"
+
+[[tests.negative]]
+file = "test_negative/real_time_processor_batched.py"
+description = "Real-time inference with buffering that accumulates samples into batches before GPU processing, improving throughput while maintaining streaming capability"

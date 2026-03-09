@@ -9,13 +9,11 @@ def standardize(matrix):
     return standardized
 
 
-def min_max_normalize(data):
+def min_max_normalize(data, eps=1e-10):
     data_min = data.min()
     data_max = data.max()
     range_val = data_max - data_min
-    if np.isclose(range_val, 0):
-        return np.zeros_like(data)
-    normalized = (data - data_min) / range_val
+    normalized = (data - data_min) / (range_val + eps)
     return normalized
 
 

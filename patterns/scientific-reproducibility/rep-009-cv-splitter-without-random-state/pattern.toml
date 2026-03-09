@@ -1,0 +1,95 @@
+[meta]
+id = "rep-009"
+name = "cv-splitter-without-random-state"
+category = "scientific-reproducibility"
+severity = "high"
+version = "1.0.0"
+created = "2026-03-08"
+updated = "2026-03-08"
+author = "scicode-lint"
+
+description = """
+Using KFold, StratifiedKFold, or ShuffleSplit with shuffle=True but without random_state produces different folds each run, making cross-validation results non-reproducible.
+"""
+
+explanation = """
+Always specify random_state when using shuffled cross-validation splitters for reproducible fold assignments.
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Analyze cross-validation splitters for reproducibility.
+
+scikit-learn CV splitters with shuffle=True but without random_state produce different fold assignments each run. This makes cross-validation scores non-reproducible.
+
+Correct approach: Specify random_state=42 when shuffle=True.
+
+Does this code use shuffled CV splitters without random_state?
+
+Look for:
+- KFold(shuffle=True) without random_state
+- StratifiedKFold(shuffle=True) without random_state
+- ShuffleSplit() without random_state
+
+YES = Bug found: shuffled CV splitter without random_state
+NO = Correct: random_state specified, or shuffle=False
+"""
+
+warning_message = """
+CV splitter with shuffle=True but no random_state produces different folds each run. Add random_state for reproducibility.
+"""
+
+min_confidence = 0.85
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/cv_no_state.py"
+description = "CV splitters with shuffle but no random_state"
+expected_issue = "KFold(shuffle=True) without random_state"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "cross_validate_model"
+snippet = "shuffle=True"
+
+[[tests.negative]]
+file = "test_negative/no_shuffle_cv.py"
+description = "CV with shuffle=False (no randomness)"
+
+[[tests.negative]]
+file = "test_negative/predefined_splits.py"
+description = "Using predefined train/test splits"
+
+[[tests.negative]]
+file = "test_negative/seeded_cv.py"
+description = "CV splitters with random_state parameter"
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/cv_no_seed.py"
+description = "Multiple shuffled CV splitters (KFold, StratifiedKFold, ShuffleSplit) without random_state"
+expected_issue = "KFold(n_splits=5, shuffle=True) missing random_state"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "cross_validate_model"
+snippet = "kfold = KFold(n_splits=5, shuffle=True)"
+
+[[tests.positive]]
+file = "test_positive/kfold_shuffle.py"
+description = "Shuffled CV splitters (KFold, StratifiedKFold, ShuffleSplit) returned without random_state"
+expected_issue = "KFold(n_splits=n_splits, shuffle=True) missing random_state"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "get_cv_splitter"
+snippet = "return KFold(n_splits=n_splits, shuffle=True)"

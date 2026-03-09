@@ -2,17 +2,14 @@
 
 Pattern specifications and test data for scicode-lint.
 
-## Core Principle: Design for Constrained-Capacity LLMs
+## Core Principle: Design for Thinking Models
 
-**scicode-lint uses a local 12B parameter model (Gemma 3 12B) by design.** This is the middle ground between grep-style matching and expensive cloud APIs.
+**scicode-lint uses a small local thinking model (Qwen3, fits in 16GB VRAM).** This is the middle ground between grep-style matching and expensive cloud APIs.
 
-Detection questions must be written FOR this constraint:
-- **Ask about the BUG directly** - "Is X MISSING?" not "Does it have X?"
-- **YES = BUG, NO = OK** - The answer directly indicates bug presence
-- **Simple and direct** - One search, one check, binary answer
-- **No complex reasoning** - If the model needs to "think about it," simplify
-
-See [ARCHITECTURE.md](../docs_dev_genai/ARCHITECTURE.md) for the full rationale.
+Detection questions should leverage the model's reasoning:
+- **Explain the WHY** - Describe why the bug matters, not just what syntax to find
+- **Trust the reasoning** - Don't add "LITERALLY" or "do not assume" directives
+- **Binary answer** - End with clear YES/NO conditions
 
 ## Overview
 
@@ -44,7 +41,7 @@ patterns/
 ├── scientific-performance/ # Performance patterns
 └── scientific-reproducibility/ # Reproducibility patterns
 
-Total: 44 patterns
+Total: 64 patterns
 ```
 
 ## File Roles
@@ -68,13 +65,23 @@ category = "ai-training"
 severity = "critical"
 
 [detection]
-# Detection questions must ask about the BUG condition directly
 question = """
-Find scaler.fit() or scaler.fit_transform() calls.
-Is the scaler fit BEFORE train_test_split() (on full data)?
+Analyze data preprocessing in this code.
 
-YES = scaler fit BEFORE split (BUG - data leakage)
-NO = scaler fit AFTER split on train only, OR no scaler
+Data leakage occurs when statistics (mean, std, min, max) are computed
+on the full dataset before splitting. This leaks test set information
+into the training process, causing overly optimistic evaluation metrics.
+
+Correct code computes statistics on training data only, after the split.
+
+Does this code have data leakage from preprocessing?
+
+Look for:
+- Scaler/normalizer fit on combined train+test data
+- Statistics computed before train_test_split()
+
+YES = Bug found: preprocessing uses test data information
+NO = Correct: statistics computed on training data only
 """
 warning_message = "Data leakage: scaler is fit on full data including test set..."
 
@@ -87,7 +94,6 @@ min_confidence = 0.85
 [[tests.negative]]
 file = "test_negative/scaler_after_split.py"
 description = "Correct scaler usage after split"
-max_false_positives = 0
 ```
 
 **What each component sees**:
@@ -187,18 +193,25 @@ def fit_on_train_and_val(train_data, val_data, test_data):
 
 ## Pattern Categories
 
-### ai-training (15 patterns)
+### ai-training (16 patterns)
 Critical ML training correctness issues:
 - Data leakage (scaler, target, temporal)
 - PyTorch training modes
 - Gradient management
 - Loss function selection
 
-### ai-inference (3 patterns)
+### ai-inference (13 patterns)
 Model inference correctness:
-- Missing eval mode
+- Missing eval mode / inference_mode
 - Missing no_grad context
 - Device mismatches
+- CUDA timing without sync
+- Half precision on CPU
+- JIT tracing control flow
+- ONNX export without dynamic axes
+- CuDNN benchmark with variable shapes
+- Softmax before cross entropy
+- Benchmark without warmup
 
 ### ai-data (1 pattern)
 Data loading issues:
@@ -219,11 +232,20 @@ Performance anti-patterns:
 - Missing vectorization
 - Memory inefficiency
 
-### scientific-reproducibility (4 patterns)
+### scientific-reproducibility (14 patterns)
 Reproducibility issues:
 - Missing random seeds
 - CUDA non-determinism
 - Hardcoded hyperparameters
+- Unsorted file iteration
+- DataLoader missing worker_init_fn
+- Unstable sort with ties
+- Pandas sample without random_state
+- CV splitter without random_state
+- Naive datetime without timezone
+- Set iteration order dependency
+- Model pickle without version
+- RandomState instance reuse
 
 ## Creating New Patterns
 
@@ -235,7 +257,11 @@ mkdir -p patterns/ai-training/ml-999-my-pattern/{test_positive,test_negative,tes
 
 ### 2. Create `pattern.toml`
 
-**IMPORTANT: Detection questions must be ultra-simple for constrained-capacity models.**
+**Detection question design:**
+- Narrow enough for one specific bug type
+- General enough to catch syntactic variations
+
+Use this template:
 
 ```toml
 [meta]
@@ -243,18 +269,54 @@ id = "ml-999"
 name = "my-pattern"
 category = "ai-training"
 severity = "critical"
+description = "Brief description of the bug"
+explanation = "Why this matters and how to fix it"
+tags = ["relevant", "tags"]
 
 [detection]
-# Ask about the BUG condition directly (YES = bug, NO = ok)
 question = """
-Find FUNCTION_CALL() in the code.
-Is REQUIRED_PARAM= argument MISSING?
+Analyze [concept/structure] in this code.
 
-YES = REQUIRED_PARAM is MISSING (BUG)
-NO = has REQUIRED_PARAM, OR no FUNCTION_CALL exists
+[1-2 sentences: What the bug is and why it matters]
+
+[What correct code looks like]
+
+Does this code have [the bug]?
+
+Look for:
+- [Specific symptom 1]
+- [Specific symptom 2]
+
+YES = Bug found: [condition]
+NO = Correct: [condition]
 """
 warning_message = "Brief explanation of why this is an issue and how to fix it."
+```
 
+**Example detection question:**
+
+```toml
+question = """
+Analyze the PyTorch training loop in this code.
+
+PyTorch models start in training mode by default, but after calling
+model.eval() for validation, you must call model.train() to re-enable
+dropout and batch norm training behavior.
+
+Correct training code calls model.train() before or inside the training loop.
+
+Does this code have missing train mode?
+
+Look for:
+- Training loop (backward + optimizer.step) without model.train() call
+- Training resuming after model.eval() without model.train()
+
+YES = Bug found: training code runs without explicit model.train() call
+NO = Correct: model.train() is called before training begins
+"""
+```
+
+```toml
 [[tests.positive]]
 file = "test_positive/example.py"
 description = "Description of the issue in this file"
@@ -264,7 +326,6 @@ min_confidence = 0.85
 [[tests.negative]]
 file = "test_negative/correct.py"
 description = "Correct code that should NOT trigger"
-max_false_positives = 0
 
 [[tests.context_dependent]]
 file = "test_context_dependent/edge_case.py"
@@ -276,27 +337,53 @@ allow_skip = true
 ### 3. Create Test Files
 
 Write pure Python code (no docstrings, no comments):
-- `test_positive/*.py` - 2-3 files with the issue
-- `test_negative/*.py` - 2-3 files without the issue
-- `test_context_dependent/*.py` - 1 file with edge case
+- `test_positive/*.py` - 3 files with the issue (required)
+- `test_negative/*.py` - 3 files without the issue (required)
+- `test_context_dependent/*.py` - 1 file with edge case (optional)
+
+**⚠️ DIVERSITY REQUIREMENT:**
+
+Test files must be **structurally diverse** - not similar copies with minor changes:
+
+- **Within positive tests**: Each should demonstrate the bug in a different context (different function signatures, class vs function, different libraries, different surrounding code)
+- **Within negative tests**: Each should show correct code using different approaches (not just the same fix repeated with different variable names)
+- **Between positive and negative**: Avoid making negatives just "fixed versions" of positives - use different code structures entirely
+
+**Why**: Similar test files don't challenge the model. If all 3 positive tests look alike with only variable names changed, the model learns shallow pattern matching instead of understanding the concept.
+
+**Good diversity example** (scaler leakage):
+```
+test_positive/
+  scaler_before_split.py      # StandardScaler in a function
+  pipeline_combined_data.py   # MinMaxScaler on concatenated arrays in a class
+  robust_scaler_leakage.py    # RobustScaler with QuantileTransformer
+
+test_negative/
+  scaler_after_split.py       # Fit on train, transform both
+  sklearn_pipeline.py         # Using Pipeline with proper column transformer
+  manual_normalization.py     # Computing stats manually on train only
+```
 
 ### 4. Validate
 
 ```bash
-# Run linter
-python -m scicode_lint check patterns/ai-training/ml-999-my-pattern/test_positive/*.py --pattern ml-999
+# Sync test files with pattern.toml (run first!)
+python pattern_verification/deterministic/validate.py --fix
+
+# Review with pattern-reviewer agent (catches issues before eval)
+claude --agent pattern-reviewer "Review ml-999-my-pattern"
 
 # Run evaluation (reads test cases from pattern.toml [tests] section)
-python -m evals.run_eval --pattern ml-999-my-pattern
+python evals/run_eval.py --pattern ml-999-my-pattern
 ```
 
-## Quality Standards
+**Why run validate_pattern_tests.py?** Ensures every test file on disk has a corresponding entry in pattern.toml. The `--fix` flag auto-generates stub entries.
 
-All patterns must meet:
-- **Precision** ≥ 0.90 (minimize false alarms)
-- **Recall** ≥ 0.80 (catch most issues)
-- **F1 Score** ≥ 0.85 (balanced)
-- **Critical patterns**: Precision ≥ 0.95
+**Why run pattern-reviewer?** The agent checks things evals can't:
+- Detection question clarity and focus
+- Test file diversity (not just copies with different names)
+- Test files match their `[tests]` metadata descriptions
+- No data leakage hints in test code
 
 ## Two Evaluation Modes
 
@@ -304,19 +391,10 @@ All patterns must meet:
 - Fast: Just checks "did linter detect anything?"
 - Good for: Quick iteration, CI/CD
 
-### 2. LLM-as-a-Judge (`run_eval_llm_judge.py`)
+### 2. LLM-as-a-Judge (`run_eval.py`)
 - Thorough: Semantic evaluation of correctness
 - Checks: Are lines correct? Is reasoning sound?
 - Good for: Deep quality assessment
-
-## Current Status
-
-**Complete (8 patterns):**
-- ml-001 through ml-008 ✓
-
-**Need test cases (36 patterns):**
-- All others have template structure
-- Require realistic test files
 
 ## File Separation Summary
 
@@ -326,8 +404,61 @@ All patterns must meet:
 
 This provides logical separation while keeping everything in one file for simplicity.
 
+## Validation Tools
+
+### `pattern_verification/deterministic/validate.py` - Comprehensive Validation
+
+Runs 9 deterministic quality checks on pattern definitions:
+
+```bash
+# Check all patterns
+python pattern_verification/deterministic/validate.py
+
+# Auto-fix what's possible
+python pattern_verification/deterministic/validate.py --fix
+
+# Check specific pattern
+python pattern_verification/deterministic/validate.py ml-002
+
+# Fail on warnings too
+python pattern_verification/deterministic/validate.py --strict
+```
+
+**Checks performed:**
+
+1. **TOML/file sync** - Every test file has TOML entry and vice versa
+2. **Schema validation** - pattern.toml matches Pydantic model
+3. **Data leakage** - No BUG/CORRECT/WRONG hints in test files
+4. **Test file count** - Minimum 3 positive, 3 negative (warning)
+5. **TODO markers** - No unfinished placeholders in TOML
+6. **Detection question format** - Ends with YES/NO conditions
+7. **Test file syntax** - All .py files are valid Python
+8. **Empty fields** - Required fields have content
+9. **Test file diversity** - Detect copy-paste (AST similarity)
+
+**Auto-fix capabilities:**
+- **Add**: Creates TOML entries for test files on disk that aren't referenced
+- **Remove**: Deletes TOML entries for files that don't exist
+- **Rename**: Auto-corrects filename typos if a close match exists
+
+### Pattern Reviewer Agent
+
+Semantic review of pattern quality (uses LLM reasoning):
+
+```bash
+claude --agent pattern_verification/semantic/pattern-reviewer "Review ml-001-scaler-leakage"
+```
+
+**What it checks beyond validation script:**
+- Description/expected_issue consistency with actual test file content
+- Detection question clarity and focus
+- Test file relevance to the bug being detected
+
+**📖 Full verification guide:** [pattern_verification/README.md](../pattern_verification/README.md)
+
 ## See Also
 
+- [pattern_verification/](../pattern_verification/) - Complete verification guide (deterministic + semantic)
 - [evals/](../evals/) - Evaluation frameworks
 - [CONTRIBUTING.md](../CONTRIBUTING.md) - How to contribute patterns
 - [ARCHITECTURE.md](../docs_dev_genai/ARCHITECTURE.md) - Design principles

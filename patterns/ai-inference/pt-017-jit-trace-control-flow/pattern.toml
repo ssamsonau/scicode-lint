@@ -1,0 +1,95 @@
+[meta]
+id = "pt-017"
+name = "jit-trace-control-flow"
+category = "ai-inference"
+severity = "high"
+version = "1.0.0"
+created = "2026-03-08"
+updated = "2026-03-08"
+author = "scicode-lint"
+
+description = """
+Using torch.jit.trace() on models with data-dependent control flow produces incorrect results. Tracing only captures the execution path taken during trace time - branches not executed are silently omitted.
+"""
+
+explanation = """
+torch.jit.trace() records operations for a specific input. If your model has if-statements or loops that depend on input values, use torch.jit.script() instead.
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Analyze JIT tracing for control flow issues.
+
+torch.jit.trace() records the operations executed for a single example input. If a model contains data-dependent control flow (if statements based on tensor values, variable-length loops), tracing will only capture one execution path.
+
+For models with control flow, use torch.jit.script() instead.
+torch.jit.trace() is only safe for models with fixed computation graphs.
+
+Does this code trace a model with data-dependent control flow?
+
+Look for:
+- torch.jit.trace() on functions/modules with if statements on tensor values
+- Traced models with loops that depend on input data
+
+YES = Bug found: jit.trace() on model with data-dependent control flow
+NO = Correct: using jit.script(), or model has no data-dependent control flow
+"""
+
+warning_message = """
+torch.jit.trace() on models with data-dependent control flow produces incorrect results. Use torch.jit.script() for models with if-statements or variable loops.
+"""
+
+min_confidence = 0.85
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/trace_with_control_flow.py"
+description = "Tracing a model with data-dependent if statements"
+expected_issue = "torch.jit.trace() on model with conditional logic"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "trace_model"
+snippet = "torch.jit.trace"
+
+[[tests.negative]]
+file = "test_negative/correct_jit_usage.py"
+description = "Using jit.script() for models with control flow"
+
+[[tests.negative]]
+file = "test_negative/trace_linear_model.py"
+description = "Tracing model with no control flow (safe)"
+
+[[tests.negative]]
+file = "test_negative/dynamic_to_static.py"
+description = "Using jit.script for control flow models"
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/trace_conditional.py"
+description = "Tracing a model with data-dependent conditional activation logic"
+expected_issue = "torch.jit.trace() on model with conditional branch based on tensor values"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "class"
+name = "ConditionalModel"
+snippet = "class ConditionalModel"
+
+[[tests.positive]]
+file = "test_positive/trace_loop.py"
+description = "Tracing models with data-dependent conditionals and variable-length loops"
+expected_issue = "torch.jit.trace() on models with control flow dependent on input values"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "class"
+name = "ConditionalModel"
+snippet = "class ConditionalModel"

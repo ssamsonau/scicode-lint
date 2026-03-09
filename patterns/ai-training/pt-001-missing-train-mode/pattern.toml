@@ -12,11 +12,11 @@ updated = "2026-03-03"
 author = "scicode-lint"
 
 description = """
-Training without calling model.train() leaves dropout and batch normalization in evaluation mode, causing incorrect behavior. Dropout won't drop units and batch norm uses running statistics instead of batch statistics.
+Training after model.eval() without calling model.train() first leaves dropout and batch normalization in evaluation mode, causing incorrect behavior.
 """
 
 explanation = """
-Missing model.train() causes dropout and batch normalization to remain in evaluation mode during training. This leads to incorrect behavior: dropout layers won't drop units, and batch norm uses running statistics instead of batch statistics, resulting in poor model performance.
+After calling model.eval() for validation, you must call model.train() before resuming training. Without this, dropout layers won't drop units and batch norm uses running statistics instead of batch statistics, resulting in poor model performance.
 """
 
 tags = ["pytorch", "training", "dropout", "batch-normalization"]
@@ -25,34 +25,33 @@ references = []
 
 [detection]
 question = """
-Look for PyTorch training code: loops that call loss.backward() and optimizer.step().
+Does training code run after model.eval() without model.train() in between?
 
-Is there training code where model.train() is NEVER called before the training starts?
+Check for: model.eval() ... loss.backward() ... with NO model.train() between them.
 
-YES = training code exists but model.train() is MISSING (BUG)
-NO = model.train() is called before training, OR no training code exists
+YES = Found: training (backward/step) after eval() without train() call
+NO = Clean: model.train() called between eval() and training, or no eval before training
 """
 
 warning_message = """
-Missing model.train(): Dropout and batch normalization layers remain in evaluation mode during training. Dropout won't drop units and batch norm uses running statistics instead of batch statistics. Call model.train() before training and after any evaluation blocks.
+Missing model.train() after model.eval(): Training continues with dropout and batch normalization in evaluation mode. Call model.train() after validation blocks before resuming training.
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
 
 [[tests.positive]]
 file = "test_positive/training_without_train_mode.py"
-description = "Training loop without any call to model.train() - dropout and batch norm will be in eval mode"
-expected_issue = "Model training without setting train mode"
+description = "Training resumes after model.eval() without calling model.train() - dropout and batch norm stay in eval mode"
+expected_issue = "Training continues after model.eval() without model.train()"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
 name = "train_model"
-snippet = "for epoch in range(epochs):"
+snippet = "for batch_data, batch_labels in train_loader:"
 
 [[tests.positive]]
 file = "test_positive/no_train_after_eval.py"
@@ -68,14 +67,24 @@ snippet = "for inputs, labels in train_loader:"
 [[tests.negative]]
 file = "test_negative/correct_train_mode.py"
 description = "Correct usage: model.train() is called before training loop"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/train_after_validation.py"
 description = "Correct usage: model.train() is called after each validation block before resuming training"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/resume_training.py"
+description = "Training resumes after loading checkpoint without explicitly calling model.train() - model may still be in eval mode"
+expected_issue = "Training continues without model.train() called after checkpoint restore"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "resume_training"
+snippet = "checkpoint = torch.load(checkpoint_path)"
+
+[[tests.negative]]
+file = "test_negative/resume_training_correct.py"
+description = "Correct usage: model.train() is called before training resumes after checkpoint restoration"

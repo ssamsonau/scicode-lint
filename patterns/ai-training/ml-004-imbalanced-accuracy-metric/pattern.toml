@@ -26,11 +26,19 @@ references = []
 
 [detection]
 question = """
-Find accuracy_score() or scoring="accuracy" in the code.
-Is accuracy metric used on IMBALANCED classes?
+Analyze evaluation metrics for imbalanced classification.
 
-YES = accuracy used WITH imbalanced classes (BUG)
-NO = using F1/AUC/precision/recall, OR classes are balanced, OR no accuracy metric exists
+Accuracy is misleading on imbalanced data. With 95% negative / 5% positive, predicting all-negative achieves 95% accuracy while being useless. Appropriate metrics: F1-score, precision/recall, AUC-ROC.
+
+Does this code use accuracy on imbalanced classes?
+
+Look for:
+- accuracy_score() or scoring="accuracy" with class imbalance
+- High majority class ratio (80/20 or more skewed)
+- Classification task without appropriate metrics (F1, AUC, precision, recall)
+
+YES = Bug found: accuracy used on imbalanced classification
+NO = Correct: appropriate metrics (F1/AUC/precision/recall), or balanced classes
 """
 
 warning_message = """
@@ -39,7 +47,6 @@ Wrong metric: accuracy on imbalanced classes is misleading. A model predicting t
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -59,7 +66,6 @@ snippet = "accuracy_score(y_test, y_pred)"
 [[tests.negative]]
 file = "test_negative/appropriate_metrics_imbalanced.py"
 description = "Using appropriate metrics on imbalanced data"
-max_false_positives = 0
 
 [[tests.context_dependent]]
 file = "test_context_dependent/accuracy_moderate_imbalance.py"
@@ -68,7 +74,34 @@ context_notes = "Moderate imbalance (70/30): some accept accuracy, others prefer
 allow_detection = true
 allow_skip = true
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/binary_accuracy.py"
+description = "Using accuracy_score() for model evaluation on binary classification without considering potential class imbalance"
+expected_issue = "Wrong metric: accuracy on imbalanced classes is misleading"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "evaluate_model"
+snippet = "predictions = model.predict(X_test)"
+
+[[tests.positive]]
+file = "test_positive/fraud_accuracy.py"
+description = "Fraud detection classifier evaluated with accuracy_score() instead of appropriate metrics for highly imbalanced fraud data"
+expected_issue = "Wrong metric: accuracy on imbalanced classes is misleading"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "train_fraud_detector"
+snippet = "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)"
+
+[[tests.negative]]
+file = "test_negative/balanced_metrics.py"
+description = "Using appropriate metrics (f1_score and balanced_accuracy_score) for classification evaluation"
+
+[[tests.negative]]
+file = "test_negative/fraud_balanced_metrics.py"
+description = "Fraud detection using comprehensive appropriate metrics (F1-score, precision/recall, AUC-ROC) for imbalanced data"

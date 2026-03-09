@@ -1,9 +1,9 @@
 # Pattern Registry - Auto-generated
-# Generated: 2026-03-06T09:53:11.103609
-# Total patterns: 44
+# Generated: 2026-03-08T18:30:09.889154
+# Total patterns: 64
 
 version = "1.0"
-total_patterns = 44
+total_patterns = 64
 
 [patterns."ml-001"]
 path = "ai-training/ml-001-scaler-leakage"
@@ -271,6 +271,76 @@ category = "ai-training"
 severity = "high"
 version = "1.0.0"
 
+[patterns."pt-013"]
+path = "ai-inference/pt-013-missing-inference-mode"
+name = "missing-inference-mode"
+category = "ai-inference"
+severity = "medium"
+version = "1.0.0"
+
+[patterns."pt-014"]
+path = "ai-inference/pt-014-cuda-timing-without-sync"
+name = "cuda-timing-without-sync"
+category = "ai-inference"
+severity = "medium"
+version = "1.0.0"
+
+[patterns."pt-015"]
+path = "ai-inference/pt-015-device-mismatch-load"
+name = "device-mismatch-load"
+category = "ai-inference"
+severity = "high"
+version = "1.0.0"
+
+[patterns."pt-016"]
+path = "ai-inference/pt-016-half-precision-cpu-inference"
+name = "half-precision-cpu-inference"
+category = "ai-inference"
+severity = "high"
+version = "1.0.0"
+
+[patterns."pt-017"]
+path = "ai-inference/pt-017-jit-trace-control-flow"
+name = "jit-trace-control-flow"
+category = "ai-inference"
+severity = "high"
+version = "1.0.0"
+
+[patterns."pt-018"]
+path = "ai-inference/pt-018-dynamic-shape-onnx-export"
+name = "dynamic-shape-onnx-export"
+category = "ai-inference"
+severity = "high"
+version = "1.0.0"
+
+[patterns."pt-019"]
+path = "ai-inference/pt-019-cudnn-benchmark-inference"
+name = "cudnn-benchmark-inference"
+category = "ai-inference"
+severity = "medium"
+version = "1.0.0"
+
+[patterns."pt-020"]
+path = "ai-inference/pt-020-softmax-before-cross-entropy"
+name = "softmax-before-cross-entropy"
+category = "ai-inference"
+severity = "high"
+version = "1.0.0"
+
+[patterns."pt-021"]
+path = "ai-inference/pt-021-missing-warmup-benchmark"
+name = "missing-warmup-benchmark"
+category = "ai-inference"
+severity = "medium"
+version = "1.0.0"
+
+[patterns."pt-022"]
+path = "ai-inference/pt-022-compile-graph-mode-mismatch"
+name = "compile-graph-mode-mismatch"
+category = "ai-inference"
+severity = "medium"
+version = "1.0.0"
+
 [patterns."py-001"]
 path = "scientific-numerical/py-001-mutable-default-argument"
 name = "mutable-default-argument"
@@ -311,4 +381,74 @@ path = "scientific-reproducibility/rep-004-missing-random-seed"
 name = "missing-random-seed"
 category = "scientific-reproducibility"
 severity = "medium"
+version = "1.0.0"
+
+[patterns."rep-005"]
+path = "scientific-reproducibility/rep-005-unsorted-file-iteration"
+name = "unsorted-file-iteration"
+category = "scientific-reproducibility"
+severity = "medium"
+version = "1.0.0"
+
+[patterns."rep-006"]
+path = "scientific-reproducibility/rep-006-dataloader-missing-worker-init"
+name = "dataloader-missing-worker-init"
+category = "scientific-reproducibility"
+severity = "high"
+version = "1.0.0"
+
+[patterns."rep-007"]
+path = "scientific-reproducibility/rep-007-unstable-sort-with-ties"
+name = "unstable-sort-with-ties"
+category = "scientific-reproducibility"
+severity = "medium"
+version = "1.0.0"
+
+[patterns."rep-008"]
+path = "scientific-reproducibility/rep-008-pandas-sample-without-random-state"
+name = "pandas-sample-without-random-state"
+category = "scientific-reproducibility"
+severity = "high"
+version = "1.0.0"
+
+[patterns."rep-009"]
+path = "scientific-reproducibility/rep-009-cv-splitter-without-random-state"
+name = "cv-splitter-without-random-state"
+category = "scientific-reproducibility"
+severity = "high"
+version = "1.0.0"
+
+[patterns."rep-010"]
+path = "scientific-reproducibility/rep-010-naive-datetime-processing"
+name = "naive-datetime-processing"
+category = "scientific-reproducibility"
+severity = "medium"
+version = "1.0.0"
+
+[patterns."rep-011"]
+path = "scientific-reproducibility/rep-011-set-iteration-order-dependency"
+name = "set-iteration-order-dependency"
+category = "scientific-reproducibility"
+severity = "medium"
+version = "1.0.0"
+
+[patterns."rep-012"]
+path = "scientific-reproducibility/rep-012-model-pickle-without-version"
+name = "model-pickle-without-version"
+category = "scientific-reproducibility"
+severity = "medium"
+version = "1.0.0"
+
+[patterns."rep-013"]
+path = "scientific-reproducibility/rep-013-float32-platform-dependency"
+name = "float32-platform-dependency"
+category = "scientific-reproducibility"
+severity = "medium"
+version = "1.0.0"
+
+[patterns."rep-014"]
+path = "scientific-reproducibility/rep-014-random-state-instance-reuse"
+name = "random-state-instance-reuse"
+category = "scientific-reproducibility"
+severity = "high"
 version = "1.0.0"

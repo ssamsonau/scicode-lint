@@ -1,0 +1,99 @@
+[meta]
+id = "pt-020"
+name = "softmax-before-cross-entropy"
+category = "ai-inference"
+severity = "high"
+version = "1.0.0"
+created = "2026-03-08"
+updated = "2026-03-08"
+author = "scicode-lint"
+
+description = """
+Applying softmax() before CrossEntropyLoss results in double softmax computation. CrossEntropyLoss already applies log-softmax internally, so pre-applying softmax produces numerically incorrect results.
+"""
+
+explanation = """
+CrossEntropyLoss expects raw logits, not probabilities. It internally applies log_softmax for numerical stability. Pass logits directly to the loss function.
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Analyze loss function usage for softmax redundancy.
+
+PyTorch's CrossEntropyLoss and F.cross_entropy expect raw logits (unnormalized scores) and internally apply log_softmax. Applying softmax() or log_softmax() before passing to CrossEntropyLoss results in incorrect loss computation.
+
+Correct approach: Pass raw model outputs directly to CrossEntropyLoss.
+
+Does this code apply softmax before CrossEntropyLoss?
+
+Look for:
+- F.softmax() or .softmax() followed by CrossEntropyLoss
+- F.log_softmax() followed by CrossEntropyLoss (not NLLLoss)
+- Redundant probability conversion before cross entropy
+
+YES = Bug found: softmax applied before CrossEntropyLoss
+NO = Correct: raw logits passed to CrossEntropyLoss
+"""
+
+warning_message = """
+CrossEntropyLoss expects raw logits. Applying softmax() before it causes double normalization and incorrect loss values.
+"""
+
+min_confidence = 0.85
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/softmax_then_ce.py"
+description = "Applying softmax before CrossEntropyLoss"
+expected_issue = "softmax() applied before CrossEntropyLoss"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "compute_loss"
+snippet = "softmax"
+
+[[tests.negative]]
+file = "test_negative/regression_loss.py"
+description = "Regression loss (no softmax involved)"
+
+[[tests.negative]]
+file = "test_negative/nll_with_log_softmax.py"
+description = "NLLLoss with log_softmax (correct alternative)"
+
+[[tests.negative]]
+file = "test_negative/direct_logits_ce.py"
+description = "CrossEntropyLoss with raw logits (correct usage)"
+
+[[tests.negative]]
+file = "test_negative/softmax_for_inference_only.py"
+description = "Softmax used for inference probabilities, raw logits for CrossEntropyLoss"
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/double_softmax.py"
+description = "Multiple instances of softmax applied before CrossEntropyLoss in training and inference code paths."
+expected_issue = "softmax() applied before CrossEntropyLoss"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "class"
+name = "Classifier"
+snippet = "class Classifier"
+
+[[tests.positive]]
+file = "test_positive/redundant_softmax.py"
+description = "Softmax applied directly to logits before passing to F.cross_entropy, causing incorrect loss computation."
+expected_issue = "softmax() applied before CrossEntropyLoss"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "compute_loss"
+snippet = "probs = F.softmax(logits, dim=-1)"

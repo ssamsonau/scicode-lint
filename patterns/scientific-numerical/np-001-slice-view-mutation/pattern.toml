@@ -26,21 +26,31 @@ references = []
 
 [detection]
 question = """
-Find a slice assigned to a variable and then modified in-place.
-Is .copy() MISSING before modifying a NumPy slice?
+Analyze NumPy slicing for unintended view mutations.
 
-YES = .copy() is MISSING before modifying slice (BUG)
-NO = has .copy(), OR no slice is modified
+NumPy basic slicing returns a view, not a copy. Modifying a slice (subset += value, subset[:] = 0) silently modifies the original array. This is a common source of bugs when expecting an independent copy.
+
+Correct approach: Use .copy() when you need an independent array.
+
+Does this code modify a slice without .copy()?
+
+Look for:
+- slice_var = arr[i:j] followed by slice_var += x or slice_var[:] = y
+- In-place operations on variables that hold array slices
+- Missing .copy() when slice will be modified
+
+Not a bug: arr[i:j] = values (direct assignment), read-only operations
+
+YES = Bug found: slice view modified in-place without .copy()
+NO = Correct: uses .copy() before modification, or read-only operations
 """
 
 warning_message = """
 NumPy view mutation: basic slicing returns a view — modifying it modifies the original. Use .copy() if you need an independent array.
-
 """
 
 min_confidence = 0.85
-code_patterns = []
-false_positive_risks = []
+false_positive_risks = ["Direct array slice assignment like arr[i:j] = values is NOT a view mutation bug"]
 
 [tests]
 
@@ -69,14 +79,24 @@ snippet = "block += 10"
 [[tests.negative]]
 file = "test_negative/proper_copy.py"
 description = "Slices explicitly use .copy() before modification, preventing mutation of original array"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/readonly_slice.py"
 description = "Slices used only for read operations (mean, std, argmax, sum) without any modification"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/batch_normalize.py"
+description = "2D and 1D array slices are assigned without .copy() and then modified via -= and *= operators, causing unintended mutation of the original data"
+expected_issue = "Slice view modified through arithmetic operations (-= and *=) affecting original array"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "normalize_features"
+snippet = "normalized = data[:, :10]"
+
+[[tests.negative]]
+file = "test_negative/batch_normalize_copy.py"
+description = "Slices explicitly use .copy() before modification, ensuring arithmetic operations (-= and *=) do not affect the original data"

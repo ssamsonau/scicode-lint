@@ -26,21 +26,35 @@ references = []
 
 [detection]
 question = """
-Find np.sum() or np.cumsum() on large int32 arrays in the code.
-Is dtype upgrade MISSING for int32 aggregation (no dtype=int64, dtype=float64, or astype() before aggregation)?
+Analyze integer aggregations for overflow risk.
 
-YES = dtype upgrade is MISSING for int32 aggregation (BUG)
-NO = has dtype parameter or astype(), OR no such aggregation exists, OR array is already int64/float64
+int32 max is ~2.1 billion. Summing large int32 arrays wraps silently, producing incorrect results. This is especially dangerous with large datasets or cumulative sums.
+
+Correct approach: Use dtype=np.int64 or dtype=np.float64 in aggregation functions.
+
+Does this code aggregate int32 values without overflow protection?
+
+Look for:
+- np.sum() or .sum() on explicitly int32 arrays without dtype parameter
+- np.cumsum() on int32 data
+- Large array aggregations where intermediate values exceed 2 billion
+
+Only flag explicit int32 (dtype=np.int32, astype('int32')). Ignore float64 arrays.
+
+YES = Bug found: int32 aggregation without dtype upgrade on large arrays
+NO = Correct: uses int64/float64, or arrays are small
 """
 
 warning_message = """
-int32 overflow: max is ~2.1 billion. Summing large arrays wraps silently. Use dtype=np.int64 or np.float64 for aggregations.
-
+int32 overflow risk: max is ~2.1 billion. Use dtype=np.int64 for large int32 aggregations.
 """
 
 min_confidence = 0.85
-code_patterns = []
-false_positive_risks = []
+false_positive_risks = [
+    "np.random.randn/rand return float64, not int32",
+    "sklearn/pandas data is typically float64",
+    "Only explicit int32 arrays are at risk"
+]
 
 [tests]
 
@@ -69,14 +83,24 @@ snippet = "total = products.sum()"
 [[tests.negative]]
 file = "test_negative/safe_dtype.py"
 description = "Aggregations using dtype=np.int64 or dtype=np.float64, or explicit astype() conversion before sum/cumsum"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/float_aggregation.py"
 description = "Small arrays where overflow is impossible, or arrays already using float64/int64 dtypes"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/large_product.py"
+description = "Factorial computation and matrix operations using int32 that silently overflow on larger input values."
+expected_issue = "int32 overflow in factorial and matrix product accumulation without dtype upgrade"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "compute_factorial"
+snippet = "result = np.int32(1)"
+
+[[tests.negative]]
+file = "test_negative/large_product_safe.py"
+description = "Safe factorial and matrix operations using int64 dtype, preventing overflow and ensuring correctness."

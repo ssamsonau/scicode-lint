@@ -64,7 +64,8 @@ def train(model, data):
     catalog = DetectionCatalog()
     patterns = list(catalog.patterns)[:5]  # First 5 patterns
 
-    config = LLMConfig(base_url="http://localhost:5001", temperature=0.0)
+    # Use LLMConfig defaults (temperature=0.6, top_p=0.95 for Qwen3 thinking mode)
+    config = LLMConfig(base_url="http://localhost:5001")
     llm = create_client(config)
     system_prompt = get_system_prompt()
 
@@ -100,9 +101,9 @@ def train(model, data):
     logger.info(f"Speedup:     {time_seq / time_conc:.1f}x")
     logger.info(f"Time saved:  {time_seq - time_conc:.1f}s")
     logger.info("")
-    logger.info("Extrapolated for all 44 patterns:")
-    logger.info(f"  Sequential: ~{time_seq * 44 / len(patterns):.0f}s")
-    logger.info(f"  Concurrent: ~{time_conc * 44 / len(patterns):.0f}s")
+    logger.info("Extrapolated for all 64 patterns:")
+    logger.info(f"  Sequential: ~{time_seq * 64 / len(patterns):.0f}s")
+    logger.info(f"  Concurrent: ~{time_conc * 64 / len(patterns):.0f}s")
     logger.info("=" * 70)
 
 

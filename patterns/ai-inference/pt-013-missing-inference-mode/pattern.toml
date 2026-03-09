@@ -1,0 +1,96 @@
+[meta]
+id = "pt-013"
+name = "missing-inference-mode"
+category = "ai-inference"
+severity = "medium"
+version = "1.0.0"
+created = "2026-03-08"
+updated = "2026-03-08"
+author = "scicode-lint"
+
+description = """
+Using torch.no_grad() instead of torch.inference_mode() for production inference. inference_mode() is faster and uses less memory because it disables view tracking and version counting.
+"""
+
+explanation = """
+torch.inference_mode() is faster than no_grad() for production inference. Use inference_mode() when gradients will never be needed.
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Analyze inference code for optimal gradient context manager usage.
+
+torch.no_grad() disables gradient computation but still tracks views and versions.
+torch.inference_mode() (PyTorch 1.9+) is faster and uses less memory because it also disables view tracking and version counting.
+
+For production inference (serving, deployment, benchmarking), inference_mode() is preferred.
+For validation during training where model.train() might be called later, no_grad() is fine.
+
+Does this code use no_grad() in a production inference context where inference_mode() would be better?
+
+Look for:
+- Inference serving code using torch.no_grad() instead of torch.inference_mode()
+- Production model deployment with no_grad() context
+
+YES = Bug found: no_grad() used in production inference where inference_mode() is better
+NO = Correct: inference_mode() used, or no_grad() appropriate for training validation
+"""
+
+warning_message = """
+torch.inference_mode() is faster than no_grad() for production inference. Use inference_mode() when gradients will never be needed.
+"""
+
+min_confidence = 0.85
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/production_inference_no_grad.py"
+description = "Production inference server using torch.no_grad() instead of torch.inference_mode()"
+expected_issue = "Production inference using no_grad() where inference_mode() would be faster"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "serve_prediction"
+snippet = "with torch.no_grad():"
+
+[[tests.negative]]
+file = "test_negative/training_validation.py"
+description = "Training validation using no_grad() appropriately"
+
+[[tests.negative]]
+file = "test_negative/scripted_model_inference.py"
+description = "Using TorchScript models for inference"
+
+[[tests.negative]]
+file = "test_negative/production_inference_mode.py"
+description = "Production inference correctly using torch.inference_mode()"
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/api_endpoint_no_grad.py"
+description = "API endpoint for text classification using torch.no_grad() in inference functions"
+expected_issue = "API inference functions using no_grad() instead of inference_mode() for lower memory overhead"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "class"
+name = "TextClassifier"
+snippet = "class TextClassifier"
+
+[[tests.positive]]
+file = "test_positive/embedding_service.py"
+description = "Embedding generation service using torch.no_grad() in inference and batch processing functions"
+expected_issue = "Embedding inference using no_grad() where inference_mode() would disable unnecessary view tracking"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "class"
+name = "EmbeddingModel"
+snippet = "class EmbeddingModel"

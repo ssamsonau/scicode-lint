@@ -1,0 +1,96 @@
+[meta]
+id = "rep-005"
+name = "unsorted-file-iteration"
+category = "scientific-reproducibility"
+severity = "medium"
+version = "1.0.0"
+created = "2026-03-08"
+updated = "2026-03-08"
+author = "scicode-lint"
+
+description = """
+Using os.listdir(), glob.glob(), or Path.iterdir() without sorting produces filesystem-dependent ordering. File order varies between runs and machines, causing non-reproducible results.
+"""
+
+explanation = """
+File iteration order is not guaranteed to be consistent. Always wrap file listing in sorted() for reproducible processing order.
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Analyze file iteration for reproducibility issues.
+
+os.listdir(), glob.glob(), and Path.iterdir() return files in arbitrary order that depends on the filesystem. This order varies between runs and machines, causing non-reproducible data loading.
+
+Correct approach: Always wrap in sorted() - sorted(os.listdir()), sorted(glob.glob()), etc.
+
+Does this code iterate over files without sorting?
+
+Look for:
+- os.listdir() not wrapped in sorted()
+- glob.glob() or Path.glob() not wrapped in sorted()
+- Path.iterdir() not wrapped in sorted()
+- File iteration where order affects the output
+
+YES = Bug found: file iteration without sorting
+NO = Correct: sorted() used, or order doesn't affect results
+"""
+
+warning_message = """
+File iteration order is non-deterministic. Use sorted() for reproducible file processing order.
+"""
+
+min_confidence = 0.85
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/unsorted_files.py"
+description = "File iteration without sorting"
+expected_issue = "os.listdir() or glob.glob() without sorted()"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "load_dataset"
+snippet = "os.listdir"
+
+[[tests.negative]]
+file = "test_negative/manifest_file.py"
+description = "Loading files from manifest (no iteration)"
+
+[[tests.negative]]
+file = "test_negative/single_file.py"
+description = "Processing a single file (no iteration)"
+
+[[tests.negative]]
+file = "test_negative/sorted_glob.py"
+description = "Using sorted() with glob/listdir for reproducibility"
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/glob_unsorted.py"
+description = "glob.glob() and os.listdir() used without sorting, affecting file processing order in multiple functions."
+expected_issue = "glob.glob() and os.listdir() without sorted() wrapper"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "load_all_configs"
+snippet = "glob.glob"
+
+[[tests.positive]]
+file = "test_positive/unsorted_listdir.py"
+description = "os.listdir() used to load and concatenate numpy arrays without sorting, causing non-reproducible concatenation order."
+expected_issue = "os.listdir() without sorted() wrapper when order affects results"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "load_all_data"
+snippet = "os.listdir"

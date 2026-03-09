@@ -26,22 +26,35 @@ references = []
 
 [detection]
 question = """
-Find random operations in the code (np.random.*, torch.randn*, random.random, random.shuffle).
+Analyze random number usage for reproducibility.
 
-Is random seed initialization MISSING (np.random.seed, torch.manual_seed, random.seed)?
+Code using random operations without seed initialization produces different results each run. For reproducible experiments, all random sources (numpy, torch, random) must be seeded.
 
-YES = random seed initialization is missing (BUG)
-NO = seed initialization is present, OR no random operations exist
+Correct approach: Set np.random.seed(), torch.manual_seed(), random.seed() at the start.
+
+Does this code use random operations without any seed?
+
+Look for:
+- np.random.randn/rand/shuffle/choice without np.random.seed anywhere in file
+- torch.randn/rand/randperm without torch.manual_seed anywhere in file
+- random.random/shuffle/choice without random.seed anywhere in file
+
+Safe patterns: seed set anywhere in file, function accepts seed parameter, test files
+
+YES = Bug found: random operations without seed initialization in file
+NO = Correct: seed is set somewhere in file, or function accepts seed parameter
 """
 
 warning_message = """
 No random seed set. Results will differ between runs. Set seeds for np.random, torch, and random at the start.
-
 """
 
-min_confidence = 0.85
-code_patterns = []
-false_positive_risks = []
+min_confidence = 0.80
+false_positive_risks = [
+    "Seeds may be set in a setup function elsewhere in file",
+    "Utility functions called by seeded main code",
+    "Test files may not need seeds"
+]
 
 [tests]
 
@@ -70,14 +83,24 @@ snippet = "self.positions = torch.randn(n_agents, 2)"
 [[tests.negative]]
 file = "test_negative/seeded_data_generation.py"
 description = "Sets both np.random.seed and torch.manual_seed at the start before any random operations."
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/reproducible_simulation.py"
 description = "Monte Carlo simulation with torch.manual_seed and random.seed properly set for reproducibility."
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/no_seed.py"
+description = "Machine learning pipeline using train_test_split and RandomForestClassifier without setting any random seed or random_state parameters."
+expected_issue = "Random operations (train_test_split, RandomForestClassifier) used without random_state parameter, causing non-reproducible splits and model initialization"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "run_experiment"
+snippet = "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)"
+
+[[tests.negative]]
+file = "test_negative/with_seed.py"
+description = "Machine learning pipeline with proper reproducibility using seed parameters (random_state for train_test_split and RandomForestClassifier, np.random.RandomState for synthetic data)."

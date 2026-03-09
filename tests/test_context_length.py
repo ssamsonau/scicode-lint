@@ -81,8 +81,8 @@ def test_check_context_length_exceeds() -> None:
 
     error = exc_info.value
     assert error.file_path == "large_file.py"
-    assert error.estimated_tokens > 1000
-    assert error.max_tokens == 1000
+    assert error.estimated_tokens > 600  # max_tokens - output_buffer
+    assert error.max_tokens == 600  # 1000 - 400 output_buffer
     assert "large_file.py" in error.message
     assert "Suggestions:" in error.message
 

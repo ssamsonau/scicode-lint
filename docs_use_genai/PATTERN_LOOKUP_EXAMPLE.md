@@ -26,7 +26,7 @@ else:
 **Output:**
 ```
 ID: ml-001
-Category: ml-correctness
+Category: ai-training
 Severity: critical
 What it checks: Is there a scaler, normalizer, or encoder (e.g., StandardScaler, MinMaxScaler, LabelEncoder) that is fit or fit_transform'd on the full dataset before a train/test split occurs?
 Warning: Data leakage: scaler/encoder is fit on full data including test set. Model performance will be inflated. Use sklearn.pipeline.Pipeline so fitting happens inside each fold.
@@ -101,7 +101,7 @@ Issue: ml-001
   Location: function 'preprocess_data'
   Code: scaler.fit_transform(X)
   Explanation: Data leakage: scaler/encoder is fit on full data including test set. Model performance will be inflated. Use sklearn.pipeline.Pipeline so fitting happens inside each fold.
-  Category: ml-correctness
+  Category: ai-training
   Detection criteria: Is there a scaler, normalizer, or encoder (e.g., StandardScaler, MinMaxScaler, LabelEncoder) that is fit or fit_transform'd on the full dataset before a train/test split occurs?
 
 Issue: rep-001
@@ -149,8 +149,8 @@ def build_pattern_reference():
 pattern_reference = build_pattern_reference()
 
 # When agent encounters ml-001 in results, look it up
-if "ml-correctness" in pattern_reference:
-    ml_patterns = pattern_reference["ml-correctness"]
+if "ai-training" in pattern_reference:
+    ml_patterns = pattern_reference["ai-training"]
     ml_001 = next(p for p in ml_patterns if p["id"] == "ml-001")
     print(f"Fix for ml-001: {ml_001['how_to_fix']}")
 ```
@@ -178,11 +178,11 @@ critical_patterns = [
 print(f"Critical patterns: {len(critical_patterns)}")
 
 # Find patterns in specific category
-pytorch_patterns = [
+training_patterns = [
     p for p in linter.list_patterns()
-    if p.category == "pytorch"
+    if p.category == "ai-training"
 ]
-print(f"PyTorch patterns: {len(pytorch_patterns)}")
+print(f"AI Training patterns: {len(training_patterns)}")
 
 # Search pattern descriptions
 search_term = "data leakage"
@@ -198,11 +198,11 @@ for p in matching:
 ## Key Takeaways
 
 1. **Simple lookup**: `linter.get_pattern(pattern_id)` → returns full pattern details
-2. **List all**: `linter.list_patterns()` → returns all 44 patterns
+2. **List all**: `linter.list_patterns()` → returns all 64 patterns
 3. **Workflow**: Check file → Get findings → Look up pattern details → Apply fix
 4. **What you get**:
    - `pattern.id` - Pattern identifier
-   - `pattern.category` - Category (ml-correctness, pytorch, etc.)
+   - `pattern.category` - Category (ai-training, ai-inference, etc.)
    - `pattern.severity` - Severity level (critical, high, medium)
    - `pattern.detection_question` - What the pattern checks for
    - `pattern.warning_message` - What's wrong and how to fix it

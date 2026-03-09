@@ -1,0 +1,104 @@
+[meta]
+id = "rep-013"
+name = "float32-platform-dependency"
+category = "scientific-reproducibility"
+severity = "medium"
+version = "1.0.0"
+created = "2026-03-08"
+updated = "2026-03-08"
+author = "scicode-lint"
+
+description = """
+Using float32 precision where bit-exact reproducibility is required across platforms. float32 results can differ across CPU architectures and math library implementations.
+"""
+
+explanation = """
+For reproducible results across platforms, prefer float64 for critical computations or document acceptable tolerance for float32 results.
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Does this code compare float32 values with exact equality (== or !=)?
+
+float32 arithmetic varies across platforms (x86 vs ARM, different math libraries).
+Exact equality comparisons (==, !=) on float32 results are unreliable and non-reproducible.
+
+PROBLEMATIC patterns (flag these):
+- result == expected where result is float32
+- loss == threshold where loss is float32
+- np.array_equal(arr1, arr2) where arrays are float32
+- if computed_value != cached_value where values are float32
+
+ACCEPTABLE patterns (ignore these):
+- np.isclose(a, b) or np.allclose(a, b) with tolerance
+- math.isclose(a, b) with tolerance
+- abs(a - b) < tolerance pattern
+- float32 without any equality comparison
+- Comparisons on float64 values
+
+YES = Bug: float32 values compared with == or != (exact equality)
+NO = Clean: tolerance-based comparison, or float64, or no equality comparison
+"""
+
+warning_message = """
+float32 results may vary across platforms. Use float64 for critical computations requiring exact reproducibility.
+"""
+
+min_confidence = 0.85
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/float32_critical.py"
+description = "Using float32 for critical reproducible computations"
+expected_issue = "float32 where exact reproducibility is expected"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "compute_hash"
+snippet = "float32"
+
+[[tests.negative]]
+file = "test_negative/integer_operations.py"
+description = "Using integer operations (no float)"
+
+[[tests.negative]]
+file = "test_negative/no_comparison.py"
+description = "Float32 without exact comparison"
+
+[[tests.negative]]
+file = "test_negative/float64_for_reproducibility.py"
+description = "Using float64 for reproducible computations with exact comparisons"
+
+[[tests.negative]]
+file = "test_negative/tolerance_comparisons.py"
+description = "Using tolerance-based comparisons (isclose/allclose) instead of exact equality"
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/float32_compare.py"
+description = "Comparing float32 values for exact equality in convergence checks and validation functions"
+expected_issue = "float32 comparisons will fail across platforms due to precision variations"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "check_convergence"
+snippet = "return loss == threshold"
+
+[[tests.positive]]
+file = "test_positive/float32_exact_comparison.py"
+description = "Using float32 for sum reductions and regression tests that require exact bit-level reproducibility"
+expected_issue = "float32 computations may produce different results across architectures and math libraries"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "verify_computation"
+snippet = "result = np.sum(data.astype(np.float32))"

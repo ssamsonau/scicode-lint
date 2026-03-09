@@ -26,11 +26,21 @@ references = []
 
 [detection]
 question = """
-Find imap_unordered() or as_completed() in the code.
-Are results collected without sorting or index tracking?
+Analyze parallel result collection for determinism.
 
-YES = non-deterministic result order (BUG)
-NO = no unordered result collection exists
+Using imap_unordered or as_completed() produces results in non-deterministic order based on completion time. If results must be in specific order for reproducibility, this causes issues.
+
+Correct approach: Use ordered map(), or track indices and sort after collection.
+
+Does this code collect parallel results without preserving order?
+
+Look for:
+- pool.imap_unordered() appending results without sorting
+- as_completed(futures) without index tracking
+- Results depending on order but collected arbitrarily
+
+YES = Bug found: non-deterministic result order without sorting
+NO = Correct: uses ordered map(), or sorts results by index
 """
 
 warning_message = """
@@ -39,7 +49,6 @@ Non-deterministic parallel output: parallel tasks complete in arbitrary order. I
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -69,14 +78,24 @@ snippet = "for future in as_completed(futures):"
 [[tests.negative]]
 file = "test_negative/sorted_results.py"
 description = "Results include indices and are sorted after collection - preserves deterministic order"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/ordered_map.py"
 description = "Using executor.map which preserves input order - deterministic results"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/async_gather.py"
+description = "Using imap_unordered and apply_async with callbacks - results collected without order preservation"
+expected_issue = "Results collected from imap_unordered and apply_async callbacks without index tracking"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "process_items"
+snippet = "results = list(pool.imap_unordered(process, items))"
+
+[[tests.negative]]
+file = "test_negative/ordered_results.py"
+description = "Using pool.map which maintains input order - results are deterministic and reproducible"

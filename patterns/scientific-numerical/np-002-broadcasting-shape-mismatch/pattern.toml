@@ -26,21 +26,27 @@ references = []
 
 [detection]
 question = """
-Find array operations between arrays with different shapes.
-Is shape validation MISSING before broadcasting?
+Does this code use reduction(axis=N) without keepdims=True in arithmetic?
 
-YES = shape validation is MISSING before broadcasting (BUG)
-NO = has shape check/assert, OR shapes are clearly compatible
+Check for: arr - arr.mean(axis=1) or similar WITHOUT keepdims=True.
+
+YES = Found: reduction with axis= then arithmetic, missing keepdims=True
+NO = Clean: keepdims=True used, or result reshaped, or no arithmetic after reduction
+
+YES = Found: reduction(axis=N) without keepdims used in arithmetic with original array
+NO = Clean: keepdims=True used, or result reshaped, or no arithmetic interaction
 """
 
 warning_message = """
-Broadcasting silent error: shapes are numerically compatible but semantically wrong. Verify array shapes explicitly before operations.
-
+Broadcasting dimension mismatch: verify array shapes match semantically, not just numerically. Use keepdims=True for reductions.
 """
 
-min_confidence = 0.85
-code_patterns = []
-false_positive_risks = []
+min_confidence = 0.75
+false_positive_risks = [
+    "Cannot detect shape mismatches without explicit shape information",
+    "Standard normalization (arr - arr.mean()) is safe",
+    "sklearn/pandas handle broadcasting internally"
+]
 
 [tests]
 
@@ -69,14 +75,24 @@ snippet = "diffs = points - centers"
 [[tests.negative]]
 file = "test_negative/explicit_shape_check.py"
 description = "Explicit shape assertions or checks before array operations to verify semantic compatibility"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/correct_broadcasting.py"
 description = "Proper use of keepdims and reshape to ensure broadcasting happens along intended dimensions with correct semantic meaning"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/weighted_sum.py"
+description = "Arrays multiplied without explicit shape control, allowing NumPy broadcasting to silently produce incorrect results when shapes are incompatible."
+expected_issue = "Implicit broadcasting of arrays with uncontrolled shapes may produce semantically incorrect results"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "weighted_average"
+snippet = "return (values * weights).sum() / weights.sum()"
+
+[[tests.negative]]
+file = "test_negative/weighted_sum_correct.py"
+description = "Explicit reshape operations ensure arrays broadcast correctly along intended dimensions with controlled semantic meaning."

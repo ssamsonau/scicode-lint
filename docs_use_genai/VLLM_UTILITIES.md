@@ -141,18 +141,18 @@ proc = start_server()
 
 # Start with custom config
 proc = start_server(
-    model="RedHatAI/gemma-3-12b-it-FP8-dynamic",
+    model="Qwen/Qwen3-8B-FP8",
     port=5001,
-    max_model_len=16000,
+    max_model_len=24000,
     gpu_memory_utilization=0.85,
     wait=True,  # Block until ready
 )
 ```
 
 **Parameters:**
-- `model` (str, optional): Model name or path. Default: `"RedHatAI/gemma-3-12b-it-FP8-dynamic"`
+- `model` (str, optional): Model name or path. Default: `"Qwen/Qwen3-8B-FP8"`
 - `port` (int, optional): Port number. Default: `5001`
-- `max_model_len` (int, optional): Max context length. Default: `12000`
+- `max_model_len` (int, optional): Max context length. Default: `24000`
 - `gpu_memory_utilization` (float, optional): GPU memory 0.0-1.0. Default: `0.9`
 - `wait` (bool, optional): Wait for server ready. Default: `False`
 - `wait_timeout` (int, optional): Timeout for waiting. Default: `60`
@@ -212,17 +212,17 @@ with VLLMServer(base_url="http://gpu-cluster:5001"):
     # ... use linter ...
 
 # Custom local config
-with VLLMServer(port=8000, max_model_len=16000):
+with VLLMServer(port=8000, max_model_len=24000):
     # Server on port 8000
     linter = SciCodeLinter()
     # ... use linter ...
 ```
 
 **Parameters:**
-- `model` (str, optional): Model name. Default: `"RedHatAI/gemma-3-12b-it-FP8-dynamic"`. Only used for local servers.
+- `model` (str, optional): Model name. Default: `"Qwen/Qwen3-8B-FP8"`. Only used for local servers.
 - `port` (int, optional): Port number. Default: `5001`. Only used for local servers.
 - `base_url` (str, optional): Full URL for remote server (e.g., `"http://10.0.0.5:5001"`). If provided, server is treated as remote (no start/stop).
-- `max_model_len` (int, optional): Max context. Default: `12000`. Only used for local servers.
+- `max_model_len` (int, optional): Max context. Default: `24000`. Only used for local servers.
 - `gpu_memory_utilization` (float, optional): GPU memory. Default: `0.9`. Only used for local servers.
 - `wait_timeout` (int, optional): Startup/verification timeout. Default: `60`
 
@@ -332,9 +332,9 @@ from scicode_lint.vllm import start_server, stop_server
 
 # Start with custom config
 proc = start_server(
-    model="RedHatAI/gemma-3-12b-it-FP8-dynamic",
+    model="Qwen/Qwen3-8B-FP8",
     port=5001,
-    max_model_len=16000,
+    max_model_len=24000,
     gpu_memory_utilization=0.90,
     wait=True,  # Wait for ready
     wait_timeout=120,  # 2 minutes timeout
@@ -384,7 +384,7 @@ pip install scicode-lint[vllm-server]
 
 **System requirements:**
 - NVIDIA GPU with native FP8 support (compute capability >= 8.9)
-- 20GB+ VRAM (for Gemma 3 12B FP8 model)
+- 16GB+ VRAM (for FP8 models)
 - Linux or WSL2
 
 ---

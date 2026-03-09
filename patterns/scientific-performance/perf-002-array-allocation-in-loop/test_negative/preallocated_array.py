@@ -7,7 +7,7 @@ def process_batches_efficient(data, batch_size):
     for i in range(n_batches):
         start = i * batch_size
         end = min(start + batch_size, len(data))
-        results[i, :end - start] = data[start:end] * 2
+        results[i, : end - start] = data[start:end] * 2
     return results
 
 

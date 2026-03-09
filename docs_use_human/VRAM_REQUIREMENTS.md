@@ -1,16 +1,16 @@
 # VRAM Requirements
 
-scicode-lint requires **minimum 20GB VRAM** with **native FP8 support** (compute capability >= 8.9).
+scicode-lint requires **minimum 16GB VRAM** with **native FP8 support** (compute capability >= 8.9).
 
 **Disk space:** Also requires **~15GB free disk space** for model weights, which are downloaded to `~/.cache/huggingface/` on first launch. See [INSTALLATION.md](../INSTALLATION.md#model-storage) for details.
 
 ## Quick Reference
 
 **Requirements:**
-- 20GB+ VRAM
+- 16GB+ VRAM
 - Native FP8 support (compute capability >= 8.9)
 
-**Configuration:** 16K context (~1,500 line files), Gemma 3 12B FP8
+**Configuration:** 24K total context (16K input + 8K response for thinking), default model: Qwen3-8B-FP8
 
 ## Setup
 
@@ -21,7 +21,7 @@ bash src/scicode_lint/vllm/start_vllm.sh
 ```
 
 The script verifies:
-1. **VRAM**: Minimum 20GB available
+1. **VRAM**: Minimum 16GB available
 2. **Compute capability**: >= 8.9 (native FP8 support)
 3. **GPU availability**: Rejects CPU-only systems
 
@@ -29,39 +29,40 @@ If requirements aren't met, the script exits with clear error messages and hardw
 
 ## Configuration
 
-**Model:** Gemma 3 12B FP8 (`RedHatAI/gemma-3-12b-it-FP8-dynamic`)
+**Default Model:** Qwen3-8B-FP8 (`Qwen/Qwen3-8B-FP8`)
 
-**Specs:**
-- Model size: ~13.3GB
-- Context: 16,000 tokens
-- File coverage: ~1,500 lines (90-95th percentile)
-- Quality: 75.21% (OpenLLM v1 average)
-- VRAM usage: ~18GB total (90% utilization)
+**Specs (from config.toml):**
+- Model size: ~9GB
+- Context: 24,000 tokens (16K input + 8K response)
+- Max input: ~1,500 lines (90-95th percentile)
+- VRAM usage: ~13GB total (fits comfortably on 16GB GPU)
 
 **Memory breakdown:**
-- Model weights: 13.3GB
+- Model weights (FP8): ~9GB
+- KV cache (24K context, FP8): ~2GB
 - Framework overhead: ~2GB
-- KV cache (16K context): ~3GB
-- Total: ~18GB
+- Total: ~13GB
+
+**Customization:** All context/VRAM settings are configurable in `config.toml`. Qwen3-8B supports up to 32K native context.
 
 ## Supported GPUs
 
 **Native FP8 GPUs (compute capability >= 8.9):**
-- **Consumer:** RTX 4090 (24GB)
+- **Consumer:** RTX 4060 Ti 16GB, RTX 4070+ (16GB+), RTX 4090 (24GB)
 - **Workstation:** RTX 4000 Ada (20GB), RTX 5000 Ada (32GB)
 - **Cloud/HPC inference:** L4 (24GB), L40 (48GB), A10 (24GB)
 
-## Why 20GB Minimum?
+## Why 16GB Minimum?
 
-- FP8 model requires ~18GB for 16K context operation
-- Model weights: 13.3GB
+With FP8 quantization for both weights and KV cache:
+- Model weights (FP8): ~9GB
+- KV cache (24K context, FP8): ~2GB
 - Framework overhead: ~2GB
-- KV cache: ~3GB
-- Modern GPUs (2024+) standardize on 20GB+ for inference workloads
+- **Total: ~13GB** (fits in 16GB at 90% utilization)
 
 ## Context Window Sizing
 
-All configurations use **16K context** (standardized):
+All configurations use **24K total context** (16K input + 8K response):
 
 - Based on analysis of 10M+ GitHub repositories
 - Covers **90-95%** of Python files in the wild
@@ -69,14 +70,15 @@ All configurations use **16K context** (standardized):
 - Mean file: 879 lines (~8,800 tokens)
 - 90th percentile: ~1,500 lines (~15,000 tokens)
 
-With prompt overhead (~500 tokens) and safety buffer (~400 tokens reserved), 16K context supports files up to **~1,500 lines**.
-
 **Token allocation:**
-- vLLM context window: 16,000 tokens (total)
-- Reserved buffer: 400 tokens (output + safety margin)
-- Maximum input: 15,600 tokens
+- vLLM context window: 24,000 tokens (total)
+- Reserved for response: 8,192 tokens (thinking mode reasoning)
+- Maximum input: ~16,000 tokens
   - System/detection prompts: ~500 tokens
-  - Code content: ~15,100 tokens (~1,510 lines)
+  - Code content: ~15,500 tokens (~1,550 lines)
+
+**Why 8K response tokens?**
+Qwen3 thinking mode needs headroom for step-by-step reasoning before producing the final answer. 8K allows thorough analysis of complex code patterns.
 
 **vLLM paged attention:** Smaller files don't waste VRAM. Memory is allocated dynamically based on actual file size.
 
@@ -89,19 +91,30 @@ Check your setup is working:
 bash src/scicode_lint/vllm/start_vllm.sh
 # Will exit with error if hardware doesn't meet requirements
 
-# 2. Check VRAM usage with nvidia-smi (should be ~18GB)
+# 2. Check VRAM usage with nvidia-smi (should be ~13GB)
 nvidia-smi
 
 # 3. Test linting
 scicode-lint check your_file.py
 ```
 
+## Alternative Models
+
+See **[MODEL_SELECTION.md](MODEL_SELECTION.md)** for:
+- Benchmark comparisons (Qwen3 vs Gemma3 vs Devstral)
+- vLLM commands for different models
+- Recommendations by VRAM size
+
+**Quick summary:** Qwen3-8B-FP8 outperforms Gemma3-12B on coding benchmarks (+15 EvalPlus) while using less VRAM.
+
+---
+
 ## Summary
 
 **Requirements:**
-- 20GB+ VRAM
+- 16GB+ VRAM
 - Native FP8 support (compute cap >= 8.9)
-- Examples: RTX 4090, RTX 4000 Ada, L4, L40, A10
+- Examples: RTX 4060 Ti 16GB, RTX 4070+, RTX 4090, RTX 4000 Ada, L4, L40, A10
 
-**Model:** Gemma 3 12B FP8 (75.21% OpenLLM v1 quality)
-**Context:** 16K tokens (~1,500 line files)
+**Default Model:** Qwen3-8B-FP8
+**Context:** 24K tokens (16K input + 8K response, supports ~1,500 line files)

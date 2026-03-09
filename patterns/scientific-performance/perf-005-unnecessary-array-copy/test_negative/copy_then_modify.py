@@ -1,5 +1,3 @@
-
-
 def normalize_data(arr):
     data = arr.copy()
     data -= data.mean()

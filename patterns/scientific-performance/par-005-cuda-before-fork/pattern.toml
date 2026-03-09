@@ -26,11 +26,21 @@ references = []
 
 [detection]
 question = """
-Find CUDA initialization (.cuda() or .to(device)) in the code.
-Does it happen before mp.Process or Pool creation without spawn method?
+Analyze CUDA initialization with multiprocessing.
 
-YES = CUDA initialized before fork (BUG)
-NO = no CUDA-before-fork exists
+Initializing CUDA before spawning multiprocessing workers can cause deadlocks. The CUDA context doesn't survive fork() correctly, leading to hangs or crashes.
+
+Correct approach: Use mp.set_start_method('spawn') and initialize CUDA inside each worker.
+
+Does this code initialize CUDA before multiprocessing fork?
+
+Look for:
+- .cuda() or .to(device) in __main__ block before Process/Pool creation
+- Model or tensor moved to GPU before multiprocessing spawn
+- CUDA initialization followed by multiprocessing without spawn method
+
+YES = Bug found: CUDA initialized before multiprocessing fork
+NO = Correct: CUDA initialized inside workers, or uses spawn method
 """
 
 warning_message = """
@@ -39,7 +49,6 @@ CUDA before fork: initializing CUDA then forking can deadlock. Use mp.set_start_
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -69,14 +78,24 @@ snippet = "model = model.cuda()"
 [[tests.negative]]
 file = "test_negative/spawn_method_cuda.py"
 description = "Correctly uses spawn method and initializes CUDA inside each worker process"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/cuda_in_worker.py"
 description = "Properly initializes CUDA within worker function after spawn - safe pattern"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/mp_after_cuda.py"
+description = "CUDA tensor created and model initialized before multiprocessing Pool spawning - causes deadlock risk"
+expected_issue = "CUDA initialization in main before multiprocessing Pool"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "init_and_parallelize"
+snippet = "model = torch.nn.Linear(10, 10).cuda()"
+
+[[tests.negative]]
+file = "test_negative/spawn_method.py"
+description = "Correctly sets spawn method and initializes CUDA inside worker function after multiprocessing spawn"

@@ -9,7 +9,7 @@
 #   bash scripts/start_vllm.sh
 #   bash scripts/start_vllm.sh --restart
 #   bash scripts/start_vllm.sh "meta-llama/Llama-3.1-8B-Instruct"
-#   bash scripts/start_vllm.sh --restart "RedHatAI/gemma-3-12b-it-FP8-dynamic" 5001 8000 0.9
+#   bash scripts/start_vllm.sh --restart "Qwen/Qwen3-8B-FP8" 5001 8000 0.9
 #
 # For background mode:
 #   nohup bash scripts/start_vllm.sh > /tmp/vllm.log 2>&1 &
@@ -93,13 +93,30 @@ if [ -z "$3" ] || [ -z "$4" ]; then
         # Round up to avoid misleading "19GB" for 20GB cards
         VRAM_GB=$(( (VRAM_MB + 512) / 1024 ))
 
-        # Enforce minimum 20GB VRAM
-        if [ $VRAM_MB -lt 19500 ]; then
-            echo "✗ ERROR: Detected ${VRAM_GB}GB VRAM. Minimum requirement: 20GB VRAM"
+        # Read min_vram_mb from config.toml
+        MIN_VRAM_MB=$(python3 -c "
+import sys
+try:
+    if sys.version_info >= (3, 11):
+        import tomllib
+    else:
+        import tomli as tomllib
+    with open('config.toml', 'rb') as f:
+        config = tomllib.load(f)
+    print(config.get('vllm', {}).get('min_vram_mb', 15500))
+except:
+    print(15500)
+" 2>/dev/null)
+        MIN_VRAM_MB="${MIN_VRAM_MB:-15500}"
+        MIN_VRAM_GB=$((MIN_VRAM_MB / 1024))
+
+        # Enforce minimum VRAM from config
+        if [ $VRAM_MB -lt $MIN_VRAM_MB ]; then
+            echo "✗ ERROR: Detected ${VRAM_GB}GB VRAM. Minimum requirement: ${MIN_VRAM_GB}GB VRAM"
             echo ""
-            echo "scicode-lint requires 20GB+ VRAM with native FP8 support."
+            echo "scicode-lint requires ${MIN_VRAM_GB}GB+ VRAM with native FP8 support."
             echo "Supported GPUs:"
-            echo "  • Consumer: RTX 4090 (24GB)"
+            echo "  • Consumer: RTX 4060 Ti 16GB, RTX 4070+ (16GB+), RTX 4090 (24GB)"
             echo "  • Workstation: RTX 4000 Ada (20GB), RTX 5000 Ada (32GB)"
             echo "  • HPC/Cloud inference: L4 (24GB), L40 (48GB), A10 (24GB)"
             echo ""
@@ -127,24 +144,47 @@ if [ -z "$3" ] || [ -z "$4" ]; then
             exit 1
         fi
 
-        # Standard configuration: 16K context (standardized)
+        # Read configuration from config.toml
         # Covers 90-95th percentile based on 10M+ repo analysis
         # Median: 258 lines, Mean: 879 lines, 90th: ~1,500 lines
         # Paged attention means no waste on smaller files
-        DEFAULT_MAX_LEN=16000
-        DEFAULT_GPU_MEM=0.90
-        # Only model that reliably fits in 20GB VRAM with good structured output
-        DEFAULT_MODEL="RedHatAI/gemma-3-12b-it-FP8-dynamic"
+        CONFIG_VALUES=$(python3 -c "
+import sys
+try:
+    if sys.version_info >= (3, 11):
+        import tomllib
+    else:
+        import tomli as tomllib
+    with open('config.toml', 'rb') as f:
+        config = tomllib.load(f)
+    llm = config.get('llm', {})
+    vllm = config.get('vllm', {})
+    print(llm.get('model', ''))
+    print(llm.get('max_model_len', 24000))
+    print(vllm.get('gpu_memory_utilization', 0.90))
+except:
+    print('')
+    print(24000)
+    print(0.90)
+" 2>/dev/null)
+        # Parse config values
+        DEFAULT_MODEL=$(echo "$CONFIG_VALUES" | sed -n '1p')
+        DEFAULT_MAX_LEN=$(echo "$CONFIG_VALUES" | sed -n '2p')
+        DEFAULT_GPU_MEM=$(echo "$CONFIG_VALUES" | sed -n '3p')
+        # Fallback if config not found or values not set
+        DEFAULT_MODEL="${DEFAULT_MODEL:-RedHatAI/Qwen3-8B-FP8-dynamic}"
+        DEFAULT_MAX_LEN="${DEFAULT_MAX_LEN:-24000}"
+        DEFAULT_GPU_MEM="${DEFAULT_GPU_MEM:-0.90}"
 
         echo "✓ Detected ${VRAM_GB}GB VRAM (compute capability: ${COMPUTE_CAP:-unknown})"
-        echo "  → Gemma 3 12B FP8 (optimized for 20GB VRAM)"
-        echo "     16K context, ~1,500 line files, native FP8 support"
+        echo "  → Model: $DEFAULT_MODEL"
+        echo "     ${DEFAULT_MAX_LEN} context, ~1,500 line files, native FP8 support"
     else
         # No GPU detected
         echo "✗ ERROR: GPU not detected"
         echo ""
         echo "scicode-lint requires a GPU with:"
-        echo "  • 20GB+ VRAM"
+        echo "  • ${MIN_VRAM_GB:-16}GB+ VRAM"
         echo "  • Native FP8 support (compute capability >= 8.9)"
         echo ""
         echo "CPU-only mode is not supported."
@@ -152,26 +192,49 @@ if [ -z "$3" ] || [ -z "$4" ]; then
         exit 1
     fi
 else
-    # User specified custom max_len and gpu_mem - use default FP8 model
-    DEFAULT_MAX_LEN=16000
-    DEFAULT_GPU_MEM=0.9
-    DEFAULT_MODEL="RedHatAI/gemma-3-12b-it-FP8-dynamic"
+    # User specified custom max_len and gpu_mem - read model and defaults from config
+    CONFIG_VALUES=$(python3 -c "
+import sys
+try:
+    if sys.version_info >= (3, 11):
+        import tomllib
+    else:
+        import tomli as tomllib
+    with open('config.toml', 'rb') as f:
+        config = tomllib.load(f)
+    llm = config.get('llm', {})
+    vllm = config.get('vllm', {})
+    print(llm.get('model', ''))
+    print(llm.get('max_model_len', 24000))
+    print(vllm.get('gpu_memory_utilization', 0.90))
+except:
+    print('')
+    print(24000)
+    print(0.90)
+" 2>/dev/null)
+    DEFAULT_MODEL=$(echo "$CONFIG_VALUES" | sed -n '1p')
+    DEFAULT_MAX_LEN=$(echo "$CONFIG_VALUES" | sed -n '2p')
+    DEFAULT_GPU_MEM=$(echo "$CONFIG_VALUES" | sed -n '3p')
+    DEFAULT_MODEL="${DEFAULT_MODEL:-RedHatAI/Qwen3-8B-FP8-dynamic}"
+    DEFAULT_MAX_LEN="${DEFAULT_MAX_LEN:-24000}"
+    DEFAULT_GPU_MEM="${DEFAULT_GPU_MEM:-0.90}"
 fi
 
 # Configuration (with optional parameters)
 # If user didn't specify model, use hardware-detected default
-MODEL="${1:-${DEFAULT_MODEL:-RedHatAI/gemma-3-12b-it-FP8-dynamic}}"
+MODEL="${1:-${DEFAULT_MODEL:-Qwen/Qwen3-8B-FP8}}"
 PORT="${2:-5001}"
 MAX_LEN="${3:-$DEFAULT_MAX_LEN}"
 GPU_MEM="${4:-$DEFAULT_GPU_MEM}"
 
-# Set short model name - Gemma 3 12B FP8 is the standard model
-if [[ "$MODEL" == *"gemma"* ]]; then
+# Set short model name - Qwen3 8B FP8 is the standard model
+if [[ "$MODEL" == *"Qwen3-8B"* ]]; then
+    SERVED_NAME="qwen3-8b-fp8"
+elif [[ "$MODEL" == *"gemma"* ]]; then
     SERVED_NAME="gemma-3-12b-fp8"
 else
-    # Fallback for any other model (not recommended - may OOM)
+    # Fallback for any other model
     SERVED_NAME=$(basename "$MODEL" | sed 's/-FP8.*//' | tr '[:upper:]' '[:lower:]')
-    echo "⚠️  WARNING: Non-standard model. May not fit in 20GB VRAM."
 fi
 
 # Handle --restart flag
@@ -215,4 +278,7 @@ vllm serve \
     --served-model-name $SERVED_NAME \
     --trust-remote-code \
     --gpu-memory-utilization $GPU_MEM \
-    --max-model-len $MAX_LEN
+    --max-model-len $MAX_LEN \
+    --max-num-seqs 200 \
+    --kv-cache-dtype fp8 \
+    --enable-chunked-prefill

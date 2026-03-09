@@ -31,3 +31,8 @@ class DetectionResult(BaseModel):
         description="Brief explanation (1-2 sentences) of why this decision was made. "
         "Explain what pattern was detected or why it's not an issue.",
     )
+    thinking: str | None = Field(
+        default=None,
+        description="Model's internal reasoning/thinking (extracted from <think> tags). "
+        "Not part of the structured output schema - populated automatically if present.",
+    )

@@ -26,11 +26,12 @@ references = ["https://pytorch.org/docs/stable/data.html#multi-process-data-load
 
 [detection]
 question = """
-Find DataLoader() calls for training data.
-Is num_workers MISSING or set to 0?
+Does this code have DataLoader without num_workers in GPU training?
 
-YES = DataLoader WITHOUT num_workers or with num_workers=0 (BUG)
-NO = has num_workers > 0, OR no training DataLoader exists
+Check for: DataLoader(...) without num_workers (or num_workers=0) AND .cuda() or loss.backward().
+
+YES = Found: DataLoader missing num_workers with GPU training code
+NO = Clean: num_workers set, or CPU-only code, or inference-only
 """
 
 warning_message = """
@@ -39,7 +40,6 @@ DataLoader with num_workers=0 forces single-process data loading, creating a bot
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -69,12 +69,10 @@ snippet = "train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True
 [[tests.negative]]
 file = "test_negative/dataloader_with_workers.py"
 description = "Correct usage: DataLoader sets num_workers=4 for training and num_workers=2 for validation with pin_memory"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/optimal_workers_config.py"
 description = "Correct usage: DataLoader calculates optimal num_workers based on CPU count with prefetch_factor and persistent_workers"
-max_false_positives = 0
 
 [[tests.context_dependent]]
 file = "test_context_dependent/debugging_single_worker.py"
@@ -86,7 +84,19 @@ file = "test_context_dependent/small_dataset_inference.py"
 description = "Uses num_workers=0 for inference on small datasets where multi-process overhead exceeds benefits - acceptable for small batches"
 context_notes = "For small datasets or inference workloads, num_workers=0 may be acceptable as the multi-process overhead can outweigh benefits"
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/image_loader.py"
+description = "ImageDataset with DataLoaders that omit num_workers parameter, defaulting to single-process data loading and creating GPU bottleneck during image training"
+expected_issue = "DataLoader without num_workers parameter (defaults to 0) in image loading pipeline"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "get_training_loader"
+snippet = "DataLoader(train_data, batch_size=batch_size, shuffle=True, pin_memory=True)"
+
+[[tests.negative]]
+file = "test_negative/image_loader_workers.py"
+description = "Correct usage: ImageDataset with DataLoaders that explicitly set num_workers=4 for efficient multi-process image loading"

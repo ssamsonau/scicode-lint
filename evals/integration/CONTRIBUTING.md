@@ -71,10 +71,6 @@ scenarios:
       pattern-id-1: 1    # Expected count
       pattern-id-2: 2
 
-    min_total_findings: 3
-    max_total_findings: 3
-    max_false_positives: 0
-
     bugs:
       - line: 42
         pattern: pattern-id-1

@@ -1,0 +1,94 @@
+[meta]
+id = "rep-006"
+name = "dataloader-missing-worker-init"
+category = "scientific-reproducibility"
+severity = "high"
+version = "1.0.0"
+created = "2026-03-08"
+updated = "2026-03-08"
+author = "scicode-lint"
+
+description = """
+DataLoader with num_workers>0 but no worker_init_fn causes workers to have identical random states. This produces identical augmentations across workers, reducing effective data diversity.
+"""
+
+explanation = """
+DataLoader workers fork from the parent and inherit the same random state. Use worker_init_fn to seed each worker uniquely based on worker_id.
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Analyze DataLoader for random state in workers.
+
+When DataLoader uses num_workers>0, worker processes are forked from the parent. They inherit identical numpy/random states, causing identical random augmentations across workers.
+
+Correct approach: Provide worker_init_fn that seeds each worker based on worker_id.
+
+Does this code use DataLoader with workers but without worker_init_fn?
+
+Look for:
+- DataLoader(num_workers=N) where N>0 without worker_init_fn
+- Dataset using numpy/random for augmentation with multi-worker loading
+
+YES = Bug found: DataLoader with workers but no worker_init_fn
+NO = Correct: worker_init_fn provided, or num_workers=0
+"""
+
+warning_message = """
+DataLoader workers inherit identical random states. Add worker_init_fn to seed each worker uniquely for proper randomization.
+"""
+
+min_confidence = 0.85
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/dataloader_no_init.py"
+description = "DataLoader with workers but no worker_init_fn"
+expected_issue = "DataLoader(num_workers>0) without worker_init_fn"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "create_dataloader"
+snippet = "num_workers"
+
+[[tests.negative]]
+file = "test_negative/single_worker.py"
+description = "DataLoader with num_workers=0"
+
+[[tests.negative]]
+file = "test_negative/deterministic_augmentation.py"
+description = "Deterministic augmentation (no random)"
+
+[[tests.negative]]
+file = "test_negative/proper_worker_init.py"
+description = "DataLoader with worker_init_fn for proper seeding"
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/dataloader_no_worker_init.py"
+description = "Dataset with numpy random augmentation loaded with multiple workers but no worker_init_fn."
+expected_issue = "DataLoader(num_workers=4) without worker_init_fn causes identical random augmentation across workers"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "class"
+name = "AugmentedDataset"
+snippet = "class AugmentedDataset"
+
+[[tests.positive]]
+file = "test_positive/multiworker_loader.py"
+description = "Dataset generating random data in __getitem__ with multiple DataLoaders using workers but no worker_init_fn."
+expected_issue = "DataLoader(num_workers>0) without worker_init_fn causes all workers to have identical random states"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "class"
+name = "RandomDataset"
+snippet = "class RandomDataset"

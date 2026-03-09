@@ -25,11 +25,21 @@ references = []
 
 [detection]
 question = """
-Find backward() calls in the code.
-Is backward() called on a DETACHED loss tensor?
+Analyze the loss computation and backward pass in this code.
 
-YES = backward() called on detached loss (.detach(), .data, or .item() used before backward) (BUG)
-NO = backward() on original loss tensor, OR no backward() exists
+Calling backward() on a detached tensor (.detach(), .data) or after converting to scalar (.item()) disconnects the computation graph. No gradients will be computed and the model won't learn.
+
+Correct approach: Call backward() on the original loss tensor, then use .item() for logging.
+
+Does this code call backward() on a detached loss?
+
+Look for:
+- loss.detach().backward() or similar
+- Using .data before backward()
+- Storing loss.item() then trying to backpropagate
+
+YES = Bug found: backward() called on detached or scalar loss
+NO = Correct: backward() called on original loss tensor
 """
 
 warning_message = """
@@ -37,7 +47,6 @@ Backward on detached loss: Calling backward() on a detached loss or after .item(
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -67,14 +76,24 @@ snippet = "scalar_loss = float(loss)"
 [[tests.negative]]
 file = "test_negative/correct_backward.py"
 description = "Correct usage: backward() called on original loss, then item() used for logging"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/proper_loss_handling.py"
 description = "Correct usage: multiple loss components properly accumulated and backward called on combined loss"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/custom_metric_loss.py"
+description = "Creating a new tensor from a Python scalar computed from detached outputs and calling backward on it - breaks the gradient chain"
+expected_issue = "backward() called on tensor created from scalar metric, not connected to model outputs"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "train_with_metric"
+snippet = "model.train()"
+
+[[tests.negative]]
+file = "test_negative/custom_metric_loss_correct.py"
+description = "Correct usage: loss computed directly from model outputs with gradient tracking enabled"

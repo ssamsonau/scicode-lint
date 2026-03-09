@@ -1,0 +1,92 @@
+[meta]
+id = "rep-011"
+name = "set-iteration-order-dependency"
+category = "scientific-reproducibility"
+severity = "medium"
+version = "1.0.0"
+created = "2026-03-08"
+updated = "2026-03-08"
+author = "scicode-lint"
+
+description = """
+Iterating over sets and using the order for computation produces hash-dependent results. Due to PYTHONHASHSEED randomization, set iteration order varies between interpreter runs.
+"""
+
+explanation = """
+Convert sets to sorted lists before iteration: sorted(my_set) instead of iterating directly over the set.
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Does this code iterate over a set without sorted()?
+
+Check for: for x in some_set (not sorted(some_set))
+
+Ignore: membership checks (if x in set), dict iteration, sorted() used.
+
+YES = Found: for loop iterates over set without sorted()
+NO = Clean: no set iteration, or sorted() is used
+"""
+
+warning_message = """
+Set iteration order depends on hash randomization. Use sorted(set) for reproducible ordering.
+"""
+
+min_confidence = 0.85
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/set_iteration.py"
+description = "Iterating over sets where order matters"
+expected_issue = "for item in set where order affects output"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "process_unique_items"
+snippet = "for item in unique_items"
+
+[[tests.negative]]
+file = "test_negative/list_operations.py"
+description = "Using lists (no sets)"
+
+[[tests.negative]]
+file = "test_negative/dict_keys_ordered.py"
+description = "Using dict (insertion-ordered since Python 3.7)"
+
+[[tests.negative]]
+file = "test_negative/sorted_set_iteration.py"
+description = "Using sorted(set) for reproducible iteration order"
+
+[[tests.negative]]
+file = "test_negative/set_membership_only.py"
+description = "Set used only for membership checks, not iteration order"
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/iterate_set.py"
+description = "Directly iterating over sets without sorting, relying on order for computation."
+expected_issue = "for loop iterates over set without sorting, producing hash-dependent output order"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "process_unique_items"
+snippet = "for item in unique"
+
+[[tests.positive]]
+file = "test_positive/unsorted_set_iteration.py"
+description = "Set iteration used in matrix column selection and file writing where output order matters."
+expected_issue = "set iteration without sorting producing non-deterministic output order in feature selection and file writing"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "select_features"
+snippet = "for feature in feature_set"

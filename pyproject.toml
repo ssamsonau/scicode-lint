@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "scicode-lint"
-version = "0.1.2"
+version = "0.1.3"
 description = "AI-powered linter for ML code written for scientific applications. Catches methodology bugs — data leakage, missing seeds, silent numerical errors — that traditional linters miss. Runs locally, no cloud APIs."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -51,7 +51,7 @@ scicode-lint = "scicode_lint.cli:main"
 
 [project.optional-dependencies]
 vllm-server = [
-    "vllm>=0.16.0",  # vLLM server for local GPU hosting (optional - can use remote server)
+    "vllm>=0.17.0",  # vLLM server for local GPU hosting (optional - can use remote server)
 ]
 eval = [
     "pyyaml>=6.0",
@@ -64,17 +64,40 @@ dev = [
     "types-PyYAML>=6.0",
     "types-requests>=2.31.0",
     "pytest>=7.0",
+    "pip-audit>=2.7.0",
+    "bandit>=1.7.0",
+    "safety>=3.0.0",
+]
+dashboard = [
+    "streamlit>=1.30.0",
+    "pandas>=2.0.0",
+    "altair>=5.0.0",
+    "nvidia-ml-py>=12.0.0",
 ]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/scicode_lint"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+# Exclude pattern test files (they contain intentional bugs for evaluation)
+norecursedirs = ["patterns", "evals"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py39"
+# Exclude pattern test files (contain intentional bugs and minimal examples)
+exclude = ["patterns/"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Prompts contain long strings that shouldn't be wrapped
+"src/scicode_lint/detectors/prompts.py" = ["E501"]
+"evals/integration/run_integration_eval_llm_judge.py" = ["E501"]
+"evals/integration/dynamic_eval.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.13"

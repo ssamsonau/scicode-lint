@@ -1,5 +1,3 @@
-
-
 def get_subset(arr, start, end):
     return arr[start:end].copy()
 

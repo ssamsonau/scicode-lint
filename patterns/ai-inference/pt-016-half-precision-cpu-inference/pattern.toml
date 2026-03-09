@@ -1,0 +1,96 @@
+[meta]
+id = "pt-016"
+name = "half-precision-cpu-inference"
+category = "ai-inference"
+severity = "high"
+version = "1.0.0"
+created = "2026-03-08"
+updated = "2026-03-08"
+author = "scicode-lint"
+
+description = """
+Using float16/half precision on CPU is extremely slow. CPUs lack native float16 support and must convert to float32 for computation. Use float32 or bfloat16 for CPU inference.
+"""
+
+explanation = """
+float16 on CPU can be 50x slower than float32. Use float32 for CPU inference, or bfloat16 if available. Reserve float16 for GPU inference only.
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Analyze precision settings for CPU inference.
+
+float16 (half precision) on CPU is extremely slow because CPUs lack native float16 arithmetic units. Each operation requires conversion to float32, computation, then conversion back - adding significant overhead.
+
+For CPU inference, use float32 or bfloat16 (on supported hardware).
+float16 should only be used on GPUs with tensor cores.
+
+Does this code use float16/half on CPU?
+
+Look for:
+- model.half().cpu() or model.cpu().half()
+- .to(torch.float16) followed by CPU operations
+- Half-precision tensors on CPU device
+
+YES = Bug found: float16/half used on CPU (extremely slow)
+NO = Correct: float32 on CPU, or float16 only on GPU
+"""
+
+warning_message = """
+float16 on CPU is extremely slow (~50x slower than float32). Use float32 for CPU inference. Reserve float16 for GPU only.
+"""
+
+min_confidence = 0.85
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/half_on_cpu.py"
+description = "Using half precision on CPU"
+expected_issue = "model.half() or float16 used on CPU device"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "run_cpu_inference"
+snippet = ".half()"
+
+[[tests.negative]]
+file = "test_negative/cpu_proper_precision.py"
+description = "CPU inference with proper precision (float32, quantized)"
+
+[[tests.negative]]
+file = "test_negative/gpu_half_precision.py"
+description = "float16 on GPU with tensor cores (correct usage)"
+
+[[tests.negative]]
+file = "test_negative/bfloat16_cpu.py"
+description = "bfloat16 on CPU (efficient on supported hardware)"
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/cpu_half_model.py"
+description = "Converting model to half precision without device check, then running inference on CPU in optimize_for_inference function."
+expected_issue = "model.half() used on CPU without checking if hardware supports float16"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "optimize_for_inference"
+snippet = "model.half()"
+
+[[tests.positive]]
+file = "test_positive/half_precision_cpu.py"
+description = "Multiple functions converting Transformer model to half precision and CPU in various patterns: chained .half().cpu(), .to(dtype=torch.float16, device='cpu'), and sequential calls."
+expected_issue = "float16 precision used on CPU device in model conversion and inference"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "run_cpu_inference"
+snippet = "model.half().cpu()"

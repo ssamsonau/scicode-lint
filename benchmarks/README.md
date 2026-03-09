@@ -5,10 +5,10 @@ Performance benchmarking tools for scicode-lint with vLLM.
 ## Quick Start
 
 ```bash
-# Main benchmark (10 seconds) - RECOMMENDED
+# Main benchmark (~2 minutes) - RECOMMENDED
 python benchmarks/benchmark.py
 
-# Full system test (2-3 minutes)
+# Full system test (~30 minutes)
 python benchmarks/benchmark_system.py
 ```
 
@@ -20,7 +20,7 @@ python benchmarks/benchmark_system.py
 
 **Purpose:** Quick test showing vLLM's concurrent batching advantage
 
-**Runtime:** ~10 seconds
+**Runtime:** ~2 minutes
 
 **What it tests:**
 - Sequential: 5 patterns processed one at a time
@@ -29,14 +29,14 @@ python benchmarks/benchmark_system.py
 
 **Example output:**
 ```
-Sequential:  5.7s
-Concurrent:  1.6s
-Speedup:     3.5x
-Time saved:  4.1s
+Sequential:  73.9s
+Concurrent:  48.8s
+Speedup:     1.5x
+Time saved:  25.1s
 
-Extrapolated for all 44 patterns:
-  Sequential: ~50s
-  Concurrent: ~14s
+Extrapolated for all 64 patterns:
+  Sequential: ~650s
+  Concurrent: ~429s
 ```
 
 **When to use:**
@@ -51,7 +51,7 @@ Extrapolated for all 44 patterns:
 
 **Purpose:** Comprehensive system performance test on real files
 
-**Runtime:** 2-5 minutes
+**Runtime:** ~30 minutes
 
 **What it measures:**
 - System information (CPU, memory, platform)

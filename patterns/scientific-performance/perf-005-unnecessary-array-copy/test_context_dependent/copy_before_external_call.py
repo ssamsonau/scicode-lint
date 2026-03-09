@@ -1,5 +1,3 @@
-
-
 def pass_to_external_library(arr, external_processor):
     safe_copy = arr.copy()
     result = external_processor(safe_copy)

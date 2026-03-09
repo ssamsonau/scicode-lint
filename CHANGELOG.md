@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-03-08
+
+### Added
+- **Dependency Health Checker** (`tools/check_dependencies.py`) - security auditing with pip-audit, safety, bandit, and deprecation warning capture
+- **vLLM Monitoring Dashboard** (`tools/vllm_dashboard.py`) - Streamlit real-time metrics (requests, throughput, KV cache, GPU utilization) with time-series charts
+- **Alignment Metrics** in evaluation - tracks agreement between direct metrics and LLM judge, highlights divergent cases
+- **Dynamic integration evaluation** (`evals/integration/dynamic_eval.py`) - generates fresh test code via Claude to avoid overfitting
+- **Improvement Insights notepad** (`docs_dev_genai/IMPROVEMENT_INSIGHTS.md`) - persistent learnings across sessions
+- **Release script** (`scripts/release.sh`) - automates package build and GitHub release
+- LLM reasoning output in verbose mode (`--verbose`)
+- Three-tier evaluation methodology docs (pattern-specific → static integration → dynamic integration)
+
+### Changed
+- **Expanded pattern library to 64 patterns** (from 44 in v0.1.0)
+- **Increased minimum test samples** to 3 positive and 3 negative per pattern for better eval coverage
+- **Switched to thinking model** (Gemma 3 27B) for improved detection accuracy
+- Consolidated evaluation scripts: merged `run_eval_llm_judge.py` into `run_eval.py` (use `--skip-judge` for fast eval)
+- Enhanced improvement loop with insights step and debug-with-reasoning step
+- Updated CONTRIBUTING.md with dependency groups and security checks
+
+### Dependencies
+- Added to `[dev]`: pip-audit, bandit, safety
+- Added to `[dashboard]`: nvidia-ml-py, altair
+
+### Fixed
+- **pt-007-inference-without-eval**: counting approach for reliable detection (R: 0→1.0)
+- **ml-007-test-set-preprocessing**: explicit test data variable identification
+- **np-002-broadcasting-shape-mismatch**: semantic dimension mismatch focus (P: 0.33→1.0)
+
 ## [0.1.2] - 2026-03-06
 
 ### Added
@@ -16,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Critical rules that must never be broken (data leakage detection, etc.)
 
 ### Changed
-- Updated `Claude.md` with brief reference to continuous improvement workflow
+- Updated `CLAUDE.md` with brief reference to continuous improvement workflow
 - Updated `docs_dev_genai/TOOLS.md` with link to new documentation
 
 ### Fixed
@@ -24,11 +53,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **pt-001-missing-train-mode**: Simplified detection question to improve recall (P=0→1.0, R=0→0.5)
 - **pt-007-inference-without-eval**: Focused detection question on missing `model.eval()` in inference code
 - **ml-007-test-set-preprocessing**: Made test data variable identification more explicit in detection question
-
-### Metrics Improvement
-- Pattern-specific precision: 64.8% → 68.0%
-- Pattern-specific recall: 84.0% → 87.5%
-- Patterns meeting thresholds: 9/44 (20%) → 13/44 (30%)
 
 ## [0.1.1] - 2026-03-06
 
@@ -70,6 +94,7 @@ Initial public release.
 - Evaluation framework with precision/recall metrics
 - Designed for both human developers and AI coding agents
 
+[0.1.3]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.1.3
 [0.1.2]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.1.2
 [0.1.1]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.1.1
 [0.1.0]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.1.0

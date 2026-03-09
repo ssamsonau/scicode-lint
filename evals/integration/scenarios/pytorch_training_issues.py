@@ -98,6 +98,33 @@ def predict_batch(model, images):
     return predictions
 
 
+def load_pretrained(path):
+    """Load a pretrained model checkpoint."""
+    checkpoint = torch.load(path)
+    model = ImageClassifier(
+        num_classes=checkpoint["num_classes"],
+        dropout_rate=checkpoint["dropout_rate"],
+    )
+    model.load_state_dict(checkpoint["state_dict"])
+    return model
+
+
+def benchmark_inference(model, input_tensor, num_runs=100):
+    """Measure inference latency."""
+    import time
+
+    model.eval()
+    times = []
+    for _ in range(num_runs):
+        start = time.perf_counter()
+        with torch.no_grad():
+            _ = model(input_tensor)
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        times.append(time.perf_counter() - start)
+    return sum(times) / len(times)
+
+
 def main():
     """Run training pipeline."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

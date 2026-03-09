@@ -1,0 +1,95 @@
+[meta]
+id = "rep-008"
+name = "pandas-sample-without-random-state"
+category = "scientific-reproducibility"
+severity = "high"
+version = "1.0.0"
+created = "2026-03-08"
+updated = "2026-03-08"
+author = "scicode-lint"
+
+description = """
+Using DataFrame.sample() or Series.sample() without random_state produces different samples each run, making experiments non-reproducible.
+"""
+
+explanation = """
+Always specify random_state when sampling with pandas for reproducible results.
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Analyze pandas sampling for reproducibility.
+
+DataFrame.sample() and Series.sample() without random_state parameter produce different samples on each run. This affects data shuffling, bootstrap sampling, and subsampling operations.
+
+Correct approach: Always specify random_state=42 or any fixed integer.
+
+Does this code sample without random_state?
+
+Look for:
+- df.sample() without random_state
+- series.sample() without random_state
+- Sampling operations that will differ between runs
+
+YES = Bug found: pandas sample() without random_state
+NO = Correct: random_state specified, or no sampling
+"""
+
+warning_message = """
+pandas sample() without random_state produces different samples each run. Add random_state for reproducibility.
+"""
+
+min_confidence = 0.85
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/sample_no_state.py"
+description = "Pandas sampling without random_state"
+expected_issue = "df.sample() without random_state"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "subsample_data"
+snippet = ".sample("
+
+[[tests.negative]]
+file = "test_negative/sklearn_split.py"
+description = "Using sklearn train_test_split instead"
+
+[[tests.negative]]
+file = "test_negative/no_sampling.py"
+description = "Processing all data without sampling"
+
+[[tests.negative]]
+file = "test_negative/seeded_sample.py"
+description = "Pandas sample with random_state for reproducibility"
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/df_sample.py"
+description = "Multiple sampling operations without random_state including fractional, bootstrap, and stratified sampling"
+expected_issue = "df.sample() with frac parameter without random_state"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "sample_data"
+snippet = "return df.sample(frac=frac)"
+
+[[tests.positive]]
+file = "test_positive/sample_no_seed.py"
+description = "Sampling operations without random_state for fixed counts, balanced sampling, and train-test splits"
+expected_issue = "df.sample() with n parameter without random_state"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "subsample_data"
+snippet = "subset = df.sample(n=1000)"

@@ -15,6 +15,11 @@ class JudgeVerdict(BaseModel):
     confidence: float = Field(
         ge=0.0, le=1.0, description="Judge's confidence in this verdict (0.0-1.0)"
     )
+    thinking: str | None = Field(
+        default=None,
+        description="Model's internal reasoning/thinking (extracted from <think> tags). "
+        "Not part of the structured output schema - populated automatically if present.",
+    )
 
 
 class TestCaseEvaluation(BaseModel):
@@ -31,11 +36,25 @@ class TestCaseEvaluation(BaseModel):
     linter_reasoning: str
     linter_issue: str | None
     linter_confidence: float
+    linter_thinking: str | None = None  # Model's thinking from <think> tags
 
     # Judge evaluation
     judge_verdict: Literal["yes", "no", "partial"]
     judge_reasoning: str
     judge_confidence: float
+    judge_thinking: str | None = None  # Judge model's thinking from <think> tags
+
+    # Direct metrics evaluation (computed from linter output)
+    direct_passed: bool = False
+    direct_reason: str = ""
+
+    # Alignment between direct and judge
+    alignment: Literal["both_pass", "both_fail", "quality_issue", "overly_strict"] = "both_fail"
+
+    @property
+    def aligned(self) -> bool:
+        """Whether direct metrics and LLM judge agree."""
+        return self.alignment in ("both_pass", "both_fail")
 
 
 class PatternJudgeMetrics(BaseModel):
@@ -57,8 +76,20 @@ class PatternJudgeMetrics(BaseModel):
     partial_count: int  # verdict = "partial"
     incorrect_count: int  # verdict = "no"
 
+    # Alignment metrics (direct vs judge)
+    aligned_count: int = 0
+    both_pass_count: int = 0
+    both_fail_count: int = 0
+    quality_issue_count: int = 0  # direct pass, judge fail
+    overly_strict_count: int = 0  # direct fail, judge pass
+
     # Evaluations
     evaluations: list[TestCaseEvaluation]
+
+    @property
+    def alignment_rate(self) -> float:
+        """Percentage of tests where direct and judge agree."""
+        return self.aligned_count / self.total_tests if self.total_tests > 0 else 0.0
 
 
 class OverallJudgeMetrics(BaseModel):
@@ -81,3 +112,15 @@ class OverallJudgeMetrics(BaseModel):
     # Summary statistics
     avg_judge_confidence: float
     patterns_above_threshold: int  # accuracy >= 0.85
+
+    # Alignment metrics (direct vs judge)
+    semantic_alignment: float = 0.0  # % where both agree
+    quality_issue_rate: float = 0.0  # % where direct pass, judge fail
+    ground_truth_strictness_rate: float = 0.0  # % where direct fail, judge pass
+
+    # Alignment counts
+    aligned_count: int = 0
+    both_pass_count: int = 0
+    both_fail_count: int = 0
+    quality_issue_count: int = 0
+    overly_strict_count: int = 0

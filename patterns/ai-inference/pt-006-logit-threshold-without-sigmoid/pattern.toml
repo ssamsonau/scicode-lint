@@ -26,11 +26,26 @@ references = []
 
 [detection]
 question = """
-Find threshold comparisons on model outputs (e.g., logits > 0.5, outputs > 0.5).
-Is sigmoid MISSING before threshold comparison?
+Analyze BINARY classification thresholding in this code.
 
-YES = threshold on raw logits WITHOUT sigmoid (BUG)
-NO = has sigmoid before threshold, OR no threshold comparison exists
+FIRST: Determine if this is BINARY classification (2 classes, single output) or MULTI-CLASS (3+ classes, multiple outputs).
+- Binary: single output neuron, BCELoss/BCEWithLogitsLoss, threshold at 0.5
+- Multi-class: multiple output neurons, CrossEntropyLoss, use argmax for prediction
+
+This pattern ONLY applies to BINARY classification. Multi-class classification correctly uses argmax on logits.
+
+For binary: Raw logits are unbounded. Thresholding logits > 0.5 is meaningless without sigmoid.
+Correct approach: Apply sigmoid() to convert logits to probabilities [0,1], then threshold.
+
+Does this BINARY classification code threshold raw logits without sigmoid?
+
+Look for:
+- Single-output binary classifier with output > 0.5 without sigmoid
+- BCEWithLogitsLoss used but threshold applied to raw output
+- NOT multi-class with argmax (that is correct)
+
+YES = Bug found: BINARY classification thresholding raw logits without sigmoid
+NO = Correct: sigmoid applied before threshold, OR this is MULTI-CLASS using argmax
 """
 
 warning_message = """
@@ -39,7 +54,6 @@ Thresholding raw logits is meaningless — logits are unbounded. Apply torch.sig
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -69,14 +83,24 @@ snippet = "is_positive = raw_output > 0.5"
 [[tests.negative]]
 file = "test_negative/binary_classifier_correct.py"
 description = "Binary classifier that correctly applies sigmoid before thresholding"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/sentiment_with_sigmoid.py"
 description = "Sentiment classifier that correctly converts logits to probabilities before thresholding"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/batch_prediction.py"
+description = "Batch predictor class and image classifier function both threshold raw logits without sigmoid"
+expected_issue = "The BatchPredictor.predict_batch and classify_images functions threshold raw unbounded logits (>0.5, >0.7) directly instead of converting to probabilities with sigmoid first"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "class"
+name = "BatchPredictor"
+snippet = "class BatchPredictor"
+
+[[tests.negative]]
+file = "test_negative/batch_prediction_correct.py"
+description = "Batch predictor and image classifier correctly apply sigmoid before thresholding"

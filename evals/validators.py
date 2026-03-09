@@ -211,15 +211,12 @@ class FindingValidator:
 
         return result
 
-    def validate_negative_case(
-        self, actual: list[ActualFinding], max_false_positives: int = 0
-    ) -> ValidationResult:
+    def validate_negative_case(self, actual: list[ActualFinding]) -> ValidationResult:
         """
         Validate a negative test case (correct code that should NOT be flagged).
 
         Args:
             actual: Actual findings from linter
-            max_false_positives: Maximum allowed false positives (default 0)
 
         Returns:
             ValidationResult (all actual findings are FPs)

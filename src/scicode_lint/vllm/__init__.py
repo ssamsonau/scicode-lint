@@ -41,13 +41,70 @@ Example - System Info:
 Also includes start_vllm.sh bash script for manual server startup.
 """
 
+import asyncio
 import subprocess
 import time
 import types
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
+import httpx
 import requests
+
+# Default fallbacks if config not available
+_DEFAULT_MODEL_FALLBACK = "RedHatAI/Qwen3-8B-FP8-dynamic"
+_DEFAULT_MAX_MODEL_LEN = 24000
+_DEFAULT_MIN_VRAM_MB = 15500
+_DEFAULT_GPU_MEM_UTIL = 0.90
+
+
+def _get_vllm_config() -> dict[str, Any]:
+    """Get vLLM config from config.toml or return defaults."""
+    try:
+        from scicode_lint.config import load_config_from_toml
+
+        config = load_config_from_toml()
+        result: dict[str, Any] = config.get("vllm", {})
+        return result
+    except Exception:
+        return {}
+
+
+def _get_llm_config_value(key: str, default: Any) -> Any:
+    """Get a value from [llm] section of config.toml."""
+    try:
+        from scicode_lint.config import load_config_from_toml
+
+        config = load_config_from_toml()
+        return config.get("llm", {}).get(key, default)
+    except Exception:
+        return default
+
+
+def _get_default_model() -> str:
+    """Get default model from config.toml or fallback."""
+    result: str = _get_llm_config_value("model", _DEFAULT_MODEL_FALLBACK)
+    return result
+
+
+def _get_default_max_model_len() -> int:
+    """Get max_model_len from config.toml or fallback."""
+    result: int = _get_llm_config_value("max_model_len", _DEFAULT_MAX_MODEL_LEN)
+    return result
+
+
+def _get_min_vram_mb() -> int:
+    """Get minimum VRAM requirement from config.toml or fallback."""
+    vllm_config = _get_vllm_config()
+    result: int = vllm_config.get("min_vram_mb", _DEFAULT_MIN_VRAM_MB)
+    return result
+
+
+def _get_gpu_memory_utilization() -> float:
+    """Get GPU memory utilization from config.toml or fallback."""
+    vllm_config = _get_vllm_config()
+    result: float = vllm_config.get("gpu_memory_utilization", _DEFAULT_GPU_MEM_UTIL)
+    return result
 
 
 def is_running(base_url: str = "http://localhost:5001") -> bool:
@@ -127,50 +184,56 @@ def _check_vllm_version() -> None:
 
 
 def _auto_detect_vram_settings(override_vram_mb: Optional[int] = None) -> tuple[int, float]:
-    """Verify VRAM requirements and return standard settings.
+    """Verify VRAM requirements and return settings from config.
 
     Args:
-        override_vram_mb: Override VRAM detection for testing (e.g., 20480 for 20GB)
+        override_vram_mb: Override VRAM detection for testing (e.g., 16384 for 16GB)
 
     Returns:
-        Tuple of (max_model_len, gpu_memory_utilization)
+        Tuple of (max_model_len, gpu_memory_utilization) from config.toml
     """
+    # Get config values
+    min_vram_mb = _get_min_vram_mb()
+    max_model_len = _get_default_max_model_len()
+    gpu_mem_util = _get_gpu_memory_utilization()
+
     if override_vram_mb is not None:
         vram_mb = override_vram_mb
     else:
         gpu_info = get_gpu_info()
         if gpu_info is None:
             # Cannot detect VRAM - require user to specify
+            min_vram_gb = min_vram_mb // 1024
             raise RuntimeError(
                 "Cannot detect GPU VRAM. Please ensure nvidia-smi is available.\n"
-                "Minimum requirement: 20GB VRAM with native FP8 support"
+                f"Minimum requirement: {min_vram_gb}GB VRAM with native FP8 support"
             )
         vram_mb = gpu_info.total_memory_mb
 
-    # Enforce minimum 20GB VRAM
-    if vram_mb < 19500:
+    # Enforce minimum VRAM from config
+    if vram_mb < min_vram_mb:
         vram_gb = vram_mb // 1024
+        min_vram_gb = min_vram_mb // 1024
         raise RuntimeError(
-            f"Detected {vram_gb}GB VRAM. Minimum requirement: 20GB VRAM.\n"
+            f"Detected {vram_gb}GB VRAM. Minimum requirement: {min_vram_gb}GB VRAM.\n"
             "\n"
-            "scicode-lint requires 20GB+ VRAM with native FP8 support.\n"
+            f"scicode-lint requires {min_vram_gb}GB+ VRAM with native FP8 support.\n"
             "Supported GPUs (compute capability >= 8.9):\n"
-            "  • Consumer: RTX 4090 (24GB)\n"
+            "  • Consumer: RTX 4060 Ti 16GB, RTX 4070+ (16GB+), RTX 4090 (24GB)\n"
             "  • Workstation: RTX 4000 Ada (20GB), RTX 5000 Ada (32GB)\n"
             "  • Cloud/HPC inference: L4 (24GB), L40 (48GB), A10 (24GB)\n"
             "\n"
             "See INSTALLATION.md for deployment options."
         )
 
-    # All configurations use 16K context (standardized)
-    # Covers 90-95th percentile based on 10M+ repo analysis
-    # Median: 258 lines, Mean: 879 lines, 90th: ~1,500 lines
-    # Paged attention means no waste on smaller files
-    return 16000, 0.90
+    # Return settings from config
+    # max_model_len: total context (input + output)
+    # gpu_mem_util: fraction of VRAM to use
+    return max_model_len, gpu_mem_util
 
 
 def start_server(
-    model: str = "RedHatAI/gemma-3-12b-it-FP8-dynamic",
+    model: Optional[str] = None,
     port: int = 5001,
     max_model_len: Optional[int] = None,
     gpu_memory_utilization: Optional[float] = None,
@@ -180,10 +243,10 @@ def start_server(
     """Start vLLM server as a subprocess.
 
     Args:
-        model: Model name or path (default: RedHatAI/gemma-3-12b-it-FP8-dynamic)
+        model: Model name or path (default: from config.toml)
         port: Port to run on (default: 5001)
-        max_model_len: Maximum context length (default: 16000 tokens)
-        gpu_memory_utilization: GPU memory to use 0.0-1.0 (default: 0.9)
+        max_model_len: Maximum context length (default: 24000 tokens)
+        gpu_memory_utilization: GPU memory to use 0.0-1.0 (default: 0.90)
         wait: Wait for server to be ready before returning (default: False)
         wait_timeout: Timeout for waiting in seconds (default: 60)
 
@@ -212,6 +275,10 @@ def start_server(
     # Check vLLM version
     _check_vllm_version()
 
+    # Use default model from config if not specified
+    if model is None:
+        model = _get_default_model()
+
     # Check if already running
     if is_running(f"http://localhost:{port}"):
         raise RuntimeError(
@@ -230,16 +297,15 @@ def start_server(
         if gpu_memory_utilization is None:
             gpu_memory_utilization = auto_mem
 
-    # Build command
+    # Build command (model is positional arg after 'serve')
     cmd = [
         "vllm",
         "serve",
+        model,
         "--host",
         "0.0.0.0",
         "--port",
         str(port),
-        "--model",
-        model,
         "--trust-remote-code",
         "--gpu-memory-utilization",
         str(gpu_memory_utilization),
@@ -306,8 +372,8 @@ class VLLMServer:
         port: Port to run on (only used for local servers)
         base_url: Full URL for remote server (e.g., "http://10.0.0.5:5001")
                   If provided, port is ignored and no start/stop attempted
-        max_model_len: Maximum context length (local servers only, default: 16000)
-        gpu_memory_utilization: GPU memory 0.0-1.0 (local servers only, default: 0.9)
+        max_model_len: Maximum context length (local servers only, default: 24000)
+        gpu_memory_utilization: GPU memory 0.0-1.0 (local servers only, default: 0.90)
         wait_timeout: Timeout for server startup/verification in seconds
 
     Example - Local server (auto-start):
@@ -328,7 +394,7 @@ class VLLMServer:
 
     def __init__(
         self,
-        model: str = "RedHatAI/gemma-3-12b-it-FP8-dynamic",
+        model: Optional[str] = None,
         port: int = 5001,
         base_url: Optional[str] = None,
         max_model_len: Optional[int] = None,
@@ -337,9 +403,10 @@ class VLLMServer:
     ):
         """Initialize VLLMServer context manager.
 
-        Uses standard settings: 16K context, 0.9 GPU memory utilization.
+        Uses standard settings: 24K context (16K input + 8K response), 0.90 GPU memory utilization.
+        Model defaults to value from config.toml.
         """
-        self.model = model
+        self.model = model if model is not None else _get_default_model()
         self.port = port
         self.base_url = base_url
 
@@ -351,10 +418,14 @@ class VLLMServer:
                 gpu_memory_utilization if gpu_memory_utilization is not None else auto_mem
             )
         else:
-            # Use provided values or fallback defaults
-            self.max_model_len = max_model_len if max_model_len is not None else 16000
+            # Use provided values or fallback to config defaults
+            self.max_model_len = (
+                max_model_len if max_model_len is not None else _get_default_max_model_len()
+            )
             self.gpu_memory_utilization = (
-                gpu_memory_utilization if gpu_memory_utilization is not None else 0.9
+                gpu_memory_utilization
+                if gpu_memory_utilization is not None
+                else _get_gpu_memory_utilization()
             )
 
         self.wait_timeout = wait_timeout
@@ -453,11 +524,13 @@ class ServerInfo:
         model: Model name being served
         is_running: Whether server is responding
         base_url: Server URL
+        max_model_len: Maximum context length configured on server
     """
 
     model: Optional[str]
     is_running: bool
     base_url: str
+    max_model_len: Optional[int] = None
 
 
 def get_gpu_info() -> Optional[GPUInfo]:
@@ -526,10 +599,12 @@ def get_server_info(base_url: str = "http://localhost:5001") -> ServerInfo:
         >>> info = get_server_info()
         >>> if info.is_running:
         ...     print(f"Model: {info.model}")
+        ...     print(f"Max context: {info.max_model_len}")
         >>> else:
         ...     print("Server not running")
     """
     model_name = None
+    max_model_len = None
     running = is_running(base_url)
 
     if running:
@@ -539,11 +614,161 @@ def get_server_info(base_url: str = "http://localhost:5001") -> ServerInfo:
             if response.status_code == 200:
                 data = response.json()
                 if "data" in data and len(data["data"]) > 0:
-                    model_name = data["data"][0].get("id")
+                    model_info = data["data"][0]
+                    model_name = model_info.get("id")
+                    max_model_len = model_info.get("max_model_len")
         except (requests.RequestException, KeyError, IndexError):
             pass
 
-    return ServerInfo(model=model_name, is_running=running, base_url=base_url)
+    return ServerInfo(
+        model=model_name,
+        is_running=running,
+        base_url=base_url,
+        max_model_len=max_model_len,
+    )
+
+
+class VLLMMetricsMonitor:
+    """Background monitor for vLLM metrics during long-running operations.
+
+    Periodically fetches vLLM server metrics (running requests, queued requests,
+    throughput) and writes them to a file for later analysis.
+
+    Args:
+        base_url: vLLM server URL (default: http://localhost:5001)
+        interval: Seconds between metric checks (default: 5.0)
+        output_file: Path to write metrics (default: evals/reports/vllm_metrics.log)
+        console: Also print summary to console (default: True)
+
+    Example:
+        >>> import asyncio
+        >>> from scicode_lint.vllm import VLLMMetricsMonitor
+        >>>
+        >>> async def run_with_monitoring():
+        ...     monitor = VLLMMetricsMonitor()
+        ...     monitor.start()
+        ...     try:
+        ...         await asyncio.sleep(30)
+        ...     finally:
+        ...         await monitor.stop()
+        ...         print(f"Metrics saved to {monitor.output_file}")
+    """
+
+    def __init__(
+        self,
+        base_url: str = "http://localhost:5001",
+        interval: float = 5.0,
+        output_file: Optional[str] = None,
+        console: bool = True,
+    ):
+        self.metrics_url = f"{base_url}/metrics"
+        self.interval = interval
+        self.output_file = output_file or "evals/reports/vllm_metrics.log"
+        self.console = console
+        self._task: asyncio.Task[Any] | None = None
+        self._stop = False
+        self._start_time = 0.0
+        self._file = None
+        self._peak_running = 0
+        self._peak_waiting = 0
+        self._total_requests = 0
+
+    async def _fetch_metrics(self) -> dict[str, float] | None:
+        """Fetch and parse vLLM metrics."""
+        try:
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                resp = await client.get(self.metrics_url)
+                if resp.status_code != 200:
+                    return None
+
+                metrics = {}
+                for line in resp.text.split("\n"):
+                    if line.startswith("vllm:num_requests_running"):
+                        metrics["running"] = float(line.split()[-1])
+                    elif line.startswith("vllm:num_requests_waiting"):
+                        metrics["waiting"] = float(line.split()[-1])
+                    elif line.startswith("vllm:num_requests_finished"):
+                        metrics["finished"] = float(line.split()[-1])
+                return metrics
+        except Exception:
+            return None
+
+    async def _monitor_loop(self) -> None:
+        """Background loop collecting metrics."""
+        import os
+        from datetime import datetime, timezone
+
+        self._start_time = time.time()
+        last_finished = 0.0
+
+        # Ensure output directory exists
+        os.makedirs(os.path.dirname(self.output_file), exist_ok=True)
+
+        with open(self.output_file, "w") as f:
+            # Write CSV header
+            f.write("timestamp,elapsed_s,running,waiting,finished,throughput_req_s\n")
+            f.flush()
+
+            while not self._stop:
+                metrics = await self._fetch_metrics()
+                if metrics:
+                    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+                    elapsed = time.time() - self._start_time
+                    running = int(metrics.get("running", 0))
+                    waiting = int(metrics.get("waiting", 0))
+                    finished = metrics.get("finished", 0)
+
+                    # Track peaks
+                    self._peak_running = max(self._peak_running, running)
+                    self._peak_waiting = max(self._peak_waiting, waiting)
+                    self._total_requests = int(finished)
+
+                    # Calculate throughput
+                    completed_delta = finished - last_finished
+                    last_finished = finished
+                    throughput = completed_delta / self.interval if self.interval > 0 else 0
+
+                    # Write to file (CSV format with timestamp)
+                    f.write(
+                        f"{now},{elapsed:.1f},{running},{waiting},{finished:.0f},{throughput:.2f}\n"
+                    )
+                    f.flush()
+
+                    # Optional console output
+                    if self.console:
+                        print(
+                            f"[{elapsed:5.0f}s] vLLM: {running} running, {waiting} queued, "
+                            f"{throughput:.1f} req/s"
+                        )
+
+                await asyncio.sleep(self.interval)
+
+    def start(self) -> None:
+        """Start background monitoring."""
+        self._stop = False
+        self._peak_running = 0
+        self._peak_waiting = 0
+        self._total_requests = 0
+        self._task = asyncio.create_task(self._monitor_loop())
+
+    async def stop(self) -> None:
+        """Stop background monitoring and return summary."""
+        self._stop = True
+        if self._task:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+
+        elapsed = time.time() - self._start_time
+        if self.console and elapsed > 0:
+            avg_throughput = self._total_requests / elapsed if elapsed > 0 else 0
+            print(
+                f"Metrics summary: peak {self._peak_running} concurrent, "
+                f"{self._peak_waiting} max queued, {avg_throughput:.1f} avg req/s"
+            )
+            print(f"Full metrics: {self.output_file}")
 
 
 def print_system_info() -> None:
@@ -562,7 +787,7 @@ def print_system_info() -> None:
 
         === vLLM Server ===
         Status: Running
-        Model: RedHatAI/gemma-3-12b-it-FP8-dynamic
+        Model: RedHatAI/Qwen3-8B-FP8-dynamic
         URL: http://localhost:5001
     """
     print("=== GPU Information ===")
@@ -595,6 +820,7 @@ __all__ = [
     "wait_for_ready",
     "is_running",
     "VLLMServer",
+    "VLLMMetricsMonitor",
     "get_gpu_info",
     "get_server_info",
     "print_system_info",

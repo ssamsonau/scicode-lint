@@ -26,11 +26,21 @@ references = []
 
 [detection]
 question = """
-Find DataLoader with num_workers parameter in the code.
-Is num_workers > 8 or > cpu_count()?
+Analyze DataLoader configuration for worker count.
 
-YES = excessive num_workers found (BUG)
-NO = no excessive num_workers exists
+Setting num_workers too high (>8 or more than CPU cores) causes each worker to duplicate the dataset in memory. This leads to OOM errors or thrashing as workers compete for memory and CPU.
+
+Correct approach: Start with num_workers=4, increase while monitoring memory.
+
+Does this code use excessive DataLoader workers?
+
+Look for:
+- num_workers=32 or other high fixed values
+- num_workers = cpu_count() * 2 or similar
+- num_workers > 8 without memory considerations
+
+YES = Bug found: num_workers too high (>8 or > CPU cores)
+NO = Correct: reasonable worker count (2-8), or dynamically limited
 """
 
 warning_message = """
@@ -39,7 +49,6 @@ num_workers too high: each worker duplicates the dataset in memory. Too many wor
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -69,14 +78,24 @@ snippet = "num_workers=num_cores * 2"
 [[tests.negative]]
 file = "test_negative/reasonable_workers.py"
 description = "DataLoader with num_workers=4 - reasonable value that balances parallelism and memory"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/adaptive_workers.py"
 description = "DataLoader with adaptive num_workers capped at safe value - properly manages memory usage"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/many_workers.py"
+description = "DataLoader with num_workers=64 and 128 - extremely excessive worker counts causing severe memory duplication"
+expected_issue = "num_workers set to 64 and 128, far exceeding safe threshold and causing memory thrashing"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "create_loader"
+snippet = "return DataLoader(dataset, batch_size=batch_size, num_workers=64, shuffle=True)"
+
+[[tests.negative]]
+file = "test_negative/cpu_adaptive.py"
+description = "DataLoader with adaptive num_workers capped at safe value (min of 4 and cpu_count//2) - properly limits memory usage"

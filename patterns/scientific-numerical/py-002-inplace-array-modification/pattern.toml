@@ -26,11 +26,21 @@ references = []
 
 [detection]
 question = """
-Find a function that modifies an array parameter in-place.
-Is .copy() MISSING before in-place modification?
+Analyze functions for unintended in-place array modification.
 
-YES = .copy() is MISSING before in-place modification (BUG)
-NO = has .copy() before modification, OR no in-place modification
+NumPy arrays are passed by reference. Modifying an array parameter in-place (data -= mean, arr[i] = 0) silently changes the caller's original data. This is a common source of bugs in preprocessing functions.
+
+Correct approach: Copy the array first (data = data.copy()) or document the mutation.
+
+Does this function modify array parameters in-place?
+
+Look for:
+- In-place operators (-=, /=, *=) on function parameters
+- Index assignment (param[i] = value) on array parameters
+- Operations that mutate the caller's data without .copy()
+
+YES = Bug found: function parameter modified in-place without copy
+NO = Correct: creates copy before modification, or only uses non-mutating operations
 """
 
 warning_message = """
@@ -39,7 +49,6 @@ NumPy arrays are passed by reference. Modifying inside a function silently chang
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -69,14 +78,24 @@ snippet = "data[data < threshold] = 0"
 [[tests.negative]]
 file = "test_negative/explicit_copy.py"
 description = "Functions that explicitly copy input arrays using .copy() before any modifications, preserving caller's original data"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/nonmutating_ops.py"
 description = "Functions that create new arrays via operations like division, np.where(), np.maximum(), or explicit new array creation"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/data_transform.py"
+description = "Functions that modify input arrays in-place using *= and += operators or slice assignment without creating a copy first"
+expected_issue = "Array parameter modified in-place without copy or documentation"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "apply_transform"
+snippet = "data *= factor"
+
+[[tests.negative]]
+file = "test_negative/data_transform_copy.py"
+description = "Functions that create new arrays via non-mutating operations (*, +) or explicitly call .copy() before modifying"

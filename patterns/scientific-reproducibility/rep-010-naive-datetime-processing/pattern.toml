@@ -1,0 +1,95 @@
+[meta]
+id = "rep-010"
+name = "naive-datetime-processing"
+category = "scientific-reproducibility"
+severity = "medium"
+version = "1.0.0"
+created = "2026-03-08"
+updated = "2026-03-08"
+author = "scicode-lint"
+
+description = """
+Using datetime.now() or datetime.utcnow() without timezone creates naive datetimes that depend on system timezone. Results vary between machines or after timezone/DST changes.
+"""
+
+explanation = """
+Use timezone-aware datetimes: datetime.now(timezone.utc) instead of datetime.now() or datetime.utcnow().
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Analyze datetime handling for timezone issues.
+
+datetime.now() returns a naive datetime in local timezone. datetime.utcnow() returns a naive datetime without timezone info (deprecated in Python 3.12). Both produce results that vary based on system configuration.
+
+Correct approach: Use datetime.now(timezone.utc) for timezone-aware UTC timestamps.
+
+Does this code create naive datetimes without timezone?
+
+Look for:
+- datetime.now() without tz parameter
+- datetime.utcnow() (deprecated)
+- datetime.fromtimestamp() without tz parameter
+
+YES = Bug found: naive datetime creation without timezone
+NO = Correct: timezone-aware datetime with tz parameter
+"""
+
+warning_message = """
+Naive datetime depends on system timezone. Use datetime.now(timezone.utc) for reproducible timestamps.
+"""
+
+min_confidence = 0.85
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/naive_datetime.py"
+description = "Creating naive datetimes without timezone"
+expected_issue = "datetime.now() without timezone"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "log_experiment"
+snippet = "datetime.now()"
+
+[[tests.negative]]
+file = "test_negative/unix_timestamp.py"
+description = "Using unix timestamps (integer)"
+
+[[tests.negative]]
+file = "test_negative/no_datetime.py"
+description = "No datetime operations"
+
+[[tests.negative]]
+file = "test_negative/timezone_aware.py"
+description = "Using timezone-aware datetime.now(timezone.utc)"
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/datetime_naive.py"
+description = "Multiple datetime.now() calls without timezone in different functions"
+expected_issue = "datetime.now() without timezone parameter"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "log_event"
+snippet = "return {\"type\": event_type, \"timestamp\": datetime.now()}"
+
+[[tests.positive]]
+file = "test_positive/naive_datetime_now.py"
+description = "Mixed naive datetime patterns: datetime.now() and deprecated datetime.utcnow()"
+expected_issue = "datetime.now() and datetime.utcnow() without timezone"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "log_experiment_start"
+snippet = "start_time = datetime.now()"

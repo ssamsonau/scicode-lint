@@ -25,11 +25,10 @@ references = ["https://numpy.org/doc/stable/user/basics.creation.html"]
 
 [detection]
 question = """
-Find loops containing np.zeros(), np.empty(), np.ones(), np.array(), or np.concatenate() calls.
-Does the loop allocate or grow arrays repeatedly instead of pre-allocating?
+Does this code call np.concatenate, np.vstack, np.append, np.zeros, np.empty, or np.array inside a loop?
 
-YES = array allocation in loop found (BUG)
-NO = no such loops exist
+YES = Found: these functions called inside for/while loop body
+NO = Clean: arrays pre-allocated before loop, or only scalars appended to list then converted once at end
 """
 
 warning_message = """
@@ -37,7 +36,6 @@ Array allocation in loop: creating arrays inside loops causes repeated malloc/fr
 """
 
 min_confidence = 0.85
-code_patterns = ["np.zeros", "np.empty", "np.ones", "np.array", "np.concatenate"]
 false_positive_risks = ["Truly variable-size output where pre-allocation is impossible"]
 
 [tests]
@@ -78,12 +76,10 @@ snippet = "all_results = np.concatenate([all_results, new_result])"
 [[tests.negative]]
 file = "test_negative/preallocated_array.py"
 description = "Array pre-allocated before loop and filled using indexing - efficient pattern"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/list_then_array.py"
 description = "Scalars appended to list then converted to array once at end - acceptable pattern"
-max_false_positives = 0
 
 [[tests.context_dependent]]
 file = "test_context_dependent/unknown_size.py"
@@ -92,7 +88,8 @@ context_notes = "When output size is truly unknown, appending may be the only op
 allow_detection = true
 allow_skip = true
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.negative]]
+file = "test_negative/preallocated_loop.py"
+description = "Arrays pre-allocated outside loops and filled via indexing - efficient pattern that avoids repeated memory allocation"

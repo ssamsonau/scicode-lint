@@ -118,7 +118,6 @@ TODO: Add fix suggestions.
 """
 
 min_confidence = 0.85
-code_patterns = []  # Optional: Common code patterns to look for
 false_positive_risks = []  # Optional: Known sources of false positives
 
 [tests]
@@ -139,12 +138,6 @@ snippet = "# Code snippet that triggers the issue"
 [[tests.negative]]
 file = "negative/example_negative.py"
 description = "TODO: Describe correct code that should NOT trigger detection"
-max_false_positives = 0
-
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
 
 [ai_science]
 domains = []  # e.g., ["machine-learning", "deep-learning"]

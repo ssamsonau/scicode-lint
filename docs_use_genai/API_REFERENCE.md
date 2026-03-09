@@ -23,7 +23,7 @@ class SciCodeLinter:
     """Main linter class for checking scientific Python code.
 
     Designed for both human users and GenAI coding agents.
-    Detects 44 common patterns of bugs in scientific code including
+    Detects 64 common patterns of bugs in scientific code including
     data leakage, PyTorch training issues, numerical errors, and more.
     """
 ```
@@ -109,7 +109,7 @@ def list_patterns(self) -> list[DetectionPattern]
 List all available detection patterns.
 
 **Returns:**
-- List of `DetectionPattern` objects (44 total)
+- List of `DetectionPattern` objects (64 total)
 
 **Example:**
 ```python
@@ -129,7 +129,7 @@ Loads and manages detection patterns from YAML catalog.
 class DetectionCatalog:
     """Loads and manages detection patterns from YAML catalog.
 
-    Provides access to all 44 detection patterns with methods to filter
+    Provides access to all 64 detection patterns with methods to filter
     by ID, severity, or category.
     """
 ```
@@ -205,14 +205,14 @@ def get_patterns_by_category(self, category: str) -> list[DetectionPattern]
 Get all patterns in a category.
 
 **Args:**
-- `category`: Category name (e.g., "ml-correctness", "pytorch", "numerical")
+- `category`: Category name (e.g., "ai-training", "ai-inference", "scientific-numerical")
 
 **Returns:**
 - List of `DetectionPattern` objects in the category
 
 **Example:**
 ```python
-ml_patterns = catalog.get_patterns_by_category("ml-correctness")
+ml_patterns = catalog.get_patterns_by_category("ai-training")
 for p in ml_patterns:
     print(f"{p.id}: {p.warning_message}")
 ```
@@ -232,7 +232,7 @@ class DetectionPattern:
 
     Attributes:
         id: Pattern identifier (e.g., "ml-001", "pt-001")
-        category: Pattern category (e.g., "ml-correctness", "pytorch")
+        category: Pattern category (e.g., "ai-training", "ai-inference")
         severity: Severity level (CRITICAL, HIGH, or MEDIUM)
         detection_question: What the pattern checks for (used in prompts)
         warning_message: Explanation of the issue and how to fix it
@@ -242,7 +242,7 @@ class DetectionPattern:
 ### Attributes
 
 - **`id: str`** - Pattern identifier (e.g., "ml-001", "pt-001")
-- **`category: str`** - Pattern category (e.g., "ml-correctness", "pytorch")
+- **`category: str`** - Pattern category (e.g., "ai-training", "ai-inference")
 - **`severity: Severity`** - Severity level (CRITICAL, HIGH, or MEDIUM)
 - **`detection_question: str`** - What the pattern checks for (used in prompts)
 - **`warning_message: str`** - Explanation of the issue and how to fix it
@@ -254,7 +254,7 @@ pattern = linter.get_pattern("ml-001")
 
 # Access fields
 print(f"ID: {pattern.id}")                      # "ml-001"
-print(f"Category: {pattern.category}")          # "ml-correctness"
+print(f"Category: {pattern.category}")          # "ai-training"
 print(f"Severity: {pattern.severity}")          # Severity.CRITICAL
 print(f"Checks: {pattern.detection_question}")  # What it detects
 print(f"Fix: {pattern.warning_message}")        # How to fix it

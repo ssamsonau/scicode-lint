@@ -224,7 +224,7 @@ def test_detection_task_structure() -> None:
     assert "Category: Security" in task_section
     assert "Severity: critical" in task_section
     assert pattern.detection_question in task_section
-    assert "Output JSON only" in task_section
+    assert "No additional text" in task_section
 
 
 def test_system_prompt_has_defense_instructions() -> None:

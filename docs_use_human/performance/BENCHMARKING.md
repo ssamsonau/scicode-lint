@@ -10,10 +10,10 @@ pip install -e .
 
 # Make sure vLLM backend is running
 
-# Main benchmark (5 patterns, ~10 seconds) - RECOMMENDED
+# Main benchmark (5 patterns, ~2 minutes) - RECOMMENDED
 python benchmarks/benchmark.py
 
-# Full system benchmark (44 patterns on 20 files, ~3 minutes)
+# Full system benchmark (64 patterns on 20 files, ~30 minutes)
 python benchmarks/benchmark_system.py
 
 # See benchmarks/README.md for details
@@ -42,17 +42,17 @@ BENCHMARK SUMMARY
 ============================================================
 Total files checked: 20
 Total findings: 45
-Total time: 67.84s
-Average time per file: 3.39s
-Files per minute: 17.7
+Total time: 1800s
+Average time per file: 90s
+Files per minute: 0.67
 ============================================================
 ```
 
 ## Interpreting Results
 
 **Expected Performance:**
-- Modern GPU: 2-5s per file
-- Older GPU: 5-10s per file
+- Full scan (64 patterns): ~90s per file
+- Single pattern: ~50s per file
 
 ## Optimizing Performance
 
@@ -67,7 +67,7 @@ Include benchmark_results.txt, LLM backend/model info, and hardware specs when r
 
 See the `benchmarks/` directory for performance testing:
 
-- **`benchmark.py`** - Quick 10-second test (sequential vs concurrent, 5 patterns)
-- **`benchmark_system.py`** - Full system benchmark (20 files, 44 patterns, ~3 minutes)
+- **`benchmark.py`** - Quick ~2-minute test (sequential vs concurrent, 5 patterns)
+- **`benchmark_system.py`** - Full system benchmark (20 files, 64 patterns, ~30 minutes)
 
 See `benchmarks/README.md` for detailed documentation.

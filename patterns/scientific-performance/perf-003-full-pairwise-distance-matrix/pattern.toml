@@ -12,7 +12,7 @@ updated = "2026-03-03"
 author = "scicode-lint"
 
 description = """
-Computing full pairwise distance matrices when only partial results are needed wastes memory. An N×N matrix for N=50,000 uses ~20GB. Use spatial indexing (KD-tree), chunked computation, or compute only needed distances.
+Computing full pairwise distance matrices when only partial results are needed wastes memory. An N×N self-pairwise matrix for N=50,000 uses ~20GB; an M×N query-to-database matrix can be similarly wasteful. Use spatial indexing (KD-tree, BallTree), chunked computation, or compute only needed distances.
 """
 
 explanation = """
@@ -26,11 +26,15 @@ references = []
 
 [detection]
 question = """
-Find cdist(X, X) calls or nested loops computing full N×N pairwise distance/similarity matrices.
-Does the code store a full N×N matrix in memory where N could be large?
+Does this code compute a full pairwise distance/similarity matrix when only partial results are needed?
 
-YES = full pairwise matrix found (BUG)
-NO = no such matrices exist
+Check for:
+- cdist(X, X) or pdist(X) computing all self-pairwise distances
+- cdist(X, Y) computing all query-to-database distances (e.g., for k-nearest neighbor search)
+- Nested loops computing all pairs
+
+YES = Found: full pairwise/distance matrix computed (cdist, pdist, or nested loops)
+NO = Clean: uses KDTree/BallTree, or only computes needed distances
 """
 
 warning_message = """
@@ -39,7 +43,6 @@ Full N×N distance matrix in memory: N=50,000 uses ~20 GB. Use spatial indexing 
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -53,7 +56,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "compute_all_distances"
-snippet = "distance_matrix = cdist(points, points, metric='euclidean')"
+snippet = "distance_matrix = cdist(points, points, metric=\"euclidean\")"
 
 [[tests.positive]]
 file = "test_positive/pairwise_matrix_storage.py"
@@ -69,14 +72,23 @@ snippet = "similarity = np.zeros((num_samples, num_samples))"
 [[tests.negative]]
 file = "test_negative/kdtree_approach.py"
 description = "Uses KDTree spatial indexing to find neighbors efficiently - avoids full distance matrix"
-max_false_positives = 0
 
 [[tests.negative]]
-file = "test_negative/chunked_computation.py"
-description = "Computes distances in chunks and only keeps minimum values - memory efficient approach"
-max_false_positives = 0
+file = "test_negative/kdtree_knn.py"
+description = "Uses KD-tree for k-nearest neighbor distances - O(N log N) instead of O(N²)"
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+[[tests.positive]]
+file = "test_positive/all_pairs.py"
+description = "Computes full distance matrix with cdist when only k nearest neighbors are needed; allocates unnecessary memory for unused distances."
+expected_issue = "Full distance matrix computed for k-nearest neighbor search"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "find_nearest"
+snippet = "distances = cdist(query_points, database_points)"
+
+[[tests.negative]]
+file = "test_negative/efficient_knn.py"
+description = "Uses NearestNeighbors with ball_tree algorithm to efficiently find k neighbors without computing full distance matrix."

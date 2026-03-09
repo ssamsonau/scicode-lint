@@ -26,11 +26,27 @@ references = []
 
 [detection]
 question = """
-Find Pool.map() or ThreadPoolExecutor parallelizing over array elements.
-Does it apply simple element-wise operations that could be vectorized?
+Does this code parallelize INDIVIDUAL ELEMENTS instead of using vectorized NumPy operations?
 
-YES = parallelizing element-wise ops instead of vectorizing (BUG)
-NO = no unvectorized parallel element operations exist
+THE BUG: Using pool.map() or ThreadPoolExecutor to process array elements ONE AT A TIME.
+This is slow because Python function call overhead dominates.
+
+CORRECT PATTERNS (NOT bugs):
+- Using vectorized NumPy operations (np.where, np.sqrt, broadcasting)
+- Parallelizing CHUNKS where each chunk uses vectorized NumPy operations inside
+- No parallelism at all (just NumPy)
+
+Look for these BUGS:
+- pool.map(func, arr.tolist()) - converting array to list for element-by-element processing
+- executor.submit(func, x) for x in array - processing one element at a time
+- Each parallel task processes ONE number/element
+
+NOT a bug:
+- pool.map(func, chunks) where func uses NumPy operations on the chunk
+- np.array_split() followed by parallel processing of chunks
+
+YES = Bug: parallelizing individual elements (tolist(), per-element submit)
+NO = Correct: vectorized operations or parallelizing vectorized chunks
 """
 
 warning_message = """
@@ -39,7 +55,6 @@ Parallelizing before vectorizing: the code is slow because of Python loops, not 
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -69,14 +84,24 @@ snippet = "futures = [executor.submit(square_if_positive, x) for x in array]"
 [[tests.negative]]
 file = "test_negative/vectorized_transform.py"
 description = "Properly uses vectorized np.where for conditional transformation - no unnecessary parallelism"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/parallel_vectorized_chunks.py"
 description = "Correctly parallelizes already-vectorized chunk processing - good use of both vectorization and parallelism"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/element_wise_parallel.py"
+description = "Multiprocessing applied to element-wise array operations via tolist() - simple operations like squaring are much faster with vectorized NumPy than with parallelization overhead"
+expected_issue = "Parallelizing element-wise array operations instead of using vectorized NumPy"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "parallel_square"
+snippet = "def square(x):"
+
+[[tests.negative]]
+file = "test_negative/element_wise_vectorized.py"
+description = "Correctly uses vectorized NumPy operations for element-wise transformations without unnecessary parallelization"

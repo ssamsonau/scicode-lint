@@ -6,11 +6,12 @@ and validates overall detection capabilities.
 """
 
 import argparse
+import asyncio
 import json
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
@@ -36,7 +37,11 @@ class IntegrationEvaluator:
             return yaml.safe_load(f)  # type: ignore[no-any-return]
 
     def run_all_scenarios(self, verbose: bool = False) -> dict[str, Any]:
-        """Run all integration test scenarios."""
+        """Run all integration test scenarios (async wrapper)."""
+        return asyncio.run(self._run_all_scenarios_async(verbose))
+
+    async def _run_all_scenarios_async(self, verbose: bool = False) -> dict[str, Any]:
+        """Run all integration test scenarios concurrently."""
         overall: dict[str, Any] = {
             "total_scenarios": 0,
             "passed": 0,
@@ -50,13 +55,29 @@ class IntegrationEvaluator:
             "overall": overall,
         }
 
-        for scenario_name, scenario_config in self.config["scenarios"].items():
-            if verbose:
-                print(f"\n{'=' * 60}")
-                print(f"Running scenario: {scenario_name}")
-                print(f"{'=' * 60}")
+        # Build list of (scenario_name, scenario_config) pairs
+        scenarios = list(self.config["scenarios"].items())
 
-            result = self.run_scenario(scenario_name, scenario_config, verbose)
+        if verbose:
+            print(f"\nRunning {len(scenarios)} scenarios concurrently...")
+
+        # Run all scenarios in parallel
+        tasks = [self._run_scenario_async(name, config, verbose) for name, config in scenarios]
+        scenario_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Process results
+        for (scenario_name, _), raw_result in zip(scenarios, scenario_results):
+            if isinstance(raw_result, Exception):
+                result: dict[str, Any] = {
+                    "passed": False,
+                    "error": str(raw_result),
+                    "expected_count": 0,
+                    "found_count": 0,
+                    "false_positives": 0,
+                }
+            else:
+                result = cast(dict[str, Any], raw_result)
+
             results["scenarios"][scenario_name] = result
 
             # Update overall stats
@@ -71,28 +92,156 @@ class IntegrationEvaluator:
             overall["false_positives"] += result["false_positives"]
 
         # Calculate overall metrics
+        # true_positives = expected bugs that were actually found (not extra findings)
+        total_true_positives = sum(
+            r.get("true_positives", 0) for r in results["scenarios"].values()
+        )
         total_injected: int = overall["total_bugs_injected"]
         total_found: int = overall["total_bugs_found"]
+        extra_findings = total_found - total_true_positives - overall["false_positives"]
+
+        overall["true_positives"] = total_true_positives
+        overall["extra_findings"] = extra_findings
 
         if total_injected > 0:
-            overall["coverage"] = total_found / total_injected
-            overall["recall"] = total_found / total_injected
+            # Recall = expected bugs found / expected bugs (capped at 100%)
+            overall["recall"] = total_true_positives / total_injected
         else:
-            overall["coverage"] = 0.0
             overall["recall"] = 0.0
 
         if total_found > 0:
-            correct = total_found - overall["false_positives"]
-            overall["precision"] = correct / total_found
+            # Precision = true positives / total findings
+            overall["precision"] = total_true_positives / total_found
         else:
             overall["precision"] = 0.0
 
         return results
 
+    async def _run_scenario_async(
+        self, scenario_name: str, scenario_config: dict[str, Any], verbose: bool = False
+    ) -> dict[str, Any]:
+        """Run a single integration test scenario asynchronously."""
+        file_path = self.scenarios_dir / scenario_config["file"].split("/")[-1]
+
+        if not file_path.exists():
+            return {
+                "passed": False,
+                "error": f"Scenario file not found: {file_path}",
+                "expected_count": 0,
+                "found_count": 0,
+                "false_positives": 0,
+            }
+
+        if verbose:
+            print(f"[{scenario_name}] File: {file_path}")
+
+        # Run linter async - directly use the async method
+        try:
+            result = await self.linter._check_file_async(file_path)
+            findings = result.findings
+        except Exception as e:
+            return {
+                "passed": False,
+                "error": f"Linter error: {str(e)}",
+                "expected_count": 0,
+                "found_count": 0,
+                "false_positives": 0,
+            }
+
+        # Process findings (same as sync version)
+        return self._process_scenario_results(scenario_name, scenario_config, findings, verbose)
+
+    def _process_scenario_results(
+        self,
+        scenario_name: str,
+        scenario_config: dict[str, Any],
+        findings: list[Any],
+        verbose: bool,
+    ) -> dict[str, Any]:
+        """Process scenario results and return metrics."""
+        # Count findings by pattern
+        findings_by_pattern: defaultdict[str, int] = defaultdict(int)
+        for finding in findings:
+            findings_by_pattern[finding.id] += 1
+
+        # Compare against expected
+        expected_patterns = scenario_config.get("expected_patterns", {})
+        expected_total = sum(expected_patterns.values())
+        found_total = len(findings)
+
+        # Check each expected pattern
+        pattern_matches = {}
+        missing_patterns = []
+        extra_patterns = []
+        true_positives = 0  # Expected bugs that were found
+
+        for pattern_id, expected_count in expected_patterns.items():
+            found_count = findings_by_pattern.get(pattern_id, 0)
+            # True positives for this pattern = min(found, expected)
+            tp_for_pattern = min(found_count, expected_count)
+            true_positives += tp_for_pattern
+
+            pattern_matches[pattern_id] = {
+                "expected": expected_count,
+                "found": found_count,
+                "match": found_count == expected_count,
+            }
+
+            if found_count < expected_count:
+                missing_patterns.append(
+                    f"{pattern_id} (expected {expected_count}, found {found_count})"
+                )
+            elif found_count > expected_count:
+                extra_patterns.append(
+                    f"{pattern_id} (expected {expected_count}, found {found_count})"
+                )
+
+        # Check for unexpected patterns (false positives)
+        false_positive_patterns = []
+        for pattern_id, count in findings_by_pattern.items():
+            if pattern_id not in expected_patterns:
+                false_positive_patterns.append(f"{pattern_id} ({count} findings)")
+
+        false_positives = sum(
+            count
+            for pattern_id, count in findings_by_pattern.items()
+            if pattern_id not in expected_patterns
+        )
+
+        # Determine if scenario passed: all expected found, zero false positives
+        passed = false_positives == 0 and len(missing_patterns) == 0
+
+        if verbose:
+            status = "PASS" if passed else "FAIL"
+            print(f"[{scenario_name}] Exp: {expected_total}, Found: {found_total}, {status}")
+            if false_positive_patterns:
+                print(f"[{scenario_name}] False positives: {', '.join(false_positive_patterns)}")
+
+        return {
+            "passed": passed,
+            "expected_count": expected_total,
+            "found_count": found_total,
+            "true_positives": true_positives,
+            "false_positives": false_positives,
+            "pattern_matches": pattern_matches,
+            "missing_patterns": missing_patterns,
+            "extra_patterns": extra_patterns,
+            "false_positive_patterns": false_positive_patterns,
+            "findings": [
+                {
+                    "id": f.id,
+                    "lines": f.location.lines if f.location else [],
+                    "snippet": f.location.snippet if f.location else "",
+                    "confidence": f.confidence,
+                }
+                for f in findings
+            ],
+        }
+
     def run_scenario(
         self, scenario_name: str, scenario_config: dict[str, Any], verbose: bool = False
     ) -> dict[str, Any]:
-        """Run a single integration test scenario."""
+        """Run a single integration test scenario (sync wrapper)."""
         file_path = self.scenarios_dir / scenario_config["file"].split("/")[-1]
 
         if not file_path.exists():
@@ -121,98 +270,7 @@ class IntegrationEvaluator:
                 "false_positives": 0,
             }
 
-        # Count findings by pattern
-        findings_by_pattern: defaultdict[str, int] = defaultdict(int)
-        for finding in findings:
-            findings_by_pattern[finding.id] += 1
-
-        # Compare against expected
-        expected_patterns = scenario_config.get("expected_patterns", {})
-        expected_total = sum(expected_patterns.values())
-        found_total = len(findings)
-
-        # Check each expected pattern
-        pattern_matches = {}
-        missing_patterns = []
-        extra_patterns = []
-
-        for pattern_id, expected_count in expected_patterns.items():
-            found_count = findings_by_pattern.get(pattern_id, 0)
-            pattern_matches[pattern_id] = {
-                "expected": expected_count,
-                "found": found_count,
-                "match": found_count == expected_count,
-            }
-
-            if found_count < expected_count:
-                missing_patterns.append(
-                    f"{pattern_id} (expected {expected_count}, found {found_count})"
-                )
-            elif found_count > expected_count:
-                extra_patterns.append(
-                    f"{pattern_id} (expected {expected_count}, found {found_count})"
-                )
-
-        # Check for unexpected patterns (false positives)
-        false_positive_patterns = []
-        for pattern_id, count in findings_by_pattern.items():
-            if pattern_id not in expected_patterns:
-                false_positive_patterns.append(f"{pattern_id} ({count} findings)")
-
-        false_positives = sum(
-            count
-            for pattern_id, count in findings_by_pattern.items()
-            if pattern_id not in expected_patterns
-        )
-
-        # Determine if scenario passed
-        min_total = scenario_config.get("min_total_findings", expected_total)
-        max_total = scenario_config.get("max_total_findings", expected_total)
-        max_fp = scenario_config.get("max_false_positives", 0)
-
-        passed = (
-            found_total >= min_total
-            and found_total <= max_total
-            and false_positives <= max_fp
-            and len(missing_patterns) == 0
-        )
-
-        if verbose:
-            print(f"\nExpected: {expected_total} findings")
-            print(f"Found: {found_total} findings")
-            print(f"Status: {'PASS' if passed else 'FAIL'}")
-
-            if pattern_matches:
-                print("\nPattern breakdown:")
-                for pattern_id, match in pattern_matches.items():
-                    status = "✓" if match["match"] else "✗"
-                    print(f"  {status} {pattern_id}: {match['found']}/{match['expected']}")
-
-            if missing_patterns:
-                print(f"\nMissing patterns: {', '.join(missing_patterns)}")
-
-            if false_positive_patterns:
-                print(f"\nFalse positives: {', '.join(false_positive_patterns)}")
-
-        return {
-            "passed": passed,
-            "expected_count": expected_total,
-            "found_count": found_total,
-            "false_positives": false_positives,
-            "pattern_matches": pattern_matches,
-            "missing_patterns": missing_patterns,
-            "extra_patterns": extra_patterns,
-            "false_positive_patterns": false_positive_patterns,
-            "findings": [
-                {
-                    "id": f.id,
-                    "lines": f.location.lines if f.location else [],
-                    "snippet": f.location.snippet if f.location else "",
-                    "confidence": f.confidence,
-                }
-                for f in findings
-            ],
-        }
+        return self._process_scenario_results(scenario_name, scenario_config, findings, verbose)
 
     def generate_report(self, results: dict[str, Any], output_path: Path) -> None:
         """Generate markdown report."""
@@ -222,32 +280,28 @@ class IntegrationEvaluator:
         overall = results["overall"]
         lines.append("## Overall Summary\n")
         lines.append(f"- **Scenarios**: {overall['passed']}/{overall['total_scenarios']} passed")
-        bugs_found = overall['total_bugs_found']
-        bugs_injected = overall['total_bugs_injected']
+        true_positives = overall["true_positives"]
+        bugs_injected = overall["total_bugs_injected"]
         lines.append(
-            f"- **Coverage**: {overall['coverage']:.1%} "
-            f"({bugs_found}/{bugs_injected} bugs detected)"
+            f"- **Recall**: {overall['recall']:.1%} "
+            f"({true_positives}/{bugs_injected} expected bugs detected)"
         )
         lines.append(f"- **Precision**: {overall['precision']:.1%}")
-        lines.append(f"- **Recall**: {overall['recall']:.1%}")
-        lines.append(f"- **False Positives**: {overall['false_positives']}\n")
+        lines.append(f"- **False Positives**: {overall['false_positives']}")
+        extra = overall.get("extra_findings", 0)
+        if extra > 0:
+            lines.append(f"- **Extra Findings**: {extra} (findings beyond expected count)")
+        lines.append("")
 
-        # Check thresholds
-        thresholds = self.config.get("thresholds", {})
-        min_coverage = thresholds.get("min_coverage", 0.9)
-
+        # Check thresholds: require 100% recall and zero false positives
         lines.append("## Threshold Checks\n")
-        coverage_pass = overall["coverage"] >= min_coverage
+        recall_pass = overall["recall"] == 1.0
         fp_pass = overall["false_positives"] == 0
 
-        cov_status = '✓ PASS' if coverage_pass else '✗ FAIL'
-        fp_status = '✓ PASS' if fp_pass else '✗ FAIL'
-        lines.append(
-            f"- Coverage ≥ {min_coverage:.0%}: {cov_status} ({overall['coverage']:.1%})"
-        )
-        lines.append(
-            f"- False positives = 0: {fp_status} ({overall['false_positives']})\n"
-        )
+        recall_status = "✓ PASS" if recall_pass else "✗ FAIL"
+        fp_status = "✓ PASS" if fp_pass else "✗ FAIL"
+        lines.append(f"- Recall = 100%: {recall_status} ({overall['recall']:.1%})")
+        lines.append(f"- False positives = 0: {fp_status} ({overall['false_positives']})\n")
 
         # Per-scenario results
         lines.append("## Scenario Results\n")
@@ -342,18 +396,16 @@ def main() -> int:
         # Calculate metrics for single scenario
         total_injected = result["expected_count"]
         total_found = result["found_count"]
+        true_positives = result["true_positives"]
         false_positives = result["false_positives"]
 
         if total_injected > 0:
-            coverage = total_found / total_injected
-            recall = total_found / total_injected
+            recall = true_positives / total_injected
         else:
-            coverage = 0.0
             recall = 0.0
 
         if total_found > 0:
-            correct = total_found - false_positives
-            precision = correct / total_found
+            precision = true_positives / total_found
         else:
             precision = 0.0
 
@@ -365,8 +417,9 @@ def main() -> int:
                 "failed": 0 if result["passed"] else 1,
                 "total_bugs_injected": total_injected,
                 "total_bugs_found": total_found,
+                "true_positives": true_positives,
                 "false_positives": false_positives,
-                "coverage": coverage,
+                "extra_findings": total_found - true_positives - false_positives,
                 "recall": recall,
                 "precision": precision,
             },

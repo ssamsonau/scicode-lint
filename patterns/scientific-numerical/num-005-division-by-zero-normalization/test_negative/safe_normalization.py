@@ -8,22 +8,18 @@ def normalize_features(data):
     return normalized
 
 
-def z_score(values):
+def z_score(values, eps=1e-8):
     mu = values.mean()
     sigma = values.std()
-    if sigma == 0:
-        return np.zeros_like(values)
-    scores = (values - mu) / sigma
+    scores = (values - mu) / (sigma + eps)
     return scores
 
 
-def scale_to_unit_range(arr):
+def scale_to_unit_range(arr, eps=1e-8):
     min_val = arr.min()
     max_val = arr.max()
     range_val = max_val - min_val
-    if range_val == 0:
-        return np.zeros_like(arr)
-    scaled = (arr - min_val) / range_val
+    scaled = (arr - min_val) / (range_val + eps)
     return scaled
 
 

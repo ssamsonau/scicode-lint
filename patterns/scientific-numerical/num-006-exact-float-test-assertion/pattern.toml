@@ -26,11 +26,21 @@ references = []
 
 [detection]
 question = """
-Find test assertions (assert ==, assertEqual) on computed float values in the code.
-Is tolerance MISSING from float test assertions (no np.testing.assert_allclose, assert_array_almost_equal, or math.isclose)?
+Analyze test assertions for floating point comparison issues.
 
-YES = tolerance is MISSING from float test assertions (BUG)
-NO = has tolerance-based assertion, OR no float assertions exist, OR asserting on integers/shapes/indices
+Exact equality assertions (assert x == y, assertEqual) on computed floats are unreliable due to floating point precision. Tests may pass on one machine and fail on another.
+
+Correct approach: Use np.testing.assert_allclose(actual, expected, rtol, atol).
+
+Does this test code use exact equality on floats?
+
+Look for:
+- assert result == 1.0 on computed float values
+- assertEqual(computed, expected) for floats
+- (array1 == array2).all() in test assertions
+
+YES = Bug found: exact equality assertion on floating point values
+NO = Correct: uses assert_allclose/assert_almost_equal, or asserting integers/shapes
 """
 
 warning_message = """
@@ -39,7 +49,6 @@ Use np.testing.assert_allclose(actual, expected, rtol, atol) for float compariso
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -69,14 +78,24 @@ snippet = "assert (result == expected).all()"
 [[tests.negative]]
 file = "test_negative/proper_test_assertions.py"
 description = "Tests using np.testing.assert_allclose() with rtol/atol parameters for all floating point comparisons"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/integer_assertions.py"
 description = "Assertions on integers, shapes, indices, counts, and boolean flags where exact equality is appropriate"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/test_numerical.py"
+description = "Tests with exact float equality assertions: comparing computed trigonometric results, matrix inverses, and vector norms directly with == operator or (array == expected).all()"
+expected_issue = "Exact equality assertions on floating point computed values without tolerance parameters"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "test_sine_values"
+snippet = "assert result == 0.5"
+
+[[tests.negative]]
+file = "test_negative/test_numerical_correct.py"
+description = "Correct float comparisons using np.isclose(), np.testing.assert_allclose(), and pytest.approx() with tolerance parameters for trigonometric, matrix, and vector operations"

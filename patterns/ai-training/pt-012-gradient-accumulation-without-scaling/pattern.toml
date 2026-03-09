@@ -24,11 +24,21 @@ references = ["https://pytorch.org/docs/stable/notes/amp_examples.html#gradient-
 
 [detection]
 question = """
-Find gradient accumulation patterns (multiple backward() before optimizer.step()).
-Is loss NOT divided by accumulation_steps?
+Analyze gradient accumulation in this training code.
 
-YES = gradient accumulation WITHOUT loss scaling (BUG)
-NO = loss divided by accumulation_steps, OR no gradient accumulation exists
+When accumulating gradients over N steps to simulate larger batches, the loss must be divided by N before backward(). Without scaling, gradients are N times larger than intended, causing unstable training.
+
+Correct approach: (loss / accumulation_steps).backward() or equivalent.
+
+Does this code have gradient accumulation without loss scaling?
+
+Look for:
+- Multiple backward() calls before optimizer.step()
+- Modulo-based step logic (if step % N == 0: optimizer.step())
+- Loss not divided by accumulation count before backward()
+
+YES = Bug found: gradient accumulation without loss scaling
+NO = Correct: loss scaled by accumulation steps, or no gradient accumulation
 """
 
 warning_message = """
@@ -36,7 +46,6 @@ Gradient accumulation without loss scaling: accumulating over N steps without di
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -66,14 +75,24 @@ snippet = "if (step + 1) % accumulation_steps == 0:"
 [[tests.negative]]
 file = "test_negative/scaled_accumulation.py"
 description = "Correct gradient accumulation with loss divided by accumulation_steps before backward()"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/no_accumulation.py"
 description = "Standard training loop without gradient accumulation - single backward per step"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/accumulate_unscaled.py"
+description = "Gradient accumulation with modulo-based optimizer.step() pattern but loss not divided by accumulation factor in multiple functions"
+expected_issue = "Loss not divided by accumulation_steps before backward, causing N times larger gradients"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "train_with_accumulation"
+snippet = "loss.backward()"
+
+[[tests.negative]]
+file = "test_negative/accumulate_scaled.py"
+description = "Correct gradient accumulation with loss properly divided by accumulation_steps (or accum factor) before backward()"

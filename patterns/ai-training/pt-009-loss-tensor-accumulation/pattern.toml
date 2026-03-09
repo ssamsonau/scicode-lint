@@ -25,11 +25,21 @@ references = []
 
 [detection]
 question = """
-Find loss tensor accumulation (total_loss += loss, losses.append(loss)).
-Is loss tensor accumulated WITHOUT .item() or .detach()?
+Analyze loss tracking in the training loop.
 
-YES = loss accumulated WITHOUT .item() or .detach() (BUG)
-NO = uses .item() or .detach(), OR no loss accumulation exists
+Accumulating loss tensors directly (total_loss += loss, losses.append(loss)) keeps entire computation graphs in memory, causing severe memory leaks. Each accumulated tensor retains its full graph.
+
+Correct approach: Use loss.item() or loss.detach() when accumulating for logging.
+
+Does this code accumulate loss tensors without detaching?
+
+Look for:
+- total_loss += loss (without .item() or .detach())
+- losses.append(loss) storing raw tensors
+- Running sum of loss tensors
+
+YES = Bug found: loss tensors accumulated without .item() or .detach()
+NO = Correct: uses .item() or .detach() for accumulation
 """
 
 warning_message = """
@@ -37,7 +47,6 @@ Loss tensor accumulation: Accumulating loss tensors directly keeps entire comput
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = ["Intentional gradient accumulation across batches"]
 
 [tests]
@@ -67,12 +76,10 @@ snippet = "loss_history.append(loss)"
 [[tests.negative]]
 file = "test_negative/accumulate_scalar.py"
 description = "Correct usage: accumulating loss.item() to track training progress"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/detach_before_accumulate.py"
 description = "Correct usage: detaching loss before storing in list"
-max_false_positives = 0
 
 [[tests.context_dependent]]
 file = "test_context_dependent/gradient_accumulation.py"
@@ -85,7 +92,19 @@ The accumulated loss should still be divided by accumulation_steps and backward(
 However, accumulating the loss tensor itself (not just gradients) still causes memory issues - should accumulate loss.item() for logging.
 """
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/epoch_loss_track.py"
+description = "Accumulating raw loss tensors in training loop (total_loss += loss and losses.append(loss)) - keeps computation graphs and causes memory leak"
+expected_issue = "Loss tensors accumulated without extracting scalar values"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "train_epoch"
+snippet = "model.train()"
+
+[[tests.negative]]
+file = "test_negative/epoch_loss_track_correct.py"
+description = "Correct usage: using loss.item() to extract scalar values before accumulating in training loop"

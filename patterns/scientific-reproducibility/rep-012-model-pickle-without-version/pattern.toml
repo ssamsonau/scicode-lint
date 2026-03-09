@@ -1,0 +1,86 @@
+[meta]
+id = "rep-012"
+name = "model-pickle-without-version"
+category = "scientific-reproducibility"
+severity = "medium"
+version = "1.0.0"
+created = "2026-03-08"
+updated = "2026-03-08"
+author = "scicode-lint"
+
+description = """
+Saving models with pickle/joblib without version metadata makes it impossible to identify the training environment. Models may produce different predictions or fail when loaded in different library versions.
+"""
+
+explanation = """
+Save library versions alongside models: include sklearn.__version__, torch.__version__, etc. in the saved file or a separate metadata file.
+"""
+
+tags = []
+related_patterns = []
+references = []
+
+[detection]
+question = """
+Does this code save models with pickle/joblib without version info?
+
+Check for: pickle.dump(model) or joblib.dump(model) without saving library versions.
+
+YES = Found: model saved without version metadata (no sklearn.__version__, torch.__version__)
+NO = Clean: version info saved alongside model, or no model serialization
+"""
+
+warning_message = """
+Model saved without version metadata. Include library versions (sklearn.__version__, torch.__version__) for reproducibility.
+"""
+
+min_confidence = 0.85
+false_positive_risks = []
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/save_without_version.py"
+description = "Saving model without version metadata"
+expected_issue = "pickle.dump(model) without version info"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "save_model"
+snippet = "pickle.dump"
+
+[[tests.negative]]
+file = "test_negative/torch_save.py"
+description = "Using torch.save (no pickle)"
+
+[[tests.negative]]
+file = "test_negative/onnx_export.py"
+description = "Exporting to ONNX format"
+
+[[tests.negative]]
+file = "test_negative/versioned_save.py"
+description = "Saving model with version metadata"
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/pickle_without_version.py"
+description = "Saving sklearn models with joblib.dump without version metadata"
+expected_issue = "joblib.dump(model, filepath) without library version tracking"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "save_model"
+snippet = "joblib.dump(model, filepath)"
+
+[[tests.positive]]
+file = "test_positive/save_model.py"
+description = "Saving pickled models and checkpoints without version information"
+expected_issue = "pickle.dump(model, f) and pickle.dump(checkpoint, f) without version metadata"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "save_model"
+snippet = "with open(path, \"wb\") as f:"

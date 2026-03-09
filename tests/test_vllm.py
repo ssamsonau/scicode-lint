@@ -11,6 +11,7 @@ from scicode_lint.vllm import (
     GPUInfo,
     ServerInfo,
     VLLMServer,
+    _get_default_model,
     get_gpu_info,
     get_server_info,
     is_running,
@@ -18,6 +19,9 @@ from scicode_lint.vllm import (
     stop_server,
     wait_for_ready,
 )
+
+# Use the same default model as production code (DRY)
+DEFAULT_MODEL = _get_default_model()
 
 
 class TestIsRunning:
@@ -83,22 +87,23 @@ class TestStartServer:
     def test_start_server_raises_if_already_running(self) -> None:
         """Should raise RuntimeError if server already running on port."""
         with patch("scicode_lint.vllm.is_running", return_value=True):
-            with pytest.raises(RuntimeError, match="Server already running on port 5001"):
+            with pytest.raises(RuntimeError, match="vLLM server already running on port 5001"):
                 start_server(port=5001)
 
     def test_start_server_raises_if_vllm_not_found(self) -> None:
         """Should raise FileNotFoundError if vllm command not found."""
         with patch("scicode_lint.vllm.is_running", return_value=False):
-            with patch("subprocess.Popen", side_effect=FileNotFoundError):
-                with pytest.raises(FileNotFoundError, match="vllm command not found"):
-                    start_server()
+            with patch("scicode_lint.vllm._auto_detect_vram_settings", return_value=(24000, 0.9)):
+                with patch("subprocess.Popen", side_effect=FileNotFoundError):
+                    with pytest.raises(FileNotFoundError, match="vllm command not found"):
+                        start_server()
 
     def test_start_server_success(self) -> None:
         """Should start server and return process."""
         with patch("scicode_lint.vllm.is_running", return_value=False):
             with patch("scicode_lint.vllm._check_vllm_version"):
                 with patch(
-                    "scicode_lint.vllm._auto_detect_vram_settings", return_value=(16000, 0.9)
+                    "scicode_lint.vllm._auto_detect_vram_settings", return_value=(24000, 0.9)
                 ):
                     mock_proc = Mock(spec=subprocess.Popen)
                     with patch("subprocess.Popen", return_value=mock_proc):
@@ -111,7 +116,7 @@ class TestStartServer:
         with patch("scicode_lint.vllm.is_running", return_value=False):
             with patch("scicode_lint.vllm._check_vllm_version"):
                 with patch(
-                    "scicode_lint.vllm._auto_detect_vram_settings", return_value=(16000, 0.9)
+                    "scicode_lint.vllm._auto_detect_vram_settings", return_value=(24000, 0.9)
                 ):
                     mock_proc = Mock(spec=subprocess.Popen)
                     with patch("subprocess.Popen", return_value=mock_proc):
@@ -124,7 +129,7 @@ class TestStartServer:
         with patch("scicode_lint.vllm.is_running", return_value=False):
             with patch("scicode_lint.vllm._check_vllm_version"):
                 with patch(
-                    "scicode_lint.vllm._auto_detect_vram_settings", return_value=(16000, 0.9)
+                    "scicode_lint.vllm._auto_detect_vram_settings", return_value=(24000, 0.9)
                 ):
                     mock_proc = Mock(spec=subprocess.Popen)
                     with patch("subprocess.Popen", return_value=mock_proc):
@@ -193,9 +198,7 @@ class TestVLLMServerContextManager:
             with patch("scicode_lint.vllm.requests.get") as mock_get:
                 # Mock models endpoint
                 mock_get.return_value.status_code = 200
-                mock_get.return_value.json.return_value = {
-                    "data": [{"id": "RedHatAI/gemma-3-12b-it-FP8-dynamic"}]
-                }
+                mock_get.return_value.json.return_value = {"data": [{"id": DEFAULT_MODEL}]}
 
                 with patch("scicode_lint.vllm.start_server") as mock_start:
                     with patch("scicode_lint.vllm.stop_server") as mock_stop:
@@ -216,7 +219,7 @@ class TestVLLMServerContextManager:
                 with warnings.catch_warnings(record=True) as w:
                     warnings.simplefilter("always")
 
-                    with VLLMServer(model="RedHatAI/gemma-3-12b-it-FP8-dynamic"):
+                    with VLLMServer(model=DEFAULT_MODEL):
                         pass
 
                     # Should have warning
@@ -304,15 +307,14 @@ class TestGetServerInfo:
             with patch("requests.get") as mock_get:
                 mock_response = Mock()
                 mock_response.status_code = 200
-                mock_response.json.return_value = {
-                    "data": [{"id": "RedHatAI/gemma-3-12b-it-FP8-dynamic"}]
-                }
+                model_id = "RedHatAI/Qwen3-8B-FP8-dynamic"
+                mock_response.json.return_value = {"data": [{"id": model_id}]}
                 mock_get.return_value = mock_response
 
                 info = get_server_info()
 
                 assert info.is_running is True
-                assert info.model == "RedHatAI/gemma-3-12b-it-FP8-dynamic"
+                assert info.model == DEFAULT_MODEL
                 assert info.base_url == "http://localhost:5001"
 
     def test_get_server_info_not_running(self) -> None:
@@ -424,72 +426,74 @@ class TestVRAMAutoDetection:
     """Tests for VRAM-based auto-detection."""
 
     def test_20gb_vram_settings(self) -> None:
-        """Should use 16K context and 0.90 GPU memory for 20GB+ VRAM."""
+        """Should use 24K context and 0.90 GPU memory for 16GB+ VRAM."""
         from scicode_lint.vllm import _auto_detect_vram_settings
 
         # Simulate 20GB VRAM (20475MB like RTX 4000 Ada)
         max_len, gpu_mem = _auto_detect_vram_settings(override_vram_mb=20475)
 
-        assert max_len == 16000
+        assert max_len == 24000
         assert gpu_mem == 0.90
 
     def test_16gb_vram_settings(self) -> None:
-        """Should raise RuntimeError for 16GB VRAM (below 20GB minimum)."""
-        import pytest
-
+        """Should use 24K context and 0.90 GPU memory for 16GB VRAM (at minimum)."""
         from scicode_lint.vllm import _auto_detect_vram_settings
 
-        # Simulate 16GB VRAM - should fail
-        with pytest.raises(RuntimeError, match="Minimum requirement: 20GB VRAM"):
-            _auto_detect_vram_settings(override_vram_mb=16384)
+        # Simulate 16GB VRAM - should succeed (at minimum)
+        max_len, gpu_mem = _auto_detect_vram_settings(override_vram_mb=16384)
+        assert max_len == 24000
+        assert gpu_mem == 0.90
 
     def test_12gb_vram_settings(self) -> None:
-        """Should raise RuntimeError for 12GB VRAM (below 20GB minimum)."""
+        """Should raise RuntimeError for 12GB VRAM (below minimum)."""
         import pytest
 
         from scicode_lint.vllm import _auto_detect_vram_settings
 
-        # Simulate 12GB VRAM - should fail
-        with pytest.raises(RuntimeError, match="Minimum requirement: 20GB VRAM"):
+        # Simulate 12GB VRAM - should fail (below any reasonable minimum)
+        with pytest.raises(RuntimeError, match="Minimum requirement:"):
             _auto_detect_vram_settings(override_vram_mb=12288)
 
     def test_8gb_vram_settings(self) -> None:
-        """Should raise RuntimeError for 8GB VRAM (below 20GB minimum)."""
+        """Should raise RuntimeError for 8GB VRAM (below minimum)."""
         import pytest
 
         from scicode_lint.vllm import _auto_detect_vram_settings
 
-        # Simulate 8GB VRAM - should fail
-        with pytest.raises(RuntimeError, match="Minimum requirement: 20GB VRAM"):
+        # Simulate 8GB VRAM - should fail (below any reasonable minimum)
+        with pytest.raises(RuntimeError, match="Minimum requirement:"):
             _auto_detect_vram_settings(override_vram_mb=8192)
 
-    def test_vram_boundary_20gb(self) -> None:
-        """Should correctly handle VRAM at 20GB boundary."""
+    def test_vram_boundary_16gb(self) -> None:
+        """Should correctly handle VRAM at boundary defined in config."""
         import pytest
 
-        from scicode_lint.vllm import _auto_detect_vram_settings
+        from scicode_lint.vllm import _auto_detect_vram_settings, _get_min_vram_mb
 
-        # Just below 20GB threshold (19500MB) - should fail
-        with pytest.raises(RuntimeError, match="Minimum requirement: 20GB VRAM"):
-            _auto_detect_vram_settings(override_vram_mb=19499)
+        # Get actual minimum from config
+        min_vram = _get_min_vram_mb()
 
-        # At 20GB threshold - should succeed
-        max_len, gpu_mem = _auto_detect_vram_settings(override_vram_mb=19500)
-        assert max_len == 16000
-        assert gpu_mem == 0.90
+        # Just below threshold - should fail
+        with pytest.raises(RuntimeError, match="Minimum requirement:"):
+            _auto_detect_vram_settings(override_vram_mb=min_vram - 1)
+
+        # At threshold - should succeed
+        max_len, gpu_mem = _auto_detect_vram_settings(override_vram_mb=min_vram)
+        assert max_len > 0  # Config-driven
+        assert gpu_mem > 0  # Config-driven
 
     def test_start_server_uses_standard_settings(self) -> None:
-        """Should use standard 16K context and 0.90 GPU memory for 20GB+ VRAM."""
+        """Should use standard 24K context and 0.90 GPU memory for 16GB+ VRAM."""
         from scicode_lint.vllm import _auto_detect_vram_settings
 
-        # 20GB VRAM
-        max_len, gpu_mem = _auto_detect_vram_settings(override_vram_mb=20475)
-        assert max_len == 16000
+        # 16GB VRAM
+        max_len, gpu_mem = _auto_detect_vram_settings(override_vram_mb=16384)
+        assert max_len == 24000
         assert gpu_mem == 0.90
 
         # 24GB VRAM
         max_len, gpu_mem = _auto_detect_vram_settings(override_vram_mb=24576)
-        assert max_len == 16000
+        assert max_len == 24000
         assert gpu_mem == 0.90
 
     def test_no_gpu_fallback(self) -> None:

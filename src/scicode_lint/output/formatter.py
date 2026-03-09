@@ -49,6 +49,9 @@ class Finding(BaseModel):
     detection_type: Literal["yes", "context-dependent"] = Field(
         default="yes", description="Whether this is a definite issue or context-dependent"
     )
+    thinking: str | None = Field(
+        default=None, description="Model's internal thinking (from <think> tags, if present)"
+    )
 
     model_config = ConfigDict(
         use_enum_values=True  # Serialize Severity enum as string value
@@ -74,12 +77,28 @@ class LintError(BaseModel):
     )
 
 
+class PatternCheckResult(BaseModel):
+    """Result of checking a single pattern (includes 'no' detections for eval)."""
+
+    pattern_id: str = Field(description="Pattern ID (e.g., 'ml-001')")
+    detected: Literal["yes", "no", "context-dependent"] = Field(description="Detection result")
+    confidence: float = Field(ge=0.0, le=1.0, description="Confidence score")
+    reasoning: str = Field(default="", description="LLM's reasoning for this decision")
+    thinking: str | None = Field(
+        default=None, description="Model's internal thinking (from <think> tags)"
+    )
+
+
 class LintResult(BaseModel):
     """Result of linting a file."""
 
     file: Path = Field(description="Path to the linted file")
     findings: list[Finding] = Field(
         default_factory=list, description="List of findings detected in the file"
+    )
+    checked_patterns: list[PatternCheckResult] = Field(
+        default_factory=list,
+        description="All patterns checked with their results (for eval/debugging)",
     )
     error: LintError | None = Field(
         default=None, description="Error that occurred during linting (if any)"

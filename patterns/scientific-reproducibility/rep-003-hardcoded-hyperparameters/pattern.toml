@@ -26,12 +26,21 @@ references = []
 
 [detection]
 question = """
-Find hyperparameters (learning_rate, epochs, batch_size, dropout) as literal values inside functions/methods.
+Analyze hyperparameter management for reproducibility.
 
-Are hyperparameters hardcoded WITHOUT a config/constants section or argparse?
+Magic numbers buried in code cannot be tracked or reproduced across experiments. Hyperparameters scattered through functions make it impossible to know what configuration produced specific results.
 
-YES = hyperparameters are hardcoded without config/constants/argparse (BUG)
-NO = config/constants/argparse is present, OR no hardcoded hyperparameters exist
+Correct approach: Use config file, argparse, or named constants at module top.
+
+Does this code have hardcoded hyperparameters without configuration?
+
+Look for:
+- Learning rate, batch size, epochs as literals inside functions
+- Dropout rates, hidden dimensions as magic numbers
+- No config file, argparse, or constants section
+
+YES = Bug found: hyperparameters hardcoded without configuration system
+NO = Correct: uses config/argparse/constants, or no hyperparameters present
 """
 
 warning_message = """
@@ -40,7 +49,6 @@ Hardcoded magic numbers: parameters buried in code can't be tracked or reproduce
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -70,14 +78,24 @@ snippet = "with open(\"/data/experiments/trial_042/results.json\", \"r\") as f:"
 [[tests.negative]]
 file = "test_negative/config_based.py"
 description = "Uses argparse to define all hyperparameters as configurable command-line arguments with defaults."
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/constants_file.py"
 description = "All magic numbers and paths extracted to named constants at the top of the file for easy tracking."
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/magic_numbers.py"
+description = "Neural network training with hardcoded hyperparameters: learning rate (0.001), batch size (32), epochs (100), dropout (0.3), and layer dimensions (256, 128, 10) buried in function logic."
+expected_issue = "Learning rate, batch size, epochs, dropout rate, and layer dimensions are hardcoded as magic numbers in training logic"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "create_model"
+snippet = "model = nn.Sequential("
+
+[[tests.negative]]
+file = "test_negative/dataclass_config.py"
+description = "Hyperparameters (learning rate, batch size, epochs, hidden dimension, dropout) centralized in dataclass configuration classes with proper defaults."

@@ -12,7 +12,7 @@ updated = "2026-03-03"
 author = "scicode-lint"
 
 description = """
-Proper inference requires BOTH model.eval() AND torch.no_grad(). Missing model.eval() leaves dropout active and batchnorm updating. Missing torch.no_grad() wastes memory storing gradients. Both are needed for correct and efficient inference.
+Missing model.eval() during inference leaves dropout active and batchnorm updating. When torch.no_grad() is used but model.eval() is missing, the model behaves incorrectly - dropout still randomly zeros activations and batchnorm uses batch statistics instead of learned running statistics.
 """
 
 explanation = """
@@ -26,12 +26,18 @@ references = []
 
 [detection]
 question = """
-Look for validation/evaluation/inference functions that use torch.no_grad() but do NOT call model.eval().
+Analyze inference/evaluation setup in this code.
 
-Is model.eval() MISSING in code that uses torch.no_grad() for inference?
+torch.no_grad() only disables gradient computation (saves memory). model.eval() sets the model to evaluation mode (disables dropout, uses running stats for batchnorm). Both are needed for correct inference.
 
-YES = found torch.no_grad() inference code without model.eval() (BUG)
-NO = model.eval() is called before inference, OR no inference code exists
+Does this code use no_grad() without model.eval()?
+
+Look for:
+- torch.no_grad() context without corresponding model.eval()
+- Inference code that disables gradients but leaves model in training mode
+
+YES = Bug found: no_grad() used but model.eval() is missing
+NO = Correct: both model.eval() and no_grad() present, or no inference code
 """
 
 warning_message = """
@@ -40,7 +46,6 @@ Missing model.eval() disables dropout incorrectly and changes batchnorm behavior
 """
 
 min_confidence = 0.85
-code_patterns = []
 false_positive_risks = []
 
 [tests]
@@ -56,28 +61,38 @@ type = "function"
 name = "validate_epoch"
 snippet = "with torch.no_grad():"
 
-[[tests.positive]]
-file = "test_positive/missing_no_grad.py"
-description = "Evaluation functions that call model.eval() but don't use torch.no_grad(), wasting memory on gradient tracking"
-expected_issue = "The evaluate_test_set and compute_test_accuracy functions set eval mode but don't disable gradient tracking, causing unnecessary memory usage"
-min_confidence = 0.85
-
-[tests.positive.expected_location]
-type = "function"
-name = "evaluate_test_set"
-snippet = "model.eval()"
-
 [[tests.negative]]
 file = "test_negative/proper_evaluation.py"
 description = "Correctly implemented evaluation with both model.eval() and torch.no_grad()"
-max_false_positives = 0
 
 [[tests.negative]]
 file = "test_negative/complete_inference_setup.py"
 description = "Properly configured inference that sets eval mode and disables gradients"
-max_false_positives = 0
 
-[quality]
-target_precision = 0.90
-target_recall = 0.80
-target_f1 = 0.85
+
+# === Auto-generated entries (review and update) ===
+[[tests.positive]]
+file = "test_positive/feature_extractor.py"
+description = "Feature extraction function that uses torch.no_grad() for inference but forgets model.eval(), leaving dropout and batchnorm in training mode"
+expected_issue = "The extract_features function wraps inference in no_grad() but doesn't call model.eval(), so dropout remains active and batchnorm uses batch statistics instead of learned running statistics"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "class"
+name = "FeatureExtractor"
+snippet = "class FeatureExtractor"
+
+[[tests.positive]]
+file = "test_positive/model_server.py"
+description = "Model server class with inference methods using torch.no_grad() but missing model.eval() calls before predictions"
+expected_issue = "Both predict() and batch_predict() methods use no_grad() but never call model.eval(), leaving the model in training mode where dropout and batchnorm behave incorrectly"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "class"
+name = "ModelServer"
+snippet = "class ModelServer"
+
+[[tests.negative]]
+file = "test_negative/missing_no_grad.py"
+description = "Correctly implemented evaluation functions that call model.eval() to disable dropout and batchnorm training behavior, without torch.no_grad()"

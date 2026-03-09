@@ -43,7 +43,7 @@ else:
 
 # Import scicode_lint components
 try:
-    from scicode_lint.config import LLMConfig, get_default_patterns_dir
+    from scicode_lint.config import LLMConfig, get_default_patterns_dir, load_config_from_toml
     from scicode_lint.llm.client import create_client
     from scicode_lint.vllm import VLLMMetricsMonitor
 except ImportError:
@@ -59,7 +59,7 @@ class LLMJudgeEvaluator:
         llm_client: LLMClient,
         patterns_dir: Path,
         llm_config: LLMConfig,
-        max_concurrent: int = 200,
+        max_concurrent: int = 150,
         skip_judge: bool = False,
     ):
         """
@@ -69,7 +69,7 @@ class LLMJudgeEvaluator:
             llm_client: LLM client for judge evaluations
             patterns_dir: Directory containing patterns
             llm_config: LLM configuration (used for timeout)
-            max_concurrent: Max concurrent test evaluations (default 200).
+            max_concurrent: Max concurrent test evaluations (from config.toml).
                            Higher values improve GPU utilization but use more memory.
             skip_judge: If True, skip LLM judge evaluation (only compute direct metrics)
         """
@@ -773,6 +773,10 @@ class JudgeReportGenerator:
 
 async def main() -> int:
     """Main evaluation runner."""
+    # Load config for defaults
+    config = load_config_from_toml()
+    default_max_concurrent = config.get("performance", {}).get("max_concurrent_evals", 150)
+
     parser = argparse.ArgumentParser(
         description="Run LLM-as-judge evaluation for scicode-lint patterns"
     )
@@ -822,8 +826,8 @@ async def main() -> int:
     parser.add_argument(
         "--max-concurrent",
         type=int,
-        default=200,
-        help="Max concurrent test evaluations (default: 200). "
+        default=default_max_concurrent,
+        help=f"Max concurrent test evaluations (default: {default_max_concurrent} from config). "
         "Higher = better GPU utilization but more memory.",
     )
     parser.add_argument(

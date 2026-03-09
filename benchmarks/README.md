@@ -1,194 +1,107 @@
 # Benchmarks
 
-Performance benchmarking tools for scicode-lint with vLLM.
-
-## Quick Start
-
-```bash
-# Main benchmark (~2 minutes) - RECOMMENDED
-python benchmarks/benchmark.py
-
-# Full system test (~30 minutes)
-python benchmarks/benchmark_system.py
-```
-
----
+Performance benchmarks for scicode-lint. Run these to gather metrics about your system.
 
 ## Available Benchmarks
 
-### 1. `benchmark.py` ⚡ **Main Benchmark**
-
-**Purpose:** Quick test showing vLLM's concurrent batching advantage
-
-**Runtime:** ~2 minutes
-
-**What it tests:**
-- Sequential: 5 patterns processed one at a time
-- Concurrent: 5 patterns processed all at once
-- Shows actual speedup from vLLM batching
-
-**Example output:**
-```
-Sequential:  73.9s
-Concurrent:  48.8s
-Speedup:     1.5x
-Time saved:  25.1s
-
-Extrapolated for all 64 patterns:
-  Sequential: ~650s
-  Concurrent: ~429s
-```
-
-**When to use:**
-- Quick verification that vLLM batching works
-- After restarting vLLM
-- Testing configuration changes
-- Daily sanity checks
-
----
-
-### 2. `benchmark_system.py` 📊 **Full System Benchmark**
-
-**Purpose:** Comprehensive system performance test on real files
-
-**Runtime:** ~30 minutes
-
-**What it measures:**
-- System information (CPU, memory, platform)
-- LLM backend detection
-- Full linting on 20 real Python files from patterns/
-- Total time, average per file, throughput
-
-**Output files:**
-- `benchmark_results.json` - Machine-readable results
-- `benchmark_results.txt` - Human-readable summary
-
-**When to use:**
-- Initial setup validation
-- Hardware comparison
-- Performance baseline measurements
-- Sharing performance reports
-
-**Example:**
-```bash
-python benchmarks/benchmark_system.py
-
-# Results saved to:
-cat benchmark_results.txt
-```
-
----
-
-## Requirements
-
-### vLLM Running
-
-Verify vLLM is running at `http://localhost:5001` before benchmarking.
-
-### Dependencies
+### Speed Benchmark
 
 ```bash
-pip install -e .
+python benchmarks/speed_benchmark.py
 ```
+
+Measures vLLM server performance during eval:
+
+| Metric | Description |
+|--------|-------------|
+| `throughput_req_s` | Requests per second |
+| `total_tokens_per_second` | Input + output tokens/sec |
+| `generation_tokens_per_second` | Output tokens/sec |
+| `avg_ttft_seconds` | Average time to first token |
+| `ttft_p50_seconds` | TTFT 50th percentile |
+| `ttft_p90_seconds` | TTFT 90th percentile |
+| `peak_running` | Max concurrent requests on GPU |
+| `peak_waiting` | Max queued requests |
+| `peak_kv_cache_pct` | Peak KV cache utilization |
+| `prefix_cache_hit_rate` | Prefix cache efficiency |
+| `preemptions` | Requests swapped out due to memory pressure |
+
+Output: `reports/speed/BENCHMARK_SUMMARY.md`
+
+### Max Tokens Experiment
+
+```bash
+python benchmarks/max_tokens_experiment.py
+```
+
+Tests accuracy at different `max_completion_tokens` values (16384, 8192, 6144, 4096, 2048, 1024, 512).
+
+| Metric | Description |
+|--------|-------------|
+| `overall_accuracy` | Correct detections / total |
+| `positive_accuracy` | True positive rate |
+| `negative_accuracy` | True negative rate |
+| `execution_time_seconds` | Total eval time |
+
+Output: `reports/max_tokens/BENCHMARK_SUMMARY.md`
 
 ---
 
-## Understanding Results
+## Latest Results
 
-### Good Performance
+### Speed Benchmark (2026-03-09)
 
-✅ **Sequential time:** 1-2s per pattern
-✅ **Concurrent speedup:** 3-8x for multiple patterns
-✅ **Throughput:** 15-20 files/minute on full system test
+**Environment:** RTX 4000 Ada (20GB), WSL2, Qwen3-8B-FP8
 
-### Performance Issues
+| Metric | 100 concurrent | 150 concurrent | 200 concurrent |
+|--------|----------------|----------------|----------------|
+| Total time | 323.5s | **313.3s** | 317.4s |
+| Throughput | 2.48 req/s | **2.56 req/s** | 2.53 req/s |
+| Total tok/s | 4,206 | **4,343** | 4,262 |
+| Avg TTFT | **0.6s** | 3.0s | 13.6s |
+| TTFT p90 | **20s** | 40s | 40s |
+| Peak KV cache | **81.5%** | 100% | 100% |
+| Preemptions | **0** | 461 | 527 |
+| Accuracy | 92.9% | **93.1%** | 92.1% |
 
-⚠️ **Slow sequential:** 5+ seconds per pattern
-- Check GPU utilization and model size
-- Try smaller model or better GPU
+**Tradeoffs:**
+- **100**: Most stable (zero preemptions), ~10s slower
+- **150**: Best throughput, moderate preemptions ← **default**
+- **200**: Worst latency, most preemptions, no benefit
 
-⚠️ **Low speedup:** <2x for concurrent
-- Check vLLM logs for errors
-- Verify vLLM batching is enabled
-- Restart vLLM
+**vLLM Dashboard:**
 
-⚠️ **Timeouts:** Requests hang
-- Check vLLM server logs
-- Increase timeout in config
-- Restart vLLM server
+![vLLM Monitoring Dashboard](reports/speed/vllm_dashboard.png)
 
----
+### Max Tokens Experiment (2026-03-09)
 
-## How It Works
-
-### Why Concurrent is Faster
-
-**Sequential (one at a time):**
-```
-Pattern 1 → Process → Result (1.4s)
-Pattern 2 → Process → Result (1.0s)
-Pattern 3 → Process → Result (1.3s)
-Total: 3.7s
-```
-
-**Concurrent (vLLM batching):**
-```
-Pattern 1 ┐
-Pattern 2 ├─→ [vLLM Batch] → All Results
-Pattern 3 ┘
-Total: 1.6s (2.3x faster!)
-```
-
-**Why vLLM is faster:**
-1. **Continuous batching** - Processes multiple requests together
-2. **Prefix caching** - Shared code sent once, reused for all patterns
-3. **GPU parallelism** - GPU processes multiple patterns simultaneously
+| Tokens | Accuracy | Time (s) |
+|--------|----------|----------|
+| 16384 | 93.0% | 308 |
+| 8192 | 92.5% | 320 |
+| 4096 | 93.3% | 381 |
+| 2048 | 91.3% | 321 |
+| 1024 | 85.4% | 287 |
+| 512 | 54.6% | 835 |
 
 ---
 
-## Concurrency Strategy
+## Configuration Reference
 
-Both benchmarks use **no semaphore** (unlimited concurrency):
+Relevant settings in `config.toml`:
 
-```python
-# Send all requests at once - vLLM batches automatically
-tasks = [llm.async_complete(...) for pattern in patterns]
-results = await asyncio.gather(*tasks)
+```toml
+[llm]
+max_input_tokens = 16000
+max_completion_tokens = 4096
+
+[performance]
+max_concurrent_evals = 150   # Client semaphore (how many requests we send)
+vllm_max_num_seqs = 256      # vLLM server capacity (passed to --max-num-seqs)
 ```
 
-**Why no semaphore for vLLM?**
-- vLLM has built-in continuous batching
-- Prefix caching works best with all requests queued at once
-- vLLM manages GPU resources internally
-- Client-side limiting adds unnecessary bottlenecks
-
-**For shared vLLM servers:**
-- Use semaphore (custom limit) if needed to avoid overloading shared resources
-
-See `docs_use_human/performance/CONCURRENCY_GUIDE.md` for detailed strategies.
-
----
-
-## Troubleshooting
-
-### "No LLM backend detected"
-
-Start vLLM server: `bash src/scicode_lint/vllm/start_vllm.sh`
-
-### Benchmarks hang or timeout
-
-1. Verify vLLM is responding
-2. Check vLLM logs for errors
-3. Restart vLLM server if needed
-
-### Inconsistent results
-
-Run benchmark 2-3 times and average results for accuracy.
-
----
-
-## Related Documentation
-
-- [Benchmarking Guide](../docs_use_human/performance/BENCHMARKING.md) - User-facing guide
-- [Concurrency Guide](../docs_use_human/performance/CONCURRENCY_GUIDE.md) - Detailed strategies for different backends
-- [Installation](../INSTALLATION.md) - Setup instructions
+vLLM server settings (read from config.toml by `start_vllm.sh`):
+- `--max-model-len`: 20096 (max_input_tokens + max_completion_tokens)
+- `--max-num-seqs`: 256 (vllm_max_num_seqs)
+- `--kv-cache-dtype`: fp8
+- `--gpu-memory-utilization`: 0.85

@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2026-03-09
+
+### Changed
+- **Performance optimization**: max_completion_tokens to 4096, concurrency to 150
+- **GPU memory utilization**: reduced to 0.85 for stability
+- **Faster execution**: single pattern ~35s (was ~50s), full scan ~75s (was ~90s)
+
+### Added
+- Development Approach section in README (GenAI-native development methodology)
+- Speed benchmark documentation with vLLM dashboard screenshot
+
 ## [0.1.3] - 2026-03-08
 
 ### Added
@@ -94,6 +105,7 @@ Initial public release.
 - Evaluation framework with precision/recall metrics
 - Designed for both human developers and AI coding agents
 
+[0.1.4]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.1.4
 [0.1.3]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.1.3
 [0.1.2]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.1.2
 [0.1.1]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.1.1

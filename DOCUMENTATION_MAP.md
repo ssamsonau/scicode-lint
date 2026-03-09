@@ -103,7 +103,7 @@ Quick guide to find the right documentation for your needs.
 │       └── run_integration_eval_llm_judge.py  # LLM-as-judge
 │
 ├── benchmarks/                     # Performance benchmarks
-│   └── README.md
+│   └── max_tokens_experiment.py    # Token limit tuning
 │
 ├── tools/                          # Development and monitoring tools
 │   ├── vllm_dashboard.py           # Streamlit monitoring dashboard
@@ -136,7 +136,7 @@ Quick guide to find the right documentation for your needs.
 → [docs_use_human/performance/VLLM_MONITORING.md](docs_use_human/performance/VLLM_MONITORING.md)
 
 ### "I want to benchmark scicode-lint"
-→ [benchmarks/README.md](benchmarks/README.md) → [docs_use_human/performance/BENCHMARKING.md](docs_use_human/performance/BENCHMARKING.md)
+→ [docs_use_human/performance/BENCHMARKING.md](docs_use_human/performance/BENCHMARKING.md)
 
 ### "I want to review or improve pattern definitions"
 → [pattern_verification/README.md](pattern_verification/README.md) → [CONTRIBUTING.md](CONTRIBUTING.md)

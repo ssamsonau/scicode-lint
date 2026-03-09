@@ -54,7 +54,7 @@ linter = SciCodeLinter(config)
 pip install scicode-lint[vllm-server]
 
 # Start vLLM server (see installation guide for configuration options)
-vllm serve Qwen/Qwen3-8B-FP8 --trust-remote-code --max-model-len 24000
+vllm serve Qwen/Qwen3-8B-FP8 --trust-remote-code --max-model-len 20000
 ```
 
 **For automated workflows:** See [VLLM_UTILITIES.md](VLLM_UTILITIES.md) for programmatic server management.
@@ -548,7 +548,7 @@ except Exception as e:
 - Filter by `--category` for targeted analysis
 
 **Hardware:**
-- Tested on NVIDIA RTX 4000 Ada (20GB VRAM) with Qwen3-8B-FP8 @ 24K context
+- Tested on NVIDIA RTX 4000 Ada (20GB VRAM) with Qwen3-8B-FP8 @ 20K context
 - Minimum: 16GB VRAM with native FP8 support (compute capability >= 8.9)
 
 ---

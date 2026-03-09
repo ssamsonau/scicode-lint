@@ -19,8 +19,8 @@ pip install -e ".[vllm-server]"
 
 # 2. Start vLLM server (downloads model on first run - see "Model Storage" below)
 vllm serve Qwen/Qwen3-8B-FP8 \
-    --trust-remote-code --gpu-memory-utilization 0.9 \
-    --max-model-len 24000
+    --trust-remote-code --gpu-memory-utilization 0.85 \
+    --max-model-len 20000
 
 # 3. Run the linter (in another terminal)
 scicode-lint check path/to/code.py
@@ -89,8 +89,8 @@ vllm serve \
     --port 5001 \
     --model Qwen/Qwen3-8B-FP8 \
     --trust-remote-code \
-    --gpu-memory-utilization 0.9 \
-    --max-model-len 24000  # 24K context (16K input + 8K response for thinking)
+    --gpu-memory-utilization 0.85 \
+    --max-model-len 20000  # 20K context (16K input + 4K response)
 ```
 
 Or use the convenience script (auto-verifies hardware):
@@ -105,7 +105,7 @@ The script will exit with an error if your hardware doesn't meet requirements (1
 vllm serve \
     --model Qwen/Qwen3-8B-FP8 \
     --trust-remote-code \
-    --max-model-len 24000 \
+    --max-model-len 20000 \
     --device cpu
 ```
 
@@ -130,7 +130,7 @@ Colab is not supported. Use cloud providers with L4/A10 GPUs instead.
 !nohup vllm serve \
     --model Qwen/Qwen3-8B-FP8 \
     --trust-remote-code \
-    --max-model-len 24000 \
+    --max-model-len 20000 \
     --gpu-memory-utilization 0.85 \
     --host 0.0.0.0 \
     --port 5001 > /tmp/vllm.log 2>&1 &
@@ -280,7 +280,7 @@ mypy src/
 
 - **Python:** 3.9+
 - **GPU:** NVIDIA with native FP8 support
-  - **VRAM:** 16GB minimum (24K context: 16K input + 8K response)
+  - **VRAM:** 16GB minimum (20K context: 16K input + 4K response)
   - **Compute capability:** >= 8.9 (native FP8 tensor cores)
   - **Supported GPUs:**
     - Consumer: RTX 4060 Ti 16GB, RTX 4070+ (16GB+), RTX 4090 (24GB)

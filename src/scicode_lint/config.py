@@ -65,7 +65,8 @@ class LLMConfig(BaseSettings):
     - SCICODE_LINT_TOP_P: Top-p sampling
     - SCICODE_LINT_TOP_K: Top-k sampling
     - SCICODE_LINT_TIMEOUT: Timeout in seconds
-    - SCICODE_LINT_MAX_MODEL_LEN: Maximum context length
+    - SCICODE_LINT_MAX_INPUT_TOKENS: Maximum input tokens
+    - SCICODE_LINT_MAX_COMPLETION_TOKENS: Maximum output tokens
     - OPENAI_BASE_URL: vLLM server URL
 
     See config.toml for recommended values and documentation.
@@ -107,17 +108,23 @@ class LLMConfig(BaseSettings):
         le=100,
         description="Top-k sampling",
     )
-    max_model_len: Optional[int] = Field(
-        default_factory=lambda: _LLM_DEFAULTS.get("max_model_len"),
+    max_input_tokens: int = Field(
+        default_factory=lambda: _LLM_DEFAULTS.get("max_input_tokens", 16000),
         ge=1000,
-        description="Maximum context length in tokens (None = auto-detect from server)",
+        le=32000,
+        description="Maximum input tokens (code + prompts)",
     )
-    max_completion_tokens: Optional[int] = Field(
-        default_factory=lambda: _LLM_DEFAULTS["max_completion_tokens"],
+    max_completion_tokens: int = Field(
+        default_factory=lambda: _LLM_DEFAULTS.get("max_completion_tokens", 4096),
         ge=256,
         le=32768,
-        description="Maximum output tokens",
+        description="Maximum output tokens (thinking + response)",
     )
+
+    @property
+    def max_model_len(self) -> int:
+        """Total context length (max_input_tokens + max_completion_tokens)."""
+        return self.max_input_tokens + self.max_completion_tokens
 
     model_config = SettingsConfigDict(
         env_prefix="SCICODE_LINT_",

@@ -1,73 +1,31 @@
 # Benchmarking Guide
 
-This guide explains how to benchmark scicode-lint performance on your system.
+Run benchmarks to gather performance metrics for your system.
 
 ## Quick Start
 
 ```bash
-# Install dependencies first
-pip install -e .
+# Ensure vLLM server is running
+bash src/scicode_lint/vllm/start_vllm.sh
 
-# Make sure vLLM backend is running
+# Speed & concurrency metrics
+python benchmarks/speed_benchmark.py
 
-# Main benchmark (5 patterns, ~2 minutes) - RECOMMENDED
-python benchmarks/benchmark.py
+# Token limit vs accuracy
+python benchmarks/max_tokens_experiment.py
 
-# Full system benchmark (64 patterns on 20 files, ~30 minutes)
-python benchmarks/benchmark_system.py
-
-# See benchmarks/README.md for details
+# Accuracy evaluation
+python evals/run_eval.py
 ```
 
-## What Gets Measured
+## Benchmarks
 
-System information, LLM backend details, and performance metrics (total time, average per file, throughput).
+| Benchmark | Measures | Output |
+|-----------|----------|--------|
+| `speed_benchmark.py` | Throughput, latency, KV cache, preemptions | `benchmarks/reports/speed/` |
+| `max_tokens_experiment.py` | Accuracy at different token limits | `benchmarks/reports/max_tokens/` |
 
-## Output Files
+## See Also
 
-Results are saved to two files (both ignored by git):
-
-1. **benchmark_results.json** - Machine-readable JSON format
-2. **benchmark_results.txt** - Human-readable text format
-
-## Using Verbosity Flags
-
-The CLI supports verbosity levels: `-v` (INFO), `-vv` (DEBUG), `-vvv` (TRACE). Use `--benchmark` flag for detailed performance summary.
-
-## Example Output
-
-```
-============================================================
-BENCHMARK SUMMARY
-============================================================
-Total files checked: 20
-Total findings: 45
-Total time: 1800s
-Average time per file: 90s
-Files per minute: 0.67
-============================================================
-```
-
-## Interpreting Results
-
-**Expected Performance:**
-- Full scan (64 patterns): ~90s per file
-- Single pattern: ~50s per file
-
-## Optimizing Performance
-
-1. **Filter severities**: Use `--severity critical,high` to skip medium-priority checks
-2. **Model selection**: Smaller models are faster than larger ones
-
-## Sharing Results
-
-Include benchmark_results.txt, LLM backend/model info, and hardware specs when reporting performance.
-
-## Available Benchmarks
-
-See the `benchmarks/` directory for performance testing:
-
-- **`benchmark.py`** - Quick ~2-minute test (sequential vs concurrent, 5 patterns)
-- **`benchmark_system.py`** - Full system benchmark (20 files, 64 patterns, ~30 minutes)
-
-See `benchmarks/README.md` for detailed documentation.
+- [`benchmarks/README.md`](../../benchmarks/README.md) - Full metric descriptions and latest results
+- [`evals/README.md`](../../evals/README.md) - Eval suite documentation

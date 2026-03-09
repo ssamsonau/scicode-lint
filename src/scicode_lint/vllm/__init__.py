@@ -51,34 +51,25 @@ from typing import Any, Optional
 import httpx
 import requests
 
-# Default fallbacks if config not available
+# Fallback model name (used only if model not specified in config)
 _DEFAULT_MODEL_FALLBACK = "RedHatAI/Qwen3-8B-FP8-dynamic"
-_DEFAULT_MAX_MODEL_LEN = 24000
-_DEFAULT_MIN_VRAM_MB = 15500
-_DEFAULT_GPU_MEM_UTIL = 0.90
 
 
 def _get_vllm_config() -> dict[str, Any]:
-    """Get vLLM config from config.toml or return defaults."""
-    try:
-        from scicode_lint.config import load_config_from_toml
+    """Get vLLM config from config.toml. Fails if config cannot be loaded."""
+    from scicode_lint.config import load_config_from_toml
 
-        config = load_config_from_toml()
-        result: dict[str, Any] = config.get("vllm", {})
-        return result
-    except Exception:
-        return {}
+    config = load_config_from_toml()
+    result: dict[str, Any] = config.get("vllm", {})
+    return result
 
 
 def _get_llm_config_value(key: str, default: Any) -> Any:
-    """Get a value from [llm] section of config.toml."""
-    try:
-        from scicode_lint.config import load_config_from_toml
+    """Get a value from [llm] section of config.toml. Fails if config cannot be loaded."""
+    from scicode_lint.config import load_config_from_toml
 
-        config = load_config_from_toml()
-        return config.get("llm", {}).get(key, default)
-    except Exception:
-        return default
+    config = load_config_from_toml()
+    return config.get("llm", {}).get(key, default)
 
 
 def _get_default_model() -> str:
@@ -88,23 +79,26 @@ def _get_default_model() -> str:
 
 
 def _get_default_max_model_len() -> int:
-    """Get max_model_len from config.toml or fallback."""
-    result: int = _get_llm_config_value("max_model_len", _DEFAULT_MAX_MODEL_LEN)
-    return result
+    """Get max_model_len from config.toml (computed from max_input + max_completion)."""
+    max_input: int = _get_llm_config_value("max_input_tokens", 16000)
+    max_completion: int = _get_llm_config_value("max_completion_tokens", 4096)
+    return max_input + max_completion
 
 
 def _get_min_vram_mb() -> int:
-    """Get minimum VRAM requirement from config.toml or fallback."""
+    """Get minimum VRAM requirement from config.toml."""
     vllm_config = _get_vllm_config()
-    result: int = vllm_config.get("min_vram_mb", _DEFAULT_MIN_VRAM_MB)
-    return result
+    if "min_vram_mb" not in vllm_config:
+        raise KeyError("min_vram_mb not found in [vllm] section of config.toml")
+    return int(vllm_config["min_vram_mb"])
 
 
 def _get_gpu_memory_utilization() -> float:
-    """Get GPU memory utilization from config.toml or fallback."""
+    """Get GPU memory utilization from config.toml."""
     vllm_config = _get_vllm_config()
-    result: float = vllm_config.get("gpu_memory_utilization", _DEFAULT_GPU_MEM_UTIL)
-    return result
+    if "gpu_memory_utilization" not in vllm_config:
+        raise KeyError("gpu_memory_utilization not found in [vllm] section of config.toml")
+    return float(vllm_config["gpu_memory_utilization"])
 
 
 def is_running(base_url: str = "http://localhost:5001") -> bool:
@@ -245,8 +239,8 @@ def start_server(
     Args:
         model: Model name or path (default: from config.toml)
         port: Port to run on (default: 5001)
-        max_model_len: Maximum context length (default: 24000 tokens)
-        gpu_memory_utilization: GPU memory to use 0.0-1.0 (default: 0.90)
+        max_model_len: Maximum context length (default: ~20K tokens)
+        gpu_memory_utilization: GPU memory to use 0.0-1.0 (default: from config.toml)
         wait: Wait for server to be ready before returning (default: False)
         wait_timeout: Timeout for waiting in seconds (default: 60)
 
@@ -372,8 +366,8 @@ class VLLMServer:
         port: Port to run on (only used for local servers)
         base_url: Full URL for remote server (e.g., "http://10.0.0.5:5001")
                   If provided, port is ignored and no start/stop attempted
-        max_model_len: Maximum context length (local servers only, default: 24000)
-        gpu_memory_utilization: GPU memory 0.0-1.0 (local servers only, default: 0.90)
+        max_model_len: Maximum context length (local servers only, default: ~20K)
+        gpu_memory_utilization: GPU memory 0.0-1.0 (local servers only, default: from config.toml)
         wait_timeout: Timeout for server startup/verification in seconds
 
     Example - Local server (auto-start):
@@ -403,7 +397,7 @@ class VLLMServer:
     ):
         """Initialize VLLMServer context manager.
 
-        Uses standard settings: 24K context (16K input + 8K response), 0.90 GPU memory utilization.
+        Uses settings from config.toml: 20K context, GPU memory utilization.
         Model defaults to value from config.toml.
         """
         self.model = model if model is not None else _get_default_model()

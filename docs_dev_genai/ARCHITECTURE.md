@@ -912,7 +912,7 @@ Key architectural decisions:
 6. **Minimize false positives** - Conservative > noisy
 7. **Keep it simple** - Modern Python, minimal dependencies
 8. **Local-first** - Privacy, cost, speed, reproducibility
-9. **24K total context** (16K input + 8K response) - Empirically sized for 90-95% coverage based on 10M+ repository analysis
+9. **20K total context** (16K input + 4K response) - Empirically sized for 90-95% coverage based on 10M+ repository analysis
    - **Efficient allocation** - vLLM paged attention means no waste on smaller files
    - **Configurable** - Values set in config.toml, not hardcoded
 10. **Clear validation taxonomy** - tests (deterministic) vs benchmarks (performance) vs evals (quality)

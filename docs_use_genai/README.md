@@ -48,7 +48,7 @@
 ```python
 # 1. Install and start server manually
 pip install scicode-lint
-vllm serve Qwen/Qwen3-8B-FP8 --trust-remote-code --max-model-len 24000
+vllm serve Qwen/Qwen3-8B-FP8 --trust-remote-code --max-model-len 20000
 
 # 2. Use in code
 from scicode_lint import SciCodeLinter

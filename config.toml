@@ -33,25 +33,24 @@ temperature = 0.6
 top_p = 0.95
 top_k = 20
 
-# Maximum output tokens per request (limits thinking model reasoning length)
-# Thinking models (Qwen3) can spend many tokens reasoning before answering.
-# 8192 provides headroom for thorough reasoning on complex code.
-# Qwen3 docs recommend 32K for complex problems, but 8K is sufficient for pattern detection.
-max_completion_tokens = 8192
+# Maximum input tokens (code + prompts)
+# Covers ~1,500 line files (90-95th percentile of Python files)
+# Qwen3-8B supports up to 32K native context
+max_input_tokens = 16000
 
-# vLLM context window (total tokens for input + output)
-# Qwen3-8B supports up to 32K native context.
-# With FP8 KV cache, 32K context uses ~2GB VRAM, fits comfortably on 16GB GPUs.
-# Set to: max_input_tokens + max_completion_tokens
-# Default: 16K input + 8K output = 24K total
-max_model_len = 24000
+# Maximum output tokens (thinking + response)
+# See benchmarks/reports/max_tokens/BENCHMARK_SUMMARY.md for accuracy/speed tradeoffs
+max_completion_tokens = 4096
+
+# Note: vLLM max_model_len is calculated as max_input_tokens + max_completion_tokens (20K total)
+# With FP8 KV cache, 20K context uses ~1.5GB VRAM, fits comfortably on 16GB GPUs
 
 [vllm]
 # Minimum VRAM requirement in MB (16GB = 16384 MB, with some tolerance = 15500)
 min_vram_mb = 15500
 
 # GPU memory utilization (0.0-1.0)
-gpu_memory_utilization = 0.90
+gpu_memory_utilization = 0.85
 
 # Note: All patterns are checked concurrently (no limit)
 # vLLM handles batching and queuing internally
@@ -77,10 +76,12 @@ enabled_severities = ["critical", "high", "medium"]
 max_concurrent_files = 1
 
 # Max concurrent LLM requests during eval (asyncio semaphore limit)
-# Higher values improve GPU utilization but use more memory
-# Should match or be slightly below vllm_max_num_seqs
-max_concurrent_evals = 200
+# Controls how many requests client sends in parallel
+# Reduced from 200 to 150 based on speed benchmark showing 100% KV cache
+# utilization and 527 preemptions - see benchmarks/reports/speed/
+max_concurrent_evals = 150
 
-# vLLM --max-num-seqs: Max sequences vLLM can process concurrently
-# Default in vLLM is 256, we set 200 to leave headroom
-vllm_max_num_seqs = 200
+# vLLM --max-num-seqs: Max sequences vLLM server can batch
+# This is vLLM's internal limit, passed to start_vllm.sh
+# Default 256 is vLLM's default; reduce if OOM during high concurrency
+vllm_max_num_seqs = 256

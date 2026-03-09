@@ -4,7 +4,7 @@
 
 **Qwen3-8B-FP8** was chosen because:
 1. **Thinking mode support** - essential for understanding conceptual pattern descriptions
-2. **Fits in 16GB VRAM** with room for 24K context (16K input + 8K response)
+2. **Fits in 16GB VRAM** with room for 20K context (16K input + 4K response)
 3. **FP8 quantization** - 50% memory savings, 2x throughput, no accuracy loss
 
 **Gemma3 was rejected** because it lacks thinking mode and requires grep-like explicit matching rules.
@@ -50,7 +50,7 @@ Given thinking mode as the key requirement, Qwen3-8B-FP8 was selected for effici
 | Component | Size |
 |-----------|------|
 | Weights (FP8) | ~9GB |
-| KV Cache (24K context, FP8) | ~2GB |
+| KV Cache (20K context, FP8) | ~1.5GB |
 | Overhead | ~2GB |
 | **Total** | **~13GB** |
 
@@ -95,8 +95,8 @@ Qwen3-8B outperforms larger models on code-related tasks:
 
 ```bash
 vllm serve RedHatAI/Qwen3-8B-FP8-dynamic \
-    --max-model-len 24000 \
-    --gpu-memory-utilization 0.90 \
+    --max-model-len 20000 \
+    --gpu-memory-utilization 0.85 \
     --kv-cache-dtype fp8 \
     --enable-chunked-prefill
 ```
@@ -117,7 +117,7 @@ Based on [Qwen3 best practices](https://huggingface.co/Qwen/Qwen3-8B-FP8), confi
 | `temperature` | 0.6 | Thinking mode requirement. **DO NOT use 0.0** (greedy) - causes endless repetitions |
 | `top_p` | 0.95 | Nucleus sampling for thinking mode |
 | `top_k` | 20 | Limits token selection for coherent reasoning |
-| `max_completion_tokens` | 8192 | Headroom for thinking + JSON output |
+| `max_completion_tokens` | 4096 | Optimal accuracy (see benchmarks/) |
 
 **Why not greedy decoding (temperature=0)?**
 
@@ -126,14 +126,14 @@ Qwen3 explicitly warns:
 
 Thinking mode requires randomness to explore reasoning paths.
 
-**Why 8K max tokens instead of 32K?**
+**Why 4K max tokens?**
 
-Qwen3 recommends 32K for math competitions. For pattern detection:
+Benchmarked for optimal accuracy (see `benchmarks/reports/max_tokens/`). For pattern detection:
 - Thinking typically uses 500-2000 tokens
 - JSON output is ~100 tokens
-- 8K provides sufficient headroom
+- 4K achieves best accuracy; higher values show diminishing returns
 
-Increase to 16K or 32K in `config.toml` if you see truncated thinking warnings.
+Increase to 8K or 16K in `config.toml` if you see truncated thinking warnings.
 
 ## Alternatives
 

@@ -93,7 +93,7 @@ class TestStartServer:
     def test_start_server_raises_if_vllm_not_found(self) -> None:
         """Should raise FileNotFoundError if vllm command not found."""
         with patch("scicode_lint.vllm.is_running", return_value=False):
-            with patch("scicode_lint.vllm._auto_detect_vram_settings", return_value=(24000, 0.9)):
+            with patch("scicode_lint.vllm._auto_detect_vram_settings", return_value=(20096, 0.9)):
                 with patch("subprocess.Popen", side_effect=FileNotFoundError):
                     with pytest.raises(FileNotFoundError, match="vllm command not found"):
                         start_server()
@@ -103,7 +103,7 @@ class TestStartServer:
         with patch("scicode_lint.vllm.is_running", return_value=False):
             with patch("scicode_lint.vllm._check_vllm_version"):
                 with patch(
-                    "scicode_lint.vllm._auto_detect_vram_settings", return_value=(24000, 0.9)
+                    "scicode_lint.vllm._auto_detect_vram_settings", return_value=(20096, 0.9)
                 ):
                     mock_proc = Mock(spec=subprocess.Popen)
                     with patch("subprocess.Popen", return_value=mock_proc):
@@ -116,7 +116,7 @@ class TestStartServer:
         with patch("scicode_lint.vllm.is_running", return_value=False):
             with patch("scicode_lint.vllm._check_vllm_version"):
                 with patch(
-                    "scicode_lint.vllm._auto_detect_vram_settings", return_value=(24000, 0.9)
+                    "scicode_lint.vllm._auto_detect_vram_settings", return_value=(20096, 0.9)
                 ):
                     mock_proc = Mock(spec=subprocess.Popen)
                     with patch("subprocess.Popen", return_value=mock_proc):
@@ -129,7 +129,7 @@ class TestStartServer:
         with patch("scicode_lint.vllm.is_running", return_value=False):
             with patch("scicode_lint.vllm._check_vllm_version"):
                 with patch(
-                    "scicode_lint.vllm._auto_detect_vram_settings", return_value=(24000, 0.9)
+                    "scicode_lint.vllm._auto_detect_vram_settings", return_value=(20096, 0.9)
                 ):
                     mock_proc = Mock(spec=subprocess.Popen)
                     with patch("subprocess.Popen", return_value=mock_proc):
@@ -426,23 +426,23 @@ class TestVRAMAutoDetection:
     """Tests for VRAM-based auto-detection."""
 
     def test_20gb_vram_settings(self) -> None:
-        """Should use 24K context and 0.90 GPU memory for 16GB+ VRAM."""
-        from scicode_lint.vllm import _auto_detect_vram_settings
+        """Should use 20K context and GPU memory from config for 16GB+ VRAM."""
+        from scicode_lint.vllm import _auto_detect_vram_settings, _get_gpu_memory_utilization
 
         # Simulate 20GB VRAM (20475MB like RTX 4000 Ada)
         max_len, gpu_mem = _auto_detect_vram_settings(override_vram_mb=20475)
 
-        assert max_len == 24000
-        assert gpu_mem == 0.90
+        assert max_len == 20096
+        assert gpu_mem == _get_gpu_memory_utilization()
 
     def test_16gb_vram_settings(self) -> None:
-        """Should use 24K context and 0.90 GPU memory for 16GB VRAM (at minimum)."""
-        from scicode_lint.vllm import _auto_detect_vram_settings
+        """Should use 20K context and GPU memory from config for 16GB VRAM (at minimum)."""
+        from scicode_lint.vllm import _auto_detect_vram_settings, _get_gpu_memory_utilization
 
         # Simulate 16GB VRAM - should succeed (at minimum)
         max_len, gpu_mem = _auto_detect_vram_settings(override_vram_mb=16384)
-        assert max_len == 24000
-        assert gpu_mem == 0.90
+        assert max_len == 20096
+        assert gpu_mem == _get_gpu_memory_utilization()
 
     def test_12gb_vram_settings(self) -> None:
         """Should raise RuntimeError for 12GB VRAM (below minimum)."""
@@ -483,18 +483,20 @@ class TestVRAMAutoDetection:
         assert gpu_mem > 0  # Config-driven
 
     def test_start_server_uses_standard_settings(self) -> None:
-        """Should use standard 24K context and 0.90 GPU memory for 16GB+ VRAM."""
-        from scicode_lint.vllm import _auto_detect_vram_settings
+        """Should use 20K context and GPU memory from config for 16GB+ VRAM."""
+        from scicode_lint.vllm import _auto_detect_vram_settings, _get_gpu_memory_utilization
+
+        expected_gpu_mem = _get_gpu_memory_utilization()
 
         # 16GB VRAM
         max_len, gpu_mem = _auto_detect_vram_settings(override_vram_mb=16384)
-        assert max_len == 24000
-        assert gpu_mem == 0.90
+        assert max_len == 20096
+        assert gpu_mem == expected_gpu_mem
 
         # 24GB VRAM
         max_len, gpu_mem = _auto_detect_vram_settings(override_vram_mb=24576)
-        assert max_len == 24000
-        assert gpu_mem == 0.90
+        assert max_len == 20096
+        assert gpu_mem == expected_gpu_mem
 
     def test_no_gpu_fallback(self) -> None:
         """Should raise RuntimeError when GPU cannot be detected."""

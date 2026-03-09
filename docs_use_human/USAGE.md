@@ -18,8 +18,8 @@ pip install scicode-lint[vllm-server]
 
 # Start vLLM server (downloads model automatically on first run)
 vllm serve Qwen/Qwen3-8B-FP8 \
-    --trust-remote-code --gpu-memory-utilization 0.9 \
-    --max-model-len 24000
+    --trust-remote-code --gpu-memory-utilization 0.85 \
+    --max-model-len 20000
 
 # For CPU-only systems, add --device cpu
 # Note: CPU inference is 10-50x slower than GPU
@@ -229,20 +229,20 @@ Suggestions:
    src/evaluation.py     (2000 tokens)
    ```
 
-2. **Adjust context limit**: The default 24K context (16K input + 8K response) supports ~1,500 line files (90-95th percentile):
+2. **Adjust context limit**: The default 20K context (16K input + 4K response) supports ~1,500 line files (90-95th percentile):
    ```bash
-   # Standard: 24K total tokens (16K input + 8K response for thinking)
-   vllm serve Qwen/Qwen3-8B-FP8 --max-model-len 24000
+   # Standard: 20K total tokens (16K input + 4K response)
+   vllm serve Qwen/Qwen3-8B-FP8 --max-model-len 20000
    ```
 
 3. **Use environment variable**: Override context limit via config
    ```bash
-   export SCICODE_LINT_MAX_MODEL_LEN=24000
+   export SCICODE_LINT_MAX_MODEL_LEN=20000
    scicode-lint check large_file.py
    ```
 
 **Context window:**
-- Standard: 24K tokens total (16K input + 8K response, 16GB VRAM, covers ~1,500 lines)
+- Standard: 20K tokens total (16K input + 4K response, 16GB VRAM, covers ~1,500 lines)
 
 **Estimate tokens before checking:**
 ```python

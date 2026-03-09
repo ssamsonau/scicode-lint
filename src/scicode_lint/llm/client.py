@@ -431,15 +431,14 @@ class VLLMClient(LLMClient):
             )
 
     def _get_config_max_model_len(self) -> int:
-        """Get max_model_len from config.toml or return default."""
-        try:
-            from scicode_lint.config import load_config_from_toml
+        """Get max_model_len from config.toml (computed from max_input + max_completion)."""
+        from scicode_lint.config import load_config_from_toml
 
-            config = load_config_from_toml()
-            result: int = config.get("llm", {}).get("max_model_len", 24000)
-            return result
-        except Exception:
-            return 24000
+        config = load_config_from_toml()
+        llm = config.get("llm", {})
+        max_input: int = llm.get("max_input_tokens", 16000)
+        max_completion: int = llm.get("max_completion_tokens", 4096)
+        return max_input + max_completion
 
     def get_max_model_len(self) -> int:
         """Get maximum context length in tokens.

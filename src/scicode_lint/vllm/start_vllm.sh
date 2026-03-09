@@ -1,15 +1,17 @@
 #!/bin/bash
 # Start vLLM server locally
-# Run with: bash scripts/start_vllm.sh [OPTIONS] [MODEL] [PORT] [MAX_LEN] [GPU_MEM]
+# Run with: bash scripts/start_vllm.sh [OPTIONS] [MODEL] [PORT] [MAX_LEN] [GPU_MEM] [MAX_NUM_SEQS]
 #
 # Options:
 #   --restart, --force    Kill any running vLLM server before starting
+#
+# All parameters read from config.toml by default.
 #
 # Examples:
 #   bash scripts/start_vllm.sh
 #   bash scripts/start_vllm.sh --restart
 #   bash scripts/start_vllm.sh "meta-llama/Llama-3.1-8B-Instruct"
-#   bash scripts/start_vllm.sh --restart "Qwen/Qwen3-8B-FP8" 5001 8000 0.9
+#   bash scripts/start_vllm.sh --restart "Qwen/Qwen3-8B-FP8" 5001 20096 0.85 256
 #
 # For background mode:
 #   nohup bash scripts/start_vllm.sh > /tmp/vllm.log 2>&1 &
@@ -159,22 +161,29 @@ try:
         config = tomllib.load(f)
     llm = config.get('llm', {})
     vllm = config.get('vllm', {})
+    perf = config.get('performance', {})
+    max_input = llm.get('max_input_tokens', 16000)
+    max_completion = llm.get('max_completion_tokens', 4096)
     print(llm.get('model', ''))
-    print(llm.get('max_model_len', 24000))
-    print(vllm.get('gpu_memory_utilization', 0.90))
+    print(max_input + max_completion)
+    print(vllm.get('gpu_memory_utilization', 0.85))
+    print(perf.get('vllm_max_num_seqs', 256))
 except:
     print('')
-    print(24000)
-    print(0.90)
+    print(20096)  # 16000 + 4096 default
+    print(0.85)
+    print(256)
 " 2>/dev/null)
         # Parse config values
         DEFAULT_MODEL=$(echo "$CONFIG_VALUES" | sed -n '1p')
         DEFAULT_MAX_LEN=$(echo "$CONFIG_VALUES" | sed -n '2p')
         DEFAULT_GPU_MEM=$(echo "$CONFIG_VALUES" | sed -n '3p')
+        DEFAULT_MAX_NUM_SEQS=$(echo "$CONFIG_VALUES" | sed -n '4p')
         # Fallback if config not found or values not set
         DEFAULT_MODEL="${DEFAULT_MODEL:-RedHatAI/Qwen3-8B-FP8-dynamic}"
-        DEFAULT_MAX_LEN="${DEFAULT_MAX_LEN:-24000}"
-        DEFAULT_GPU_MEM="${DEFAULT_GPU_MEM:-0.90}"
+        DEFAULT_MAX_LEN="${DEFAULT_MAX_LEN:-20096}"
+        DEFAULT_GPU_MEM="${DEFAULT_GPU_MEM:-0.85}"
+        DEFAULT_MAX_NUM_SEQS="${DEFAULT_MAX_NUM_SEQS:-256}"
 
         echo "✓ Detected ${VRAM_GB}GB VRAM (compute capability: ${COMPUTE_CAP:-unknown})"
         echo "  → Model: $DEFAULT_MODEL"
@@ -204,20 +213,27 @@ try:
         config = tomllib.load(f)
     llm = config.get('llm', {})
     vllm = config.get('vllm', {})
+    perf = config.get('performance', {})
+    max_input = llm.get('max_input_tokens', 16000)
+    max_completion = llm.get('max_completion_tokens', 4096)
     print(llm.get('model', ''))
-    print(llm.get('max_model_len', 24000))
-    print(vllm.get('gpu_memory_utilization', 0.90))
+    print(max_input + max_completion)
+    print(vllm.get('gpu_memory_utilization', 0.85))
+    print(perf.get('vllm_max_num_seqs', 256))
 except:
     print('')
-    print(24000)
-    print(0.90)
+    print(20096)  # 16000 + 4096 default
+    print(0.85)
+    print(256)
 " 2>/dev/null)
     DEFAULT_MODEL=$(echo "$CONFIG_VALUES" | sed -n '1p')
     DEFAULT_MAX_LEN=$(echo "$CONFIG_VALUES" | sed -n '2p')
     DEFAULT_GPU_MEM=$(echo "$CONFIG_VALUES" | sed -n '3p')
+    DEFAULT_MAX_NUM_SEQS=$(echo "$CONFIG_VALUES" | sed -n '4p')
     DEFAULT_MODEL="${DEFAULT_MODEL:-RedHatAI/Qwen3-8B-FP8-dynamic}"
-    DEFAULT_MAX_LEN="${DEFAULT_MAX_LEN:-24000}"
-    DEFAULT_GPU_MEM="${DEFAULT_GPU_MEM:-0.90}"
+    DEFAULT_MAX_LEN="${DEFAULT_MAX_LEN:-20096}"
+    DEFAULT_GPU_MEM="${DEFAULT_GPU_MEM:-0.85}"
+    DEFAULT_MAX_NUM_SEQS="${DEFAULT_MAX_NUM_SEQS:-256}"
 fi
 
 # Configuration (with optional parameters)
@@ -226,6 +242,7 @@ MODEL="${1:-${DEFAULT_MODEL:-Qwen/Qwen3-8B-FP8}}"
 PORT="${2:-5001}"
 MAX_LEN="${3:-$DEFAULT_MAX_LEN}"
 GPU_MEM="${4:-$DEFAULT_GPU_MEM}"
+MAX_NUM_SEQS="${5:-$DEFAULT_MAX_NUM_SEQS}"
 
 # Set short model name - Qwen3 8B FP8 is the standard model
 if [[ "$MODEL" == *"Qwen3-8B"* ]]; then
@@ -266,6 +283,7 @@ echo "  Model: $MODEL"
 echo "  Served as: $SERVED_NAME"
 echo "  Port: $PORT"
 echo "  Max length: $MAX_LEN tokens"
+echo "  Max sequences: $MAX_NUM_SEQS"
 echo "  GPU memory: ${GPU_MEM}%"
 echo ""
 echo "Model will download automatically on first run (~8GB)"
@@ -279,6 +297,6 @@ vllm serve \
     --trust-remote-code \
     --gpu-memory-utilization $GPU_MEM \
     --max-model-len $MAX_LEN \
-    --max-num-seqs 200 \
+    --max-num-seqs $MAX_NUM_SEQS \
     --kv-cache-dtype fp8 \
     --enable-chunked-prefill

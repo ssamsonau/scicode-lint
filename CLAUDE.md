@@ -103,6 +103,7 @@ Evaluates detection accuracy and iteratively improves patterns. See [Continuous 
 - **DRY (Don't Repeat Yourself)** - Define constants, configs, and model names once; reference them everywhere
 - **YAGNI (You Aren't Gonna Need It)** - Don't add features "just in case"; build for current requirements only
 - **Fail fast** - Raise errors early with clear messages; don't let invalid state propagate
+- **No silent fallbacks** - If config cannot be loaded, FAIL. Never silently use default values when config loading fails
 - **Explicit over implicit** - Make intent clear; avoid magic numbers, use named constants
 - **Small functions** - Each function does one thing; if a block needs a comment, extract it to a named function
 - **Reasonable file size** - Split files > 1000 lines; each file has one clear responsibility

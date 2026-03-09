@@ -10,7 +10,7 @@ scicode-lint requires **minimum 16GB VRAM** with **native FP8 support** (compute
 - 16GB+ VRAM
 - Native FP8 support (compute capability >= 8.9)
 
-**Configuration:** 24K total context (16K input + 8K response for thinking), default model: Qwen3-8B-FP8
+**Configuration:** 20K total context (16K input + 4K response), default model: Qwen3-8B-FP8
 
 ## Setup
 
@@ -33,13 +33,13 @@ If requirements aren't met, the script exits with clear error messages and hardw
 
 **Specs (from config.toml):**
 - Model size: ~9GB
-- Context: 24,000 tokens (16K input + 8K response)
+- Context: 20,000 tokens (16K input + 4K response)
 - Max input: ~1,500 lines (90-95th percentile)
 - VRAM usage: ~13GB total (fits comfortably on 16GB GPU)
 
 **Memory breakdown:**
 - Model weights (FP8): ~9GB
-- KV cache (24K context, FP8): ~2GB
+- KV cache (20K context, FP8): ~1.5GB
 - Framework overhead: ~2GB
 - Total: ~13GB
 
@@ -56,13 +56,13 @@ If requirements aren't met, the script exits with clear error messages and hardw
 
 With FP8 quantization for both weights and KV cache:
 - Model weights (FP8): ~9GB
-- KV cache (24K context, FP8): ~2GB
+- KV cache (20K context, FP8): ~1.5GB
 - Framework overhead: ~2GB
-- **Total: ~13GB** (fits in 16GB at 90% utilization)
+- **Total: ~12.5GB** (fits in 16GB at 90% utilization)
 
 ## Context Window Sizing
 
-All configurations use **24K total context** (16K input + 8K response):
+All configurations use **20K total context** (16K input + 4K response):
 
 - Based on analysis of 10M+ GitHub repositories
 - Covers **90-95%** of Python files in the wild
@@ -71,14 +71,14 @@ All configurations use **24K total context** (16K input + 8K response):
 - 90th percentile: ~1,500 lines (~15,000 tokens)
 
 **Token allocation:**
-- vLLM context window: 24,000 tokens (total)
-- Reserved for response: 8,192 tokens (thinking mode reasoning)
+- vLLM context window: 20,000 tokens (total)
+- Reserved for response: 4,096 tokens (thinking mode reasoning)
 - Maximum input: ~16,000 tokens
   - System/detection prompts: ~500 tokens
   - Code content: ~15,500 tokens (~1,550 lines)
 
-**Why 8K response tokens?**
-Qwen3 thinking mode needs headroom for step-by-step reasoning before producing the final answer. 8K allows thorough analysis of complex code patterns.
+**Why 4K response tokens?**
+Benchmarked for optimal accuracy (see `benchmarks/reports/max_tokens/`). 4K achieves best accuracy; higher values show diminishing returns.
 
 **vLLM paged attention:** Smaller files don't waste VRAM. Memory is allocated dynamically based on actual file size.
 
@@ -117,4 +117,4 @@ See **[MODEL_SELECTION.md](MODEL_SELECTION.md)** for:
 - Examples: RTX 4060 Ti 16GB, RTX 4070+, RTX 4090, RTX 4000 Ada, L4, L40, A10
 
 **Default Model:** Qwen3-8B-FP8
-**Context:** 24K tokens (16K input + 8K response, supports ~1,500 line files)
+**Context:** 20K tokens (16K input + 4K response, supports ~1,500 line files)

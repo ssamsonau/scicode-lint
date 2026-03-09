@@ -143,7 +143,7 @@ proc = start_server()
 proc = start_server(
     model="Qwen/Qwen3-8B-FP8",
     port=5001,
-    max_model_len=24000,
+    max_model_len=20000,
     gpu_memory_utilization=0.85,
     wait=True,  # Block until ready
 )
@@ -152,8 +152,8 @@ proc = start_server(
 **Parameters:**
 - `model` (str, optional): Model name or path. Default: `"Qwen/Qwen3-8B-FP8"`
 - `port` (int, optional): Port number. Default: `5001`
-- `max_model_len` (int, optional): Max context length. Default: `24000`
-- `gpu_memory_utilization` (float, optional): GPU memory 0.0-1.0. Default: `0.9`
+- `max_model_len` (int, optional): Max context length. Default: `20000`
+- `gpu_memory_utilization` (float, optional): GPU memory 0.0-1.0. Default: from `config.toml`
 - `wait` (bool, optional): Wait for server ready. Default: `False`
 - `wait_timeout` (int, optional): Timeout for waiting. Default: `60`
 
@@ -212,7 +212,7 @@ with VLLMServer(base_url="http://gpu-cluster:5001"):
     # ... use linter ...
 
 # Custom local config
-with VLLMServer(port=8000, max_model_len=24000):
+with VLLMServer(port=8000, max_model_len=20000):
     # Server on port 8000
     linter = SciCodeLinter()
     # ... use linter ...
@@ -222,8 +222,8 @@ with VLLMServer(port=8000, max_model_len=24000):
 - `model` (str, optional): Model name. Default: `"Qwen/Qwen3-8B-FP8"`. Only used for local servers.
 - `port` (int, optional): Port number. Default: `5001`. Only used for local servers.
 - `base_url` (str, optional): Full URL for remote server (e.g., `"http://10.0.0.5:5001"`). If provided, server is treated as remote (no start/stop).
-- `max_model_len` (int, optional): Max context. Default: `24000`. Only used for local servers.
-- `gpu_memory_utilization` (float, optional): GPU memory. Default: `0.9`. Only used for local servers.
+- `max_model_len` (int, optional): Max context. Default: `20000`. Only used for local servers.
+- `gpu_memory_utilization` (float, optional): GPU memory. Default: from `config.toml`. Only used for local servers.
 - `wait_timeout` (int, optional): Startup/verification timeout. Default: `60`
 
 **Behavior:**
@@ -334,8 +334,8 @@ from scicode_lint.vllm import start_server, stop_server
 proc = start_server(
     model="Qwen/Qwen3-8B-FP8",
     port=5001,
-    max_model_len=24000,
-    gpu_memory_utilization=0.90,
+    max_model_len=20000,
+    gpu_memory_utilization=0.85,
     wait=True,  # Wait for ready
     wait_timeout=120,  # 2 minutes timeout
 )

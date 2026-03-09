@@ -37,8 +37,5 @@ docs_use_human/
 - [CONTRIBUTING.md](../CONTRIBUTING.md) - Contribution guidelines
 - [CHANGELOG.md](../CHANGELOG.md) - Version history
 
-### Benchmarks
-- [benchmarks/README.md](../benchmarks/README.md) - Benchmark scripts documentation
-
 ### AI Development Docs
 - [docs_dev_genai/](../docs_dev_genai/) - Architecture and implementation docs for Claude

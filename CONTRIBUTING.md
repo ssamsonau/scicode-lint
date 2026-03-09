@@ -84,7 +84,7 @@ pip install scicode-lint[vllm-server]
 
 # Start vLLM server
 vllm serve Qwen/Qwen3-8B-FP8 \
-    --trust-remote-code --max-model-len 24000
+    --trust-remote-code --max-model-len 20000
 ```
 
 See [INSTALLATION.md](INSTALLATION.md) for detailed setup.

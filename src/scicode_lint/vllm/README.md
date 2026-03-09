@@ -30,7 +30,7 @@ bash src/scicode_lint/vllm/start_vllm.sh \
     "Qwen/Qwen3-8B-FP8" \
     5001 \
     12000 \
-    0.9
+    0.85
 ```
 
 ## Quick Examples

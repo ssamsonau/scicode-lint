@@ -1,6 +1,6 @@
 #!/bin/bash
 # Integration tests for vLLM bash script with simulated VRAM
-# Tests the 16GB minimum requirement and 24K standard context
+# Tests the 16GB minimum requirement and 20K standard context
 
 set -e
 
@@ -10,11 +10,11 @@ FAILED=0
 echo "Testing vLLM bash script with different VRAM configurations..."
 echo ""
 
-# Test 1: 20GB VRAM (should succeed with 24K context, 0.90 GPU mem, FP8 model)
+# Test 1: 20GB VRAM (should succeed with 20K context, FP8 model)
 echo "Test 1: 20GB VRAM detection"
 output=$(SCICODE_VRAM_MB=20475 bash "$SCRIPT" 2>&1 || true)
-if echo "$output" | grep -q "Detected.*GB VRAM" && echo "$output" | grep -q "24K"; then
-    echo "✓ Correctly detected 20GB → FP8 model, 24K context"
+if echo "$output" | grep -q "Detected.*GB VRAM" && echo "$output" | grep -q "20K"; then
+    echo "✓ Correctly detected 20GB → FP8 model, 20K context"
 else
     echo "✗ Failed to detect 20GB settings"
     echo "$output"
@@ -24,8 +24,8 @@ fi
 # Test 2: 16GB VRAM (should succeed - at minimum)
 echo "Test 2: 16GB VRAM detection (should succeed)"
 output=$(SCICODE_VRAM_MB=16384 bash "$SCRIPT" 2>&1 || true)
-if echo "$output" | grep -q "Detected.*GB VRAM" && echo "$output" | grep -q "24K"; then
-    echo "✓ Correctly detected 16GB → FP8 model, 24K context"
+if echo "$output" | grep -q "Detected.*GB VRAM" && echo "$output" | grep -q "20K"; then
+    echo "✓ Correctly detected 16GB → FP8 model, 20K context"
 else
     echo "✗ Failed to detect 16GB settings"
     echo "$output"
@@ -58,7 +58,7 @@ fi
 echo "Test 5: Boundary test - 15500MB (at 16GB threshold)"
 output=$(SCICODE_VRAM_MB=15500 bash "$SCRIPT" 2>&1 || true)
 if echo "$output" | grep -q "Detected.*GB VRAM"; then
-    echo "✓ Correctly handled 15500MB → FP8 model, 24K context"
+    echo "✓ Correctly handled 15500MB → FP8 model, 20K context"
 else
     echo "✗ Failed boundary test at 15500MB"
     echo "$output"
@@ -68,8 +68,8 @@ fi
 # Test 6: 24GB VRAM (should succeed - above minimum)
 echo "Test 6: 24GB VRAM detection"
 output=$(SCICODE_VRAM_MB=24576 bash "$SCRIPT" 2>&1 || true)
-if echo "$output" | grep -q "Detected.*GB VRAM" && echo "$output" | grep -q "24K"; then
-    echo "✓ Correctly detected 24GB → FP8 model, 24K context"
+if echo "$output" | grep -q "Detected.*GB VRAM" && echo "$output" | grep -q "20K"; then
+    echo "✓ Correctly detected 24GB → FP8 model, 20K context"
 else
     echo "✗ Failed to detect 24GB settings"
     echo "$output"

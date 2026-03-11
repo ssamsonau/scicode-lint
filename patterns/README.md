@@ -11,6 +11,89 @@ Detection questions should leverage the model's reasoning:
 - **Trust the reasoning** - Don't add "LITERALLY" or "do not assume" directives
 - **Binary answer** - End with clear YES/NO conditions
 
+## Runtime Context: System Prompt
+
+Detection questions don't run in isolation. They run within a system prompt that frames how the LLM approaches the task. Understanding this context helps write better detection questions.
+
+**Source:** `src/scicode_lint/detectors/prompts.py`
+
+### What the System Prompt Tells the LLM
+
+**1. Scientific correctness framing:**
+> "The question examines scientific correctness - the perspective of a domain researcher checking if analysis code produces valid, reproducible results."
+
+Your detection question should align with this framing. The LLM is primed to think like a scientist checking research code, not a general code reviewer.
+
+**2. Narrow focus instruction:**
+> "This is NOT a general code review. Do not look for: Style issues, Performance problems, General bugs or errors, Other scientific issues beyond the specific question."
+
+The LLM is explicitly told to ignore everything except your specific question. This means your question must be self-contained - don't assume the LLM will notice related issues.
+
+**3. Analysis approach (before answering):**
+> 1. First understand the overall code structure and what it's trying to accomplish
+> 2. Identify the intent and purpose of key operations
+> 3. Trace the flow of data and operations relevant to the detection question
+> 4. THEN answer the specific detection question
+
+The LLM understands context first, then answers. Your question can reference concepts like "training loop" or "preprocessing pipeline" - the LLM will identify these structures before evaluating.
+
+**4. YES/NO answer rules:**
+> "Read the detection question - it defines what YES and NO mean. YES typically means bug found, NO means code is correct."
+
+Your YES/NO conditions at the end of the question are the definitive criteria. Make them unambiguous.
+
+**5. Confidence scale:**
+| Score | Meaning |
+|-------|---------|
+| 0.95-1.0 | Issue definitely present with clear evidence |
+| 0.85-0.95 | Very likely an issue based on pattern matching |
+| 0.7-0.85 | Probable bug but context might justify it |
+| <0.7 | Uncertain - low confidence |
+
+The `min_confidence` field in test cases should align with this scale.
+
+**6. Few-shot examples:**
+The system prompt includes examples showing the expected reasoning pattern. These set expectations for concise, evidence-based responses.
+
+### Implications for Detection Questions
+
+| System Prompt Says | So Your Question Should |
+|-------------------|------------------------|
+| "Scientific correctness perspective" | Frame bugs in terms of research validity, not code style |
+| "Stay narrowly focused" | Be self-contained - include all context needed |
+| "Understand structure first" | Reference high-level concepts (LLM will find them) |
+| "YES/NO conditions are definitive" | Make YES/NO conditions unambiguous |
+| "Context-dependent is valid" | Allow edge cases where both answers are reasonable |
+
+### Example: Question Aligned with System Context
+
+```toml
+question = """
+Analyze data preprocessing in this code.
+
+Data leakage occurs when statistics (mean, std, min, max) are computed
+on the full dataset before splitting. This leaks test set information
+into the training process, causing overly optimistic evaluation metrics.
+
+Correct code computes statistics on training data only, after the split.
+
+Does this code have data leakage from preprocessing?
+
+Look for:
+- Scaler/normalizer fit on combined train+test data
+- Statistics computed before train_test_split()
+
+YES = Bug found: preprocessing uses test data information
+NO = Correct: statistics computed on training data only
+"""
+```
+
+**Why this works with the system context:**
+- "overly optimistic evaluation metrics" → scientific correctness framing
+- "Analyze data preprocessing" → LLM will identify preprocessing steps first
+- "Look for" section → specific symptoms to check
+- Clear YES/NO → unambiguous decision criteria
+
 ## Overview
 
 This directory contains the **definitions** of what issues to detect and **test data** to validate detection quality.
@@ -36,12 +119,31 @@ patterns/
 │   ├── ml-002-target-leakage/
 │   └── ...
 ├── ai-inference/          # Inference correctness patterns
-├── ai-data/               # Data loading patterns
 ├── scientific-numerical/  # Numerical precision patterns
 ├── scientific-performance/ # Performance patterns
 └── scientific-reproducibility/ # Reproducibility patterns
 
 Total: 64 patterns
+```
+
+## Pattern ID Format
+
+Pattern directories use long-form IDs: `{prefix}-{number}-{descriptive-name}` (e.g., `ml-001-scaler-leakage`).
+
+**Canonical form (long):** `ml-001-scaler-leakage` - used in directory names and pattern.toml
+**Short form:** `ml-001` - works for convenience in CLI and scripts
+
+The short form works because tools match by substring (e.g., `ml-001` matches `ml-001-scaler-leakage`).
+
+**Examples:**
+```bash
+# Both work:
+python pattern_verification/semantic/semantic_validate.py ml-001-scaler-leakage  # canonical
+python pattern_verification/semantic/semantic_validate.py ml-001                  # short form
+
+# Both work:
+scicode-lint check myfile.py --pattern ml-001-scaler-leakage  # canonical
+scicode-lint check myfile.py --pattern ml-001                  # short form
 ```
 
 ## File Roles
@@ -56,6 +158,7 @@ Each pattern directory contains exactly 2 things:
 - **[meta]** - Pattern ID, name, category, severity
 - **[detection]** - Detection question (what the LLM looks for), warning message, explanation
 - **[tests]** - Test case definitions (positive, negative, context_dependent)
+- **references** - URLs to official documentation (optional but recommended)
 
 ```toml
 [meta]
@@ -94,7 +197,37 @@ min_confidence = 0.85
 [[tests.negative]]
 file = "test_negative/scaler_after_split.py"
 description = "Correct scaler usage after split"
+
+# Optional: Official documentation URLs (can have multiple)
+references = [
+    "https://scikit-learn.org/stable/common_pitfalls.html#data-leakage",
+    "https://scikit-learn.org/stable/modules/cross_validation.html"
+]
 ```
+
+**References field** (recommended):
+- URLs to official documentation that explain the **concept** behind the bug
+- **Limit: 5 URLs max** - prioritize the most relevant
+
+**Choosing good reference URLs:**
+
+1. **Page must focus on this specific issue** - not just mention it
+   - Good: "Why you need model.eval() for inference"
+   - Good: API docs for `torch.inference_mode()`
+   - Bad: "PyTorch basics" tutorial that mentions eval() once
+
+2. **Explains the consequence** - shows what goes wrong without the fix
+
+3. **Keep it focused** - if page is huge, find more specific page or use anchor link
+
+4. **Any page type works** (API docs, tutorials, GitHub issues) as long as it's focused
+
+**Bad references** are thin or unfocused:
+- `torch.sigmoid.html` → just says "Alias for expit()" - useless
+- `numpy.mean.html` → just function signature - doesn't explain pitfalls
+- Giant tutorial page that briefly mentions the issue
+
+Cached locally for semantic review (see `pattern_verification/deterministic/doc_cache/`)
 
 **What each component sees**:
 - **Linter** sees: `[meta]` and `[detection]` sections only
@@ -370,16 +503,16 @@ test_negative/
 # Sync test files with pattern.toml (run first!)
 python pattern_verification/deterministic/validate.py --fix
 
-# Review with pattern-reviewer agent (catches issues before eval)
-claude --agent pattern-reviewer "Review ml-999-my-pattern"
+# Semantic review (catches consistency issues before eval)
+python pattern_verification/semantic/semantic_validate.py ml-999-my-pattern
 
 # Run evaluation (reads test cases from pattern.toml [tests] section)
 python evals/run_eval.py --pattern ml-999-my-pattern
 ```
 
-**Why run validate_pattern_tests.py?** Ensures every test file on disk has a corresponding entry in pattern.toml. The `--fix` flag auto-generates stub entries.
+**Why run validate.py?** Ensures every test file on disk has a corresponding entry in pattern.toml. The `--fix` flag auto-generates stub entries.
 
-**Why run pattern-reviewer?** The agent checks things evals can't:
+**Why run semantic_validate.py?** The script checks things evals can't:
 - Detection question clarity and focus
 - Test file diversity (not just copies with different names)
 - Test files match their `[tests]` metadata descriptions
@@ -441,18 +574,23 @@ python pattern_verification/deterministic/validate.py --strict
 - **Remove**: Deletes TOML entries for files that don't exist
 - **Rename**: Auto-corrects filename typos if a close match exists
 
-### Pattern Reviewer Agent
+### Semantic Validation
 
-Semantic review of pattern quality (uses LLM reasoning):
+Deep review using LLM reasoning (catches issues deterministic checks miss):
 
 ```bash
-claude --agent pattern_verification/semantic/pattern-reviewer "Review ml-001-scaler-leakage"
+# Single pattern
+python pattern_verification/semantic/semantic_validate.py ml-001-scaler-leakage
+
+# All patterns
+python pattern_verification/semantic/semantic_validate.py --all
 ```
 
-**What it checks beyond validation script:**
+**What it checks:**
 - Description/expected_issue consistency with actual test file content
 - Detection question clarity and focus
 - Test file relevance to the bug being detected
+- Snippet existence in test files
 
 **📖 Full verification guide:** [pattern_verification/README.md](../pattern_verification/README.md)
 

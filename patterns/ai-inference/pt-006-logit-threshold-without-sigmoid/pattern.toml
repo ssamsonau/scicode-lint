@@ -20,9 +20,12 @@ Thresholding raw logits is meaningless — logits are unbounded. Apply torch.sig
 
 """
 
-tags = []
+tags = ["pytorch", "binary-classification", "inference"]
 related_patterns = []
-references = []
+references = [
+    "https://pytorch.org/docs/stable/generated/torch.nn.BCEWithLogitsLoss.html",
+    "https://pytorch.org/docs/stable/generated/torch.sigmoid.html",
+]
 
 [detection]
 question = """
@@ -89,7 +92,6 @@ file = "test_negative/sentiment_with_sigmoid.py"
 description = "Sentiment classifier that correctly converts logits to probabilities before thresholding"
 
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/batch_prediction.py"
 description = "Batch predictor class and image classifier function both threshold raw logits without sigmoid"

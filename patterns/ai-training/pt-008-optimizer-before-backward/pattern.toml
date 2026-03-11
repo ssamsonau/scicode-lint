@@ -21,7 +21,7 @@ Calling optimizer.step() before loss.backward() updates parameters before gradie
 
 tags = ["pytorch", "optimizer", "gradients", "training"]
 related_patterns = ["pt-004"]
-references = []
+references = ["https://pytorch.org/tutorials/beginner/basics/optimization_tutorial.html"]
 
 [detection]
 question = """
@@ -68,7 +68,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "train_rnn"
-snippet = "model.zero_grad()"
+snippet = "optimizer.step()"
 
 [[tests.negative]]
 file = "test_negative/correct_optimization_order.py"
@@ -79,7 +79,6 @@ file = "test_negative/proper_gradient_descent.py"
 description = "Correct usage: proper training sequence for complex model (VAE)"
 
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/alternating_update.py"
 description = "GAN training with incorrect order: optimizer.step() called before backward() for both generator and discriminator."
@@ -89,7 +88,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "train_gan_wrong"
-snippet = "for real_data in data_loader:"
+snippet = "opt_d.step()"
 
 [[tests.negative]]
 file = "test_negative/alternating_update_correct.py"

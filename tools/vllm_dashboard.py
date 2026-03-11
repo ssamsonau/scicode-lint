@@ -377,8 +377,16 @@ def main() -> None:
                 .encode(
                     x=alt.X("Time:T", axis=alt.Axis(format="%H:%M", title=None)),
                     y=alt.Y("Count:Q", scale=alt.Scale(domain=[0, max_queue * 1.1]), title=None),
-                    color=alt.Color("Type:N", legend=None),
-                    strokeDash=alt.StrokeDash("Type:N", legend=None),
+                    color=alt.Color(
+                        "Type:N",
+                        scale=alt.Scale(domain=["Running", "Queued"], range=["#1f77b4", "#e6a000"]),
+                        legend=None,
+                    ),
+                    strokeDash=alt.StrokeDash(
+                        "Type:N",
+                        scale=alt.Scale(domain=["Running", "Queued"], range=[[1, 0], [4, 4]]),
+                        legend=None,
+                    ),
                 )
             )
             points = (

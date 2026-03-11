@@ -26,12 +26,16 @@ references = ["https://pytorch.org/docs/stable/data.html#multi-process-data-load
 
 [detection]
 question = """
-Does this code have DataLoader without num_workers in GPU training?
+Does this code have DataLoader with single-process loading in GPU training?
 
-Check for: DataLoader(...) without num_workers (or num_workers=0) AND .cuda() or loss.backward().
+Single-process loading = num_workers=0 OR num_workers not specified (defaults to 0)
 
-YES = Found: DataLoader missing num_workers with GPU training code
-NO = Clean: num_workers set, or CPU-only code, or inference-only
+Check for BOTH:
+1. DataLoader(...) with num_workers=0 OR num_workers parameter missing entirely
+2. GPU training indicators: .cuda(), .to(device), loss.backward()
+
+YES = Bug: DataLoader uses num_workers=0 or omits it, with GPU training code present
+NO = Clean: num_workers >= 1 specified, or CPU-only code, or inference-only
 """
 
 warning_message = """
@@ -46,13 +50,13 @@ false_positive_risks = []
 
 [[tests.positive]]
 file = "test_positive/dataloader_explicit_zero_workers.py"
-description = "DataLoader explicitly sets num_workers=0, forcing single-process data loading and creating GPU bottleneck during training"
-expected_issue = "DataLoader with num_workers=0 in training pipeline"
+description = "DataLoader explicitly sets num_workers=0 in GPU training code"
+expected_issue = "DataLoader with num_workers=0 and loss.backward()"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "create_data_loader"
+name = "train_with_single_worker"
 snippet = "num_workers=0"
 
 [[tests.positive]]
@@ -72,20 +76,20 @@ description = "Correct usage: DataLoader sets num_workers=4 for training and num
 
 [[tests.negative]]
 file = "test_negative/optimal_workers_config.py"
-description = "Correct usage: DataLoader calculates optimal num_workers based on CPU count with prefetch_factor and persistent_workers"
+description = "Correct usage: DataLoader with num_workers=4 for multi-process data loading"
 
 [[tests.context_dependent]]
 file = "test_context_dependent/debugging_single_worker.py"
 description = "Conditionally uses num_workers=0 in debug mode for easier debugging, but uses num_workers=4 in production - acceptable pattern"
 context_notes = "Using num_workers=0 for debugging is acceptable as it makes error tracebacks clearer and allows breakpoint debugging"
+allow_detection = true
+allow_skip = true
 
-[[tests.context_dependent]]
-file = "test_context_dependent/small_dataset_inference.py"
-description = "Uses num_workers=0 for inference on small datasets where multi-process overhead exceeds benefits - acceptable for small batches"
-context_notes = "For small datasets or inference workloads, num_workers=0 may be acceptable as the multi-process overhead can outweigh benefits"
+[[tests.negative]]
+file = "test_negative/small_dataset_inference.py"
+description = "Inference-only code with num_workers=0 - detection explicitly excludes inference-only cases"
 
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/image_loader.py"
 description = "ImageDataset with DataLoaders that omit num_workers parameter, defaulting to single-process data loading and creating GPU bottleneck during image training"

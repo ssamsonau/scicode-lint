@@ -22,7 +22,10 @@ NumPy arrays are passed by reference. Modifying inside a function silently chang
 
 tags = []
 related_patterns = []
-references = []
+references = [
+    "https://numpy.org/doc/stable/user/basics.copies.html",
+    "https://numpy.org/doc/stable/reference/generated/numpy.ndarray.copy.html",
+]
 
 [detection]
 question = """
@@ -72,8 +75,8 @@ min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "apply_threshold"
-snippet = "data[data < threshold] = 0"
+name = "normalize_weights"
+snippet = "weights /= total"
 
 [[tests.negative]]
 file = "test_negative/explicit_copy.py"

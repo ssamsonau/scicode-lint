@@ -16,9 +16,13 @@ explanation = """
 torch.jit.trace() records operations for a specific input. If your model has if-statements or loops that depend on input values, use torch.jit.script() instead.
 """
 
-tags = []
+tags = ["pytorch", "torchscript", "jit", "deployment"]
 related_patterns = []
-references = []
+references = [
+    "https://pytorch.org/docs/stable/generated/torch.jit.trace.html",
+    "https://pytorch.org/docs/stable/generated/torch.jit.script.html",
+    "https://pytorch.org/docs/stable/jit.html",
+]
 
 [detection]
 question = """
@@ -71,7 +75,6 @@ description = "Tracing model with no control flow (safe)"
 file = "test_negative/dynamic_to_static.py"
 description = "Using jit.script for control flow models"
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/trace_conditional.py"
 description = "Tracing a model with data-dependent conditional activation logic"
@@ -79,17 +82,17 @@ expected_issue = "torch.jit.trace() on model with conditional branch based on te
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "class"
-name = "ConditionalModel"
-snippet = "class ConditionalModel"
+type = "function"
+name = "export_model"
+snippet = "torch.jit.trace"
 
 [[tests.positive]]
 file = "test_positive/trace_loop.py"
-description = "Tracing models with data-dependent conditionals and variable-length loops"
-expected_issue = "torch.jit.trace() on models with control flow dependent on input values"
+description = "Tracing a model with data-dependent loop iteration count"
+expected_issue = "torch.jit.trace() on model with variable-length loop"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "class"
-name = "ConditionalModel"
-snippet = "class ConditionalModel"
+type = "function"
+name = "trace_loop_model"
+snippet = "torch.jit.trace"

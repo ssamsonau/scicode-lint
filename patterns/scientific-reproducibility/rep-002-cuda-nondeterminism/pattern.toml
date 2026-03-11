@@ -20,9 +20,12 @@ CUDA non-determinism: some GPU ops are non-deterministic by default. Set torch.u
 
 """
 
-tags = []
-related_patterns = []
-references = []
+tags = ["pytorch", "cuda", "gpu", "reproducibility"]
+related_patterns = ["rep-001-incomplete-random-seeds"]
+references = [
+    "https://docs.pytorch.org/docs/stable/generated/torch.use_deterministic_algorithms.html",
+    "https://docs.pytorch.org/docs/stable/notes/randomness.html",
+]
 
 [detection]
 question = """
@@ -94,7 +97,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "train_cnn"
-snippet = "model.train()"
+snippet = "inputs.cuda()"
 
 [[tests.negative]]
 file = "test_negative/cudnn_deterministic.py"

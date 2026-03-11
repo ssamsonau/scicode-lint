@@ -2,7 +2,7 @@
 
 scicode-lint requires **minimum 16GB VRAM** with **native FP8 support** (compute capability >= 8.9).
 
-**Disk space:** Also requires **~15GB free disk space** for model weights, which are downloaded to `~/.cache/huggingface/` on first launch. See [INSTALLATION.md](../INSTALLATION.md#model-storage) for details.
+**Disk space:** Also requires **~15GB free disk space** for model weights, which are downloaded to `~/.cache/huggingface/hub/` on first launch. See [INSTALLATION.md](../INSTALLATION.md#model-storage) for details.
 
 ## Quick Reference
 
@@ -10,7 +10,7 @@ scicode-lint requires **minimum 16GB VRAM** with **native FP8 support** (compute
 - 16GB+ VRAM
 - Native FP8 support (compute capability >= 8.9)
 
-**Configuration:** 20K total context (16K input + 4K response), default model: Qwen3-8B-FP8
+**Configuration:** 20K total context (16K input + 4K response), default model: RedHatAI/Qwen3-8B-FP8-dynamic
 
 ## Setup
 
@@ -29,7 +29,7 @@ If requirements aren't met, the script exits with clear error messages and hardw
 
 ## Configuration
 
-**Default Model:** Qwen3-8B-FP8 (`Qwen/Qwen3-8B-FP8`)
+**Default Model:** Qwen3-8B-FP8 (`RedHatAI/Qwen3-8B-FP8-dynamic`)
 
 **Specs (from config.toml):**
 - Model size: ~9GB
@@ -116,5 +116,5 @@ See **[MODEL_SELECTION.md](MODEL_SELECTION.md)** for:
 - Native FP8 support (compute cap >= 8.9)
 - Examples: RTX 4060 Ti 16GB, RTX 4070+, RTX 4090, RTX 4000 Ada, L4, L40, A10
 
-**Default Model:** Qwen3-8B-FP8
+**Default Model:** RedHatAI/Qwen3-8B-FP8-dynamic
 **Context:** 20K tokens (16K input + 4K response, supports ~1,500 line files)

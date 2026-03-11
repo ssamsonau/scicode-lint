@@ -27,7 +27,7 @@ bash src/scicode_lint/vllm/start_vllm.sh "meta-llama/Llama-3.1-8B-Instruct"
 
 # Start with full config
 bash src/scicode_lint/vllm/start_vllm.sh \
-    "Qwen/Qwen3-8B-FP8" \
+    "RedHatAI/Qwen3-8B-FP8-dynamic" \
     5001 \
     12000 \
     0.85

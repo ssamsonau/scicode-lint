@@ -141,7 +141,7 @@ proc = start_server()
 
 # Start with custom config
 proc = start_server(
-    model="Qwen/Qwen3-8B-FP8",
+    model="RedHatAI/Qwen3-8B-FP8-dynamic",
     port=5001,
     max_model_len=20000,
     gpu_memory_utilization=0.85,
@@ -150,7 +150,7 @@ proc = start_server(
 ```
 
 **Parameters:**
-- `model` (str, optional): Model name or path. Default: `"Qwen/Qwen3-8B-FP8"`
+- `model` (str, optional): Model name or path. Default: `"RedHatAI/Qwen3-8B-FP8-dynamic"`
 - `port` (int, optional): Port number. Default: `5001`
 - `max_model_len` (int, optional): Max context length. Default: `20000`
 - `gpu_memory_utilization` (float, optional): GPU memory 0.0-1.0. Default: from `config.toml`
@@ -219,7 +219,7 @@ with VLLMServer(port=8000, max_model_len=20000):
 ```
 
 **Parameters:**
-- `model` (str, optional): Model name. Default: `"Qwen/Qwen3-8B-FP8"`. Only used for local servers.
+- `model` (str, optional): Model name. Default: `"RedHatAI/Qwen3-8B-FP8-dynamic"`. Only used for local servers.
 - `port` (int, optional): Port number. Default: `5001`. Only used for local servers.
 - `base_url` (str, optional): Full URL for remote server (e.g., `"http://10.0.0.5:5001"`). If provided, server is treated as remote (no start/stop).
 - `max_model_len` (int, optional): Max context. Default: `20000`. Only used for local servers.
@@ -332,7 +332,7 @@ from scicode_lint.vllm import start_server, stop_server
 
 # Start with custom config
 proc = start_server(
-    model="Qwen/Qwen3-8B-FP8",
+    model="RedHatAI/Qwen3-8B-FP8-dynamic",
     port=5001,
     max_model_len=20000,
     gpu_memory_utilization=0.85,

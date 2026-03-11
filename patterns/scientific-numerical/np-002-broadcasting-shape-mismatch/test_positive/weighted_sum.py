@@ -1,11 +1,14 @@
-def weighted_average(values, weights):
-    return (values * weights).sum() / weights.sum()
+import numpy as np
 
 
-def apply_weights(matrix, row_weights, col_weights):
-    weighted = matrix * row_weights * col_weights
-    return weighted
+def normalize_rows(data):
+    """Normalize each row by subtracting row mean."""
+    row_means = data.mean(axis=1)
+    return data - row_means
 
 
-def scale_features(X, scales):
-    return X * scales
+def standardize_samples(X):
+    """Standardize each sample (row)."""
+    sample_means = X.mean(axis=1)
+    sample_stds = X.std(axis=1)
+    return (X - sample_means) / sample_stds

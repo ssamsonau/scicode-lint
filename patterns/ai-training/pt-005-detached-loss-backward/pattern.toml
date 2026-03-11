@@ -20,26 +20,34 @@ Calling backward() on a detached tensor or after calling .item() breaks the grad
 """
 
 tags = ["pytorch", "gradients", "autograd", "loss"]
-related_patterns = []
-references = []
+related_patterns = ["pt-009"]
+references = ["https://pytorch.org/docs/stable/autograd.html#torch.Tensor.backward"]
 
 [detection]
 question = """
 Analyze the loss computation and backward pass in this code.
 
-Calling backward() on a detached tensor (.detach(), .data) or after converting to scalar (.item()) disconnects the computation graph. No gradients will be computed and the model won't learn.
+Calling backward() on a tensor disconnected from the model's computation graph prevents gradient computation. The model won't learn.
 
-Correct approach: Call backward() on the original loss tensor, then use .item() for logging.
+Ways the graph gets disconnected:
+1. loss.detach().backward() - explicit detach
+2. Using .data before backward()
+3. Creating a new tensor from a scalar: torch.tensor(value, requires_grad=True) - this creates a NEW tensor with NO connection to the model's parameters
+4. Computing a metric from detached outputs and backpropagating through it
 
-Does this code call backward() on a detached loss?
+Correct approach: Call backward() directly on the loss tensor computed from model outputs.
+
+Does this code call backward() on a disconnected tensor?
 
 Look for:
-- loss.detach().backward() or similar
-- Using .data before backward()
-- Storing loss.item() then trying to backpropagate
+- loss.detach().backward()
+- loss.clone().detach() followed by setting requires_grad=True - still disconnected from model
+- torch.tensor(scalar_value, requires_grad=True) followed by backward() - the new tensor is not connected to model parameters
+- loss.data.backward()
+- Metric computed from outputs.detach() then converted to tensor for backward
 
-YES = Bug found: backward() called on detached or scalar loss
-NO = Correct: backward() called on original loss tensor
+YES = Bug found: backward() called on tensor disconnected from model graph
+NO = Correct: backward() called on loss connected to model outputs
 """
 
 warning_message = """
@@ -62,16 +70,12 @@ type = "function"
 name = "train_iteration"
 snippet = "loss_disconnected.backward()"
 
-[[tests.positive]]
-file = "test_positive/item_then_backward.py"
-description = "Converting loss to Python float before backward - suspicious pattern that could indicate misunderstanding"
-expected_issue = "loss converted to scalar but loss tensor still used for backward"
-min_confidence = 0.70
-
-[tests.positive.expected_location]
-type = "function"
-name = "training_step"
-snippet = "scalar_loss = float(loss)"
+[[tests.context_dependent]]
+file = "test_context_dependent/item_then_backward.py"
+description = "Converting loss to float before backward - code works but pattern is suspicious (why convert to scalar before using original?)"
+context_notes = "The backward() is called on the original loss tensor, so it works correctly. The float conversion before backward is suspicious but not a bug."
+allow_detection = true
+allow_skip = true
 
 [[tests.negative]]
 file = "test_negative/correct_backward.py"
@@ -82,7 +86,6 @@ file = "test_negative/proper_loss_handling.py"
 description = "Correct usage: multiple loss components properly accumulated and backward called on combined loss"
 
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/custom_metric_loss.py"
 description = "Creating a new tensor from a Python scalar computed from detached outputs and calling backward on it - breaks the gradient chain"
@@ -92,7 +95,18 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "train_with_metric"
-snippet = "model.train()"
+snippet = "loss = torch.tensor(metric, requires_grad=True)"
+
+[[tests.positive]]
+file = "test_positive/explicit_detach_backward.py"
+description = "Explicitly detaching loss tensor before calling backward - gradients cannot flow through detached tensor"
+expected_issue = "backward() called on detached loss tensor, no gradients will be computed"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "train_autoencoder"
+snippet = "detached_loss.backward()"
 
 [[tests.negative]]
 file = "test_negative/custom_metric_loss_correct.py"

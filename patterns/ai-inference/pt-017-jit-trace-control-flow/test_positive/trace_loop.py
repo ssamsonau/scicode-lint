@@ -2,21 +2,21 @@ import torch
 import torch.nn as nn
 
 
-class ConditionalModel(nn.Module):
-    def __init__(self, threshold=0.5):
+class RecurrentProcessor(nn.Module):
+    def __init__(self):
         super().__init__()
-        self.threshold = threshold
-        self.linear = nn.Linear(10, 10)
-        self.activation = nn.ReLU()
+        self.transform = nn.Linear(10, 10)
+        self.threshold = 0.1
 
     def forward(self, x):
-        x = self.linear(x)
-        if x.mean() > self.threshold:
-            x = self.activation(x)
+        # Loop count depends on input data - tracing captures only one path
+        num_iterations = int(x.abs().sum().item()) % 5 + 1
+        for _ in range(num_iterations):
+            x = self.transform(x)
         return x
 
 
-def trace_conditional_model():
-    model = ConditionalModel()
+def trace_loop_model():
+    model = RecurrentProcessor()
     example = torch.randn(1, 10)
     return torch.jit.trace(model, example)

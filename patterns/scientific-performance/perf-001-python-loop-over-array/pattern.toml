@@ -94,7 +94,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "compute_distances"
-snippet = "distances = []"
+snippet = "for point in points:"
 
 [[tests.negative]]
 file = "test_negative/vectorized_operations.py"

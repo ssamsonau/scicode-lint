@@ -21,11 +21,13 @@ After calling model.eval() for validation, you must call model.train() before re
 
 tags = ["pytorch", "training", "dropout", "batch-normalization"]
 related_patterns = ["pt-007"]
-references = []
+references = ["https://pytorch.org/docs/stable/generated/torch.nn.Module.html#torch.nn.Module.train"]
 
 [detection]
 question = """
 Does training code run after model.eval() without model.train() in between?
+
+WHY THIS MATTERS: model.eval() disables dropout and switches batch normalization to use running statistics. If you resume training without calling model.train(), dropout won't drop units and batch norm uses wrong statistics, causing the model to learn incorrectly and perform poorly.
 
 Check for: model.eval() ... loss.backward() ... with NO model.train() between them.
 
@@ -64,6 +66,17 @@ type = "function"
 name = "training_loop"
 snippet = "for inputs, labels in train_loader:"
 
+[[tests.positive]]
+file = "test_positive/multi_phase_training.py"
+description = "Multi-phase training with validation and test evaluation phases that never restore train mode"
+expected_issue = "Training continues after model.eval() for validation and test phases without model.train()"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "train_with_warmup"
+snippet = "for batch_x, batch_y in train_loader:"
+
 [[tests.negative]]
 file = "test_negative/correct_train_mode.py"
 description = "Correct usage: model.train() is called before training loop"
@@ -73,17 +86,9 @@ file = "test_negative/train_after_validation.py"
 description = "Correct usage: model.train() is called after each validation block before resuming training"
 
 
-# === Auto-generated entries (review and update) ===
-[[tests.positive]]
-file = "test_positive/resume_training.py"
-description = "Training resumes after loading checkpoint without explicitly calling model.train() - model may still be in eval mode"
-expected_issue = "Training continues without model.train() called after checkpoint restore"
-min_confidence = 0.85
-
-[tests.positive.expected_location]
-type = "function"
-name = "resume_training"
-snippet = "checkpoint = torch.load(checkpoint_path)"
+[[tests.negative]]
+file = "test_negative/resume_training.py"
+description = "No model.eval() call before training - detection question specifically looks for eval→training without train()"
 
 [[tests.negative]]
 file = "test_negative/resume_training_correct.py"

@@ -22,7 +22,10 @@ int32 overflow: max is ~2.1 billion. Summing large arrays wraps silently. Use dt
 
 tags = []
 related_patterns = []
-references = []
+references = [
+    "https://numpy.org/doc/stable/reference/arrays.dtypes.html",
+    "https://numpy.org/doc/stable/reference/generated/numpy.sum.html",
+]
 
 [detection]
 question = """

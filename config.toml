@@ -85,3 +85,13 @@ max_concurrent_evals = 150
 # This is vLLM's internal limit, passed to start_vllm.sh
 # Default 256 is vLLM's default; reduce if OOM during high concurrency
 vllm_max_num_seqs = 256
+
+[pattern_verification]
+# Max concurrent Claude CLI processes for semantic validation
+# Observed: ~450MB per process (same for haiku/sonnet/opus)
+# Formula: parallel_count × 500MB (e.g., 32 parallel ≈ 16GB RAM)
+semantic_parallel = 16
+
+# Model for semantic validation: "haiku", "sonnet", or "opus"
+# Opus recommended for thorough pattern review (all models use same RAM)
+semantic_model = "opus"

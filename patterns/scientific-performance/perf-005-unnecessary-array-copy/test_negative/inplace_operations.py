@@ -1,8 +1,20 @@
-def normalize_data(arr):
-    mean = arr.mean()
-    std = arr.std()
-    return (arr - mean) / std
+import numpy as np
 
 
-def process_array(input_arr):
-    return input_arr * 2 + 1
+def normalize_inplace(arr):
+    data = arr.copy()
+    data -= data.mean()
+    data /= data.std()
+    return data
+
+
+def sort_copy(arr):
+    sorted_arr = arr.copy()
+    sorted_arr.sort()
+    return sorted_arr
+
+
+def fill_zeros(arr, threshold):
+    result = arr.copy()
+    result[result < threshold] = 0
+    return result

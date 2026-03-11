@@ -6,6 +6,19 @@ AI-powered linter for scientific Python code using local LLM (Qwen3 via vLLM).
 
 ---
 
+## Table of Contents
+
+- [Key Files](#key-files)
+- [Architecture Overview](#architecture-overview)
+- [Local LLM Setup](#local-llm-setup)
+- [Claude CLI for Development](#claude-cli-for-development)
+- [Pattern Development](#pattern-development)
+- [Critical Development Rules](#critical-development-rules)
+- [AI Coding Agent Workflow](#ai-coding-agent-workflow)
+- [Continuous Improvement Loop](#continuous-improvement-loop)
+
+---
+
 ## Key Files
 
 **Main files (root):**
@@ -47,7 +60,7 @@ scicode-lint uses a small local model (fits in 16GB VRAM) - a deliberate choice 
 
 **Philosophy:** Detection only, no automatic fixes.
 
-**⚠️ CRITICAL ARCHITECTURAL RULES:**
+**⚠️ CRITICAL ARCHITECTURAL RULES** (see [ARCHITECTURE.md](docs_dev_genai/ARCHITECTURE.md) for complete rationale):
 - Code MUST come before detection instructions in prompts (enables vLLM prefix caching)
 - Detection questions must be focused (one issue per question) with self-contained context
 - Include "why it matters" directly in the question (Qwen3 is a thinking model - context helps reasoning)
@@ -70,6 +83,18 @@ python -m scicode_lint check myfile.py
 
 ---
 
+## Claude CLI for Development
+
+**Pattern verification and improvement uses Claude CLI (`claude` command), NOT the Anthropic Python SDK.**
+
+- **Auth:** `claude login` (OAuth) — uses Claude Code subscription (Pro/Team)
+- **No API keys needed** — if you have Claude Code subscription, you're set
+- **NOT compatible with:** `anthropic.Client()` or `ANTHROPIC_API_KEY` (separate billing)
+
+All agent-based tooling (`semantic_validate.py`, future improvement loop) spawns `claude --agent` as async subprocesses.
+
+---
+
 ## Pattern Development
 
 **📖 Pattern guide:** [patterns/README.md](patterns/README.md) - Structure, detection question template, test file rules
@@ -85,11 +110,24 @@ Two-step verification (does NOT run evals):
 python pattern_verification/deterministic/validate.py
 python pattern_verification/deterministic/validate.py --fix  # auto-fix
 
-# 2. Semantic review (uses LLM for consistency checking)
-claude --agent pattern-reviewer "Review ml-001-scaler-leakage"
+# 2. Semantic review (uses pattern-reviewer agent - read-only)
+python pattern_verification/semantic/semantic_validate.py --all  # All patterns (recommended)
+python pattern_verification/semantic/semantic_validate.py pt-001  # Single pattern
+python pattern_verification/semantic/semantic_validate.py --category ai-training  # Category
+
+# 3. Fix issues directly in Claude Code session
+# Claude Code has write permissions - no separate agent needed
 ```
 
-**Bulk review (all patterns):** When asked to "review all patterns", launch one agent per pattern in parallel (64 concurrent agents). Run deterministic checks first.
+**Agent:** `pattern-reviewer` identifies issues (read-only). Fix issues directly in your Claude Code session.
+
+**Output:** Auto-generates timestamped directory with summary, progress log, and per-pattern logs:
+```
+pattern_verification/semantic/reports/YYYYMMDD_HHMMSS_<scope>/
+├── summary.md       # Overall results
+├── progress.log     # Real-time progress
+└── patterns/*.log   # Raw Claude output per pattern
+```
 
 ### Improvement Loop (runs evals, requires vLLM)
 
@@ -186,16 +224,18 @@ After writing code, **always** run:
 
 **Quick start:**
 ```bash
-# 1. Evaluate patterns
+# 1. Full validation (structural checks)
+python pattern_verification/deterministic/validate.py
+python pattern_verification/semantic/semantic_validate.py --all
+
+# 2. Full evals (detection accuracy)
 python evals/run_eval.py
 
-# 2. Debug failing patterns
-python -m scicode_lint check <file> --pattern <id> --verbose
+# 3. If patterns fail: per-pattern fix cycle
+python pattern_verification/semantic/semantic_validate.py <pattern-id>
+python evals/run_eval.py -p <pattern-name>
+# Fix, repeat until pass
 
-# 3. Fix and validate
-python evals/run_eval.py
-
-# 4. Integration tests (holdout - test generalization)
+# 4. When all pass: update README stats, run integration tests
 python evals/integration/run_integration_eval.py
-python evals/integration/dynamic_eval.py
 ```

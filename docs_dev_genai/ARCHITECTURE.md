@@ -4,6 +4,24 @@ Core design decisions for building an effective AI-powered linter.
 
 ---
 
+## Table of Contents
+
+- [0. Foundational Principle: Two-Tier LLM Strategy](#0-foundational-principle-two-tier-llm-strategy)
+- [1. Prompt Structure: Code First](#1-prompt-structure-code-first-critical-for-performance)
+- [2. Prompt Injection Defense](#2-prompt-injection-defense-critical-for-security)
+- [3. Detection Only, No Fixes](#3-detection-only-no-fixes)
+- [4. One Narrow Prompt Per Pitfall](#4-one-narrow-prompt-per-pitfall)
+- [5. Eval Coverage for Every Pattern](#5-eval-coverage-for-every-pattern)
+- [6. Minimize False Positives](#6-minimize-false-positives)
+- [7. Simple Implementation](#7-simple-implementation)
+- [8. Local-First LLM Architecture](#8-local-first-llm-architecture)
+- [9. Context Window Sizing](#9-context-window-sizing)
+- [10. Evaluation Strategy](#10-evaluation-strategy-testing-vs-evals-vs-benchmarks)
+- [11. LLM-as-Judge Quality Evaluation](#11-llm-as-judge-quality-evaluation)
+- [12. Patterns Grounded in Official Documentation](#12-patterns-grounded-in-official-documentation)
+
+---
+
 ## 0. Foundational Principle: Two-Tier LLM Strategy
 
 scicode-lint uses **different models for different purposes**:
@@ -29,7 +47,9 @@ Our runtime approach:
 - Analyzing detection failures
 - Code generation and refactoring
 
-The Pattern Reviewer agent (`pattern_verification/semantic/pattern-reviewer/`) uses SOTA models to ensure patterns are well-designed for the constrained runtime model. See [pattern_verification/README.md](../pattern_verification/README.md) for the complete verification workflow.
+The **pattern-reviewer** agent in `pattern_verification/pattern-reviewer/` uses SOTA models to identify issues in pattern definitions. Fixes are implemented directly in your Claude Code session.
+
+See [pattern_verification/README.md](../pattern_verification/README.md) for the complete verification workflow.
 
 **The key insight**: Invest upfront in high-quality pattern design (using SOTA models) so the local model can reliably execute simple instructions at runtime.
 
@@ -868,8 +888,7 @@ accuracy = calculate_accuracy(results)
 
 ```
 evals/
-├── run_eval.py                 # Hardcoded ground truth
-├── run_eval.py      # LLM-as-judge
+├── run_eval.py                 # Eval runner (use --skip-judge for fast mode)
 ├── metrics.py                  # Precision/recall/F1
 ├── validators.py               # Location matching
 └── prompts/
@@ -893,6 +912,62 @@ patterns/                       # Moved from patterns
 3. **Structured output** - JSON schema validation for judge verdicts
 4. **Multiple metrics** - Track yes/no/partial separately
 5. **Human validation** - Spot-check judge verdicts periodically
+
+---
+
+## 12. Patterns Grounded in Official Documentation
+
+**Principle:** Every pattern should reference official documentation that supports its detection logic.
+
+### Why This Matters
+
+Patterns are not arbitrary rules - they must be grounded in authoritative sources:
+
+1. **Credibility** - Users trust warnings backed by official docs, not opinions
+2. **Verification** - Semantic review can check detection questions align with official guidance
+3. **Maintenance** - When libraries update, we can verify patterns still match current docs
+4. **Transparency** - Users can read the source material themselves
+
+### Implementation
+
+Each `pattern.toml` includes a `references` field:
+
+```toml
+references = [
+    "https://pytorch.org/docs/stable/notes/cuda.html#asynchronous-execution",
+    "https://scikit-learn.org/stable/common_pitfalls.html#data-leakage"
+]
+```
+
+**Constraints:**
+- Maximum 5 URLs (prioritize the most relevant)
+- Must be official documentation (not blog posts or Stack Overflow)
+- Page must focus on the issue - not just mention it in passing
+- Checked by deterministic validator (HEAD request verifies URLs work)
+- Cached locally for semantic review (prefixed with pattern ID for easy lookup)
+
+**Quality checks:**
+- Deterministic: warns if cached doc >1000 lines (find more focused page)
+- Semantic: flags thin API pages that don't explain the concept (e.g., just "Alias for X")
+
+**Workflow:**
+```bash
+# Fetch/refresh reference docs (at start of improvement session)
+python pattern_verification/deterministic/validate.py --fetch-refs --clean-cache
+```
+
+The pattern-reviewer agent reads cached docs to verify:
+1. Pattern description/detection question align with official guidance
+2. Cached docs are actually useful (not thin API stubs)
+
+### What Counts as Official Documentation
+
+- Library API docs (PyTorch, NumPy, scikit-learn, etc.)
+- Official tutorials and guides
+- Language specifications
+- RFC/PEP documents
+
+**Not acceptable:** Blog posts, Stack Overflow answers, Medium articles (even if correct - they're not authoritative).
 
 ---
 
@@ -920,6 +995,10 @@ Key architectural decisions:
     - **Simple comparison** - Does output match intended behavior?
     - **Clearly separated prompts** - System instructions isolated from evaluation data
     - **Complements hardcoded evals** - Both approaches validate quality
+12. **Grounded in official docs** - Every pattern references authoritative documentation
+    - **Credibility** - Warnings backed by official sources, not opinions
+    - **Verifiable** - Semantic review checks alignment with docs
+    - **Maintainable** - Can verify patterns match updated library docs
 
 **Current limitation:** Single-file analysis only - cross-file issues not detected.
 

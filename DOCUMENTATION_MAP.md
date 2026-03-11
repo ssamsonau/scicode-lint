@@ -50,12 +50,16 @@ Quick guide to find the right documentation for your needs.
 **Documentation:**
 - **[docs_dev_genai/ARCHITECTURE.md](docs_dev_genai/ARCHITECTURE.md)** - Design principles
 - **[docs_dev_genai/IMPLEMENTATION.md](docs_dev_genai/IMPLEMENTATION.md)** - Technical implementation
+- **[docs_dev_genai/QUALITY_GATES.md](docs_dev_genai/QUALITY_GATES.md)** - Validation layers and tensions
 - [CLAUDE.md](CLAUDE.md) - Instructions for Claude Code CLI
 
 **Pattern verification:**
 - **[pattern_verification/](pattern_verification/)** - Deterministic and semantic quality checks
   - `deterministic/validate.py` - 9 automated checks (no LLM needed)
-  - `semantic/pattern-reviewer/` - LLM-based consistency checking
+  - `semantic/semantic_validate.py` - LLM-based consistency checking
+
+**Pattern reviewer agent:**
+- **[pattern_verification/pattern-reviewer/](pattern_verification/pattern-reviewer/)** - Read-only analysis agent (identifies issues)
 
 ---
 
@@ -83,11 +87,14 @@ Quick guide to find the right documentation for your needs.
 ├── docs_dev_genai/                 # GenAI agents WORKING ON scicode-lint
 │   ├── README.md
 │   ├── ARCHITECTURE.md
-│   └── IMPLEMENTATION.md
+│   ├── IMPLEMENTATION.md
+│   ├── CONTINUOUS_IMPROVEMENT.md
+│   └── QUALITY_GATES.md
 │
 ├── pattern_verification/           # Pattern quality verification
 │   ├── deterministic/validate.py   # 9 automated checks
-│   └── semantic/pattern-reviewer/  # LLM-based consistency checking
+│   ├── semantic/semantic_validate.py  # Batch validation script
+│   └── pattern-reviewer/           # Read-only analysis agent
 │
 ├── patterns/                       # Pattern definitions and tests
 │   ├── README.md                  # Pattern guide (structure, format, detection question template)
@@ -95,8 +102,7 @@ Quick guide to find the right documentation for your needs.
 │
 ├── evals/                          # Evaluation framework
 │   ├── README.md                   # Pattern-specific evaluations
-│   ├── run_eval.py                 # Hardcoded ground truth
-│   ├── run_eval.py       # LLM-as-judge
+│   ├── run_eval.py                 # Eval runner (use --skip-judge for fast mode)
 │   └── integration/                # Multi-pattern integration tests
 │       ├── README.md
 │       ├── run_integration_eval.py # Hardcoded ground truth
@@ -139,7 +145,10 @@ Quick guide to find the right documentation for your needs.
 → [docs_use_human/performance/BENCHMARKING.md](docs_use_human/performance/BENCHMARKING.md)
 
 ### "I want to review or improve pattern definitions"
-→ [pattern_verification/README.md](pattern_verification/README.md) → [CONTRIBUTING.md](CONTRIBUTING.md)
+→ [pattern_verification/README.md](pattern_verification/README.md) → [docs_dev_genai/CONTINUOUS_IMPROVEMENT.md](docs_dev_genai/CONTINUOUS_IMPROVEMENT.md)
+
+### "I want to understand validation layers and their tensions"
+→ [docs_dev_genai/QUALITY_GATES.md](docs_dev_genai/QUALITY_GATES.md)
 
 ### "I want to run evaluations"
 → [evals/README.md](evals/README.md) (pattern-specific) → [evals/integration/README.md](evals/integration/README.md) (multi-pattern)

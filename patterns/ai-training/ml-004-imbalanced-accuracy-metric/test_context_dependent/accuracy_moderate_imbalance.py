@@ -4,6 +4,7 @@ from sklearn.model_selection import train_test_split
 
 
 def evaluate_moderate_imbalance(X, y):
+    # Class distribution: ~70% class 0, ~30% class 1 (moderate imbalance)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, stratify=y, random_state=42
     )

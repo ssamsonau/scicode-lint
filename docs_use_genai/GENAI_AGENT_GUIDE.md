@@ -54,7 +54,7 @@ linter = SciCodeLinter(config)
 pip install scicode-lint[vllm-server]
 
 # Start vLLM server (see installation guide for configuration options)
-vllm serve Qwen/Qwen3-8B-FP8 --trust-remote-code --max-model-len 20000
+vllm serve RedHatAI/Qwen3-8B-FP8-dynamic --trust-remote-code --max-model-len 20000
 ```
 
 **For automated workflows:** See [VLLM_UTILITIES.md](VLLM_UTILITIES.md) for programmatic server management.
@@ -92,7 +92,7 @@ from scicode_lint.config import LinterConfig, LLMConfig, Severity
 config = LinterConfig(
     llm_config=LLMConfig(
         base_url="http://localhost:5001",  # Auto-detects if empty
-        model="Qwen/Qwen3-8B-FP8",  # Auto-detects if empty
+        model="RedHatAI/Qwen3-8B-FP8-dynamic",  # Auto-detects if empty
     ),
     min_confidence=0.7,  # 0.0-1.0
     enabled_severities={Severity.CRITICAL, Severity.HIGH},  # Filter by severity

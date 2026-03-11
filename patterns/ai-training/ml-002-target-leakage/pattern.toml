@@ -19,18 +19,30 @@ explanation = """
 Target leakage: features contain information derived from the target variable. The model essentially sees the answer in the input, leading to unrealistic performance.
 """
 
-tags = []
-related_patterns = []
-references = []
+tags = ["sklearn", "feature-engineering", "data-leakage", "target-variable"]
+related_patterns = ["ml-003", "ml-006"]
+references = ["https://scikit-learn.org/stable/common_pitfalls.html#data-leakage"]
 
 [detection]
 question = """
-Does this code create features derived from the target variable y?
+Does this code create features from target values on the FULL dataset (before train/test split)?
 
-Check for: df['feature'] = ... y ... where y values are used to compute X features.
+WHY THIS MATTERS: Target leakage gives the model access to test answers during training, producing unrealistically high performance.
 
-YES = Found: features computed from y (target encoding, y.mean(), groupby y)
-NO = Clean: y only used for model.fit(X, y), not to create features
+LEAKAGE patterns (flag these):
+- df.groupby(...)['target'].transform('mean') on FULL dataframe
+- Computing target statistics BEFORE any train/test split
+- Using df['target'].shift() or rolling() without proper temporal split
+
+NOT LEAKAGE (don't flag):
+- train_df.groupby(...)['target'].agg(...) - stats from train subset only
+- Statistics computed AFTER split, using only training rows
+- Filtering by date/mask BEFORE computing target aggregates
+
+Common target names: y, target, label, sales, price, amount, is_fraud.
+
+YES = Found: target features computed on full data before split
+NO = Clean: target used only for fit(X, y), or stats computed from train subset only
 """
 
 warning_message = """
@@ -52,7 +64,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "create_target_derived_feature"
-snippet = "df.groupby('category')['target'].transform('mean')"
+snippet = "df.groupby(\"category\")[\"target\"].transform(\"mean\")"
 
 [[tests.negative]]
 file = "test_negative/no_target_derived_features.py"
@@ -66,7 +78,6 @@ allow_detection = true
 allow_skip = true
 
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/future_aggregate.py"
 description = "Features created by aggregating target variable sales statistics across groups"
@@ -80,14 +91,14 @@ snippet = "df[\"weekly_avg\"] = df.groupby(\"store_id\")[\"sales\"].transform(\"
 
 [[tests.positive]]
 file = "test_positive/future_value_feature.py"
-description = "Features derived directly from target variable using shift and rolling operations"
-expected_issue = "Target leakage: features created directly from target variable"
+description = "Features derived from target variable statistics computed on full dataset"
+expected_issue = "Target leakage: features contain target statistics from full dataset"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "create_features"
-snippet = "df[\"next_value\"] = df[\"target\"].shift(-1)"
+name = "add_target_stats"
+snippet = "X[\"target_mean\"] = y.mean()"
 
 [[tests.negative]]
 file = "test_negative/future_aggregate_fixed.py"

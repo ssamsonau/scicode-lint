@@ -24,6 +24,8 @@
 
 - **[CONTINUOUS_IMPROVEMENT.md](CONTINUOUS_IMPROVEMENT.md)** - Evaluation → improvement workflow
 
+- **[QUALITY_GATES.md](QUALITY_GATES.md)** - Validation layers and tensions between forces
+
 - **[../pattern_verification/README.md](../pattern_verification/README.md)** - Pattern quality verification
   - Deterministic checks (9 automated checks, no LLM)
   - Semantic checks (LLM-based consistency review)

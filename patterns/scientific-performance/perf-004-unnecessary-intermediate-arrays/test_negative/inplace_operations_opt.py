@@ -10,5 +10,4 @@ def process_data(data):
 
 
 def feature_engineering(X):
-    centered = X - X.mean(axis=0)
-    return np.sqrt(np.sum(centered**2, axis=1))
+    return np.linalg.norm(X - X.mean(axis=0), axis=1)

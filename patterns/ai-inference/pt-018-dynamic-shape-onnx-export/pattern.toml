@@ -16,9 +16,12 @@ explanation = """
 Always specify dynamic_axes in torch.onnx.export() for dimensions that may vary at runtime, like batch size or sequence length.
 """
 
-tags = []
+tags = ["pytorch", "onnx", "deployment"]
 related_patterns = []
-references = []
+references = [
+    "https://pytorch.org/docs/stable/onnx.html",
+    "https://docs.pytorch.org/tutorials/advanced/super_resolution_with_onnxruntime.html",
+]
 
 [detection]
 question = """
@@ -74,7 +77,6 @@ description = "ONNX export with dynamic_axes for batch_size and sequence_length"
 file = "test_negative/onnx_class_exporter_dynamic.py"
 description = "Class-based ONNX exporter with dynamic_axes for variable batch size"
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/onnx_export_fixed_shape.py"
 description = "ONNX export with only input_names and output_names, missing dynamic_axes parameter."
@@ -82,9 +84,9 @@ expected_issue = "torch.onnx.export() missing dynamic_axes parameter for variabl
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "class"
-name = "SimpleClassifier"
-snippet = "class SimpleClassifier"
+type = "function"
+name = "export_model"
+snippet = "torch.onnx.export"
 
 [[tests.positive]]
 file = "test_positive/onnx_fixed_batch.py"
@@ -93,6 +95,17 @@ expected_issue = "torch.onnx.export() missing dynamic_axes parameter"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "class"
-name = "SimpleNet"
-snippet = "class SimpleNet"
+type = "function"
+name = "export_to_onnx"
+snippet = "torch.onnx.export"
+
+[[tests.positive]]
+file = "test_positive/onnx_class_exporter_fixed.py"
+description = "Class-based ONNX exporter without dynamic_axes for variable batch size"
+expected_issue = "torch.onnx.export() missing dynamic_axes parameter"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "method"
+name = "export_for_deployment"
+snippet = "torch.onnx.export"

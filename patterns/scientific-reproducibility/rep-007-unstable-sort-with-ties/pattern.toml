@@ -16,9 +16,11 @@ explanation = """
 For reproducible sorting with potential ties, use kind='stable' (mergesort) which preserves relative order of equal elements.
 """
 
-tags = []
-related_patterns = []
-references = []
+tags = ["numpy", "sorting", "reproducibility"]
+related_patterns = ["rep-011-set-iteration-order-dependency"]
+references = [
+    "https://numpy.org/doc/stable/reference/generated/numpy.sort.html",
+]
 
 [detection]
 question = """

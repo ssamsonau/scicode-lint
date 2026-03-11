@@ -16,26 +16,33 @@ explanation = """
 DataLoader workers fork from the parent and inherit the same random state. Use worker_init_fn to seed each worker uniquely based on worker_id.
 """
 
-tags = []
-related_patterns = []
-references = []
+tags = ["pytorch", "dataloader", "multiprocessing", "reproducibility"]
+related_patterns = ["rep-001-incomplete-random-seeds", "rep-004-missing-random-seed"]
+references = [
+    "https://docs.pytorch.org/docs/stable/data.html",
+    "https://docs.pytorch.org/docs/stable/notes/randomness.html",
+]
 
 [detection]
 question = """
 Analyze DataLoader for random state in workers.
 
-When DataLoader uses num_workers>0, worker processes are forked from the parent. They inherit identical numpy/random states, causing identical random augmentations across workers.
+When DataLoader uses num_workers>0, worker processes inherit identical numpy/random states, causing identical random augmentations across workers.
 
-Correct approach: Provide worker_init_fn that seeds each worker based on worker_id.
+IMPORTANT: This is ONLY a problem when the Dataset uses random operations (numpy.random, random module, torch.random).
 
-Does this code use DataLoader with workers but without worker_init_fn?
+Does this code have BOTH conditions?
+1. DataLoader with num_workers>0 without worker_init_fn
+2. Dataset that uses random operations (np.random.*, random.*, torch.rand*)
 
-Look for:
-- DataLoader(num_workers=N) where N>0 without worker_init_fn
-- Dataset using numpy/random for augmentation with multi-worker loading
+Examples of CORRECT usage (NO bug):
+- DataLoader with worker_init_fn provided
+- DataLoader with num_workers=0
+- Dataset with only deterministic transforms (Normalize, Resize, ToTensor) - no random ops
+- Dataset that loads preprocessed data without random augmentation
 
-YES = Bug found: DataLoader with workers but no worker_init_fn
-NO = Correct: worker_init_fn provided, or num_workers=0
+YES = Bug: DataLoader(num_workers>0) without worker_init_fn AND Dataset uses random operations
+NO = Correct: worker_init_fn provided, OR num_workers=0, OR Dataset has no random operations
 """
 
 warning_message = """
@@ -78,9 +85,9 @@ expected_issue = "DataLoader(num_workers=4) without worker_init_fn causes identi
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "class"
-name = "AugmentedDataset"
-snippet = "class AugmentedDataset"
+type = "function"
+name = "create_dataloader"
+snippet = "DataLoader(dataset"
 
 [[tests.positive]]
 file = "test_positive/multiworker_loader.py"
@@ -89,6 +96,6 @@ expected_issue = "DataLoader(num_workers>0) without worker_init_fn causes all wo
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "class"
-name = "RandomDataset"
-snippet = "class RandomDataset"
+type = "function"
+name = "create_dataloader"
+snippet = "return DataLoader(dataset, batch_size=batch_size, num_workers=4, shuffle=True)"

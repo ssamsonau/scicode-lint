@@ -25,16 +25,25 @@ references = []
 
 [detection]
 question = """
-Find .copy() calls where the copied array is NEVER modified.
+Find .copy() calls where the copied array is NEVER modified in-place.
 
-Modification includes: assignment (arr[i]=), in-place operators (+=, -=, *=, /=), in-place methods (.sort(), .fill()).
+IN-PLACE MODIFICATION (copy IS needed):
+- data -= x (modifies array directly)
+- data += x, data *= x, data /= x
+- data.sort(), data.fill(x)
+- data[i] = x, data[:] = x
+
+NOT in-place (creates new array, copy NOT needed):
+- data = data - x (reassignment creates new array)
+- data = data * 2 (reassignment creates new array)
+- result = np.where(...) (new array)
 
 Step 1: Find each .copy() call
-Step 2: Check if the copied array is modified anywhere after copying
-Step 3: If modified, copy is needed. If only read, copy is unnecessary.
+Step 2: Check if the copied array is modified IN-PLACE (see above)
+Step 3: If only reassignment (=) or read-only operations, copy is unnecessary
 
-YES = Found .copy() where the copied array is never modified (only read)
-NO = All copies are modified, or no .copy() calls
+YES = Found .copy() where copied array is NEVER modified in-place
+NO = All copies ARE modified in-place (with -=, +=, .sort(), etc.), or no .copy() calls
 """
 
 warning_message = """
@@ -98,4 +107,4 @@ snippet = "data = arr.copy()"
 
 [[tests.negative]]
 file = "test_negative/inplace_operations.py"
-description = "Correct approach: no copy needed when creating new arrays via arithmetic operations or when not modifying input array"
+description = "Copy IS needed: arrays are modified in-place with -=, /=, .sort(), and index assignment after copying"

@@ -1,33 +1,20 @@
 """Configuration for scicode-lint with Pydantic validation."""
 
-import sys
 from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
 
+import tomllib
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-# TOML loading (Python 3.11+ stdlib, fallback to tomli)
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    try:
-        import tomli as tomllib
-    except ImportError:
-        tomllib = None  # type: ignore[assignment]
 
 
 def _load_bundled_config() -> dict[str, Any]:
     """Load defaults from bundled config.toml (single source of truth).
 
     Raises:
-        RuntimeError: If config.toml cannot be loaded (missing tomllib or file not found)
+        RuntimeError: If config.toml file not found
     """
-    if not tomllib:
-        raise RuntimeError(
-            "TOML support required. Install tomli for Python < 3.11: pip install tomli"
-        )
 
     # Bundled config.toml is the source of truth for defaults
     package_config = Path(__file__).parent.parent.parent / "config.toml"
@@ -155,6 +142,7 @@ class LinterConfig:
         enabled_severities: Optional[set[Severity]] = None,
         enabled_patterns: Optional[set[str]] = None,
         enabled_categories: Optional[set[str]] = None,
+        max_concurrent: int = 150,
     ):
         self.patterns_dir = patterns_dir or get_default_patterns_dir()
         self.llm_config = llm_config or load_llm_config()
@@ -166,6 +154,7 @@ class LinterConfig:
         }
         self.enabled_patterns = enabled_patterns
         self.enabled_categories = enabled_categories
+        self.max_concurrent = max_concurrent
 
 
 def get_default_patterns_dir() -> Path:
@@ -266,7 +255,10 @@ def load_llm_config() -> LLMConfig:
 
 def get_default_config() -> LinterConfig:
     """Get default linter configuration with TOML/env overrides."""
+    toml_config = load_config_from_toml()
+    performance = toml_config.get("performance", {})
     return LinterConfig(
         patterns_dir=get_default_patterns_dir(),
         llm_config=load_llm_config(),
+        max_concurrent=performance.get("max_concurrent_evals", 150),
     )

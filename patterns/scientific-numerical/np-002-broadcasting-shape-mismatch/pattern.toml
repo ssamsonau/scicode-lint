@@ -12,33 +12,44 @@ updated = "2026-03-03"
 author = "scicode-lint"
 
 description = """
-Broadcasting arrays with semantically incompatible shapes causes subtle bugs. NumPy will silently produce wrong-shaped results when array dimensions are numerically compatible but semantically mismatched.
+Using .mean(axis=1) or .std(axis=1) without keepdims=True returns a 1D array that broadcasts incorrectly when used in arithmetic with the original 2D array. For example, `data - data.mean(axis=1)` broadcasts the 1D result against columns instead of rows. Use keepdims=True to preserve the shape for correct row-wise operations.
 """
 
 explanation = """
-Broadcasting silent error: shapes are numerically compatible but semantically wrong. Verify array shapes explicitly before operations.
+Missing keepdims=True on axis=1 reductions causes wrong broadcasting. Use data.mean(axis=1, keepdims=True) for correct row-wise operations.
 
 """
 
 tags = []
 related_patterns = []
-references = []
+references = [
+    "https://numpy.org/doc/stable/user/basics.broadcasting.html",
+    "https://numpy.org/doc/stable/reference/generated/numpy.mean.html",
+]
 
 [detection]
 question = """
-Does this code use reduction(axis=N) without keepdims=True in arithmetic?
+Does this code have the EXACT pattern: .mean(axis=1) or .std(axis=1) WITHOUT keepdims=True?
 
-Check for: arr - arr.mean(axis=1) or similar WITHOUT keepdims=True.
+SIMPLE RULE: Any call to .mean(axis=1) or .std(axis=1) without "keepdims=True" is a bug if the result is used in arithmetic (-, /, *, +) with a 2D array.
 
-YES = Found: reduction with axis= then arithmetic, missing keepdims=True
-NO = Clean: keepdims=True used, or result reshaped, or no arithmetic after reduction
+Example bugs:
+  batch_mean = data.mean(axis=1)    # NO keepdims
+  normalized = data - batch_mean    # BUG
 
-YES = Found: reduction(axis=N) without keepdims used in arithmetic with original array
-NO = Clean: keepdims=True used, or result reshaped, or no arithmetic interaction
+  row_means = X.mean(axis=1)        # NO keepdims
+  return X - row_means              # BUG
+
+NOT bugs:
+  mean = data.mean(axis=1, keepdims=True)  # Has keepdims=True
+  col_mean = data.mean(axis=0)             # axis=0 is different
+
+YES = Code has .mean(axis=1) or .std(axis=1) WITHOUT the keepdims=True parameter
+NO = All axis=1 reductions use keepdims=True, or only axis=0 reductions exist
 """
 
 warning_message = """
-Broadcasting dimension mismatch: verify array shapes match semantically, not just numerically. Use keepdims=True for reductions.
+Missing keepdims=True: .mean(axis=1) returns 1D array that broadcasts against columns, not rows. Use keepdims=True for correct row-wise operations.
 """
 
 min_confidence = 0.75
@@ -52,14 +63,14 @@ false_positive_risks = [
 
 [[tests.positive]]
 file = "test_positive/shape_mismatch.py"
-description = "Arrays with semantically incompatible shapes are broadcast together (e.g., (100,64,64,3) with (64,1) or (32,128) with (32,1)) producing wrong-shaped results silently"
-expected_issue = "Broadcasting produces semantically incorrect shape without error"
+description = "Reduction with axis parameter used in arithmetic without keepdims=True, causing silent broadcasting issues"
+expected_issue = "Reduction without keepdims=True used in arithmetic with original array"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "apply_weights"
-snippet = "weighted = images * weights"
+name = "normalize_batch"
+snippet = "data - batch_mean"
 
 [[tests.positive]]
 file = "test_positive/broadcasting_confusion.py"
@@ -69,12 +80,12 @@ min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "compute_distances"
-snippet = "diffs = points - centers"
+name = "batch_normalize"
+snippet = "normalized = (batch - batch_mean) / batch_std"
 
 [[tests.negative]]
 file = "test_negative/explicit_shape_check.py"
-description = "Explicit shape assertions or checks before array operations to verify semantic compatibility"
+description = "Code without .mean(axis=1) or .std(axis=1) calls - uses explicit reshape and shape assertions instead"
 
 [[tests.negative]]
 file = "test_negative/correct_broadcasting.py"
@@ -84,14 +95,14 @@ description = "Proper use of keepdims and reshape to ensure broadcasting happens
 # === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/weighted_sum.py"
-description = "Arrays multiplied without explicit shape control, allowing NumPy broadcasting to silently produce incorrect results when shapes are incompatible."
-expected_issue = "Implicit broadcasting of arrays with uncontrolled shapes may produce semantically incorrect results"
+description = "Reduction with axis parameter used in subtraction without keepdims=True, causing broadcasting to align along wrong dimension"
+expected_issue = "Reduction without keepdims=True used in arithmetic with original array"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "weighted_average"
-snippet = "return (values * weights).sum() / weights.sum()"
+name = "normalize_rows"
+snippet = "return data - row_means"
 
 [[tests.negative]]
 file = "test_negative/weighted_sum_correct.py"

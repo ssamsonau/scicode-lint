@@ -12,5 +12,6 @@ def cross_entropy(y_true, y_pred, eps=1e-10):
 
 
 def kl_divergence(p, q, eps=1e-10):
+    safe_p = np.clip(p, eps, 1.0)
     safe_q = np.clip(q, eps, 1.0)
-    return np.sum(p * np.log(p / safe_q))
+    return np.sum(safe_p * np.log(safe_p / safe_q))

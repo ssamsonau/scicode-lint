@@ -16,9 +16,12 @@ explanation = """
 Pass integer seeds instead of RandomState instances to random_state parameters. This creates independent random generators for each estimator.
 """
 
-tags = []
-related_patterns = []
-references = []
+tags = ["numpy", "sklearn", "random-state", "reproducibility"]
+related_patterns = ["rep-001-incomplete-random-seeds", "rep-004-missing-random-seed"]
+references = [
+    "https://numpy.org/doc/stable/reference/random/generator.html",
+    "https://numpy.org/doc/stable/reference/random/legacy.html",
+]
 
 [detection]
 question = """

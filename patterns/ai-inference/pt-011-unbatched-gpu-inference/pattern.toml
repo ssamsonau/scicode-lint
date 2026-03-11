@@ -1,5 +1,4 @@
 # Pattern: pt-011-unbatched-gpu-inference
-# Fixed: Pattern was misnamed as "device-mismatch" but detects unbatched GPU inference.
 
 [meta]
 id = "pt-011"
@@ -20,27 +19,31 @@ Sending the entire test set to GPU at once causes OOM on large datasets. Evaluat
 
 """
 
-tags = []
+tags = ["pytorch", "gpu", "memory", "inference"]
 related_patterns = []
-references = []
+references = [
+    "https://pytorch.org/docs/stable/data.html",
+]
 
 [detection]
 question = """
-Analyze GPU inference for memory efficiency.
+Does this code send an ENTIRE dataset to GPU in a single forward pass?
 
-Sending entire test datasets to GPU in a single forward pass causes out-of-memory errors on large datasets. GPU memory is limited and cannot hold millions of samples at once.
+The bug: Loading ALL test data to GPU at once (e.g., model(X_test.cuda())) causes OOM on large datasets.
 
-Correct approach: Process data in batches using DataLoader or manual batch loops.
+ANSWER YES (bug) if:
+- Full dataset variable (X_test, test_images, all_data) sent to GPU
+- No batch loop or DataLoader visible
+- Single forward pass on entire dataset
 
-Does this code pass entire datasets to GPU without batching?
+ANSWER NO (correct) if ANY of these:
+- Uses DataLoader for batching
+- Has batch loop (for batch in ..., batch_size parameter, accumulates into batches)
+- Processes items one at a time in a stream/loop
+- Uses torch.stack() on accumulated small batches
 
-Look for:
-- model(X_test.cuda()) or model(X_test.to(device)) on full dataset
-- Entire test set moved to GPU before single forward pass
-- No DataLoader or batch loop for evaluation
-
-YES = Bug found: entire dataset sent to GPU in single forward pass
-NO = Correct: batched evaluation using DataLoader or batch loops
+YES = Bug: entire dataset to GPU in single forward pass
+NO = Correct: uses batching, DataLoader, or streaming
 """
 
 warning_message = """
@@ -75,6 +78,17 @@ type = "function"
 name = "test_model"
 snippet = "X_test = X_test.cuda()"
 
+[[tests.positive]]
+file = "test_positive/embedding_full_dataset.py"
+description = "Embedding extraction that loads entire sequence dataset to GPU in one operation"
+expected_issue = "The compute_embeddings and extract_features functions load all sequences to GPU at once without batching"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "compute_embeddings"
+snippet = "sequences_gpu = all_sequences.to(device)"
+
 [[tests.negative]]
 file = "test_negative/batched_evaluation.py"
 description = "Properly batched evaluation using data loaders to process test set in chunks"
@@ -84,18 +98,13 @@ file = "test_negative/proper_batch_processing.py"
 description = "Correct implementation using DataLoader for batch-wise GPU processing"
 
 
-# === Auto-generated entries (review and update) ===
-[[tests.positive]]
-file = "test_positive/real_time_processor.py"
-description = "Real-time inference that processes individual items without buffering, sending each sample to GPU separately instead of batching"
-expected_issue = "The process_stream and RealtimeClassifier functions handle each item individually and send it to GPU, which is inefficient for throughput but acceptable for true streaming if latency is critical"
-min_confidence = 0.85
-
-[tests.positive.expected_location]
-type = "function"
-name = "process_stream"
-snippet = "model.to(device)"
+[[tests.context_dependent]]
+file = "test_context_dependent/real_time_processor.py"
+description = "Real-time streaming inference processing individual items - inefficient for throughput but acceptable when latency is critical"
+context_notes = "Single-sample inference is acceptable in true real-time streaming where latency matters more than throughput"
+allow_detection = true
+allow_skip = true
 
 [[tests.negative]]
 file = "test_negative/real_time_processor_batched.py"
-description = "Real-time inference with buffering that accumulates samples into batches before GPU processing, improving throughput while maintaining streaming capability"
+description = "Real-time inference with buffering that accumulates samples into batches before GPU processing"

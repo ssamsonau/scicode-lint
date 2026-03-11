@@ -5,12 +5,9 @@ import sklearn
 
 
 def save_model_with_versions(model, model_path, metadata_path):
-    """Save model with version metadata in separate file."""
-    # Save model
     with open(model_path, "wb") as f:
         pickle.dump(model, f)
 
-    # Save version info
     metadata = {
         "sklearn_version": sklearn.__version__,
         "model_type": type(model).__name__,
@@ -20,7 +17,6 @@ def save_model_with_versions(model, model_path, metadata_path):
 
 
 def save_model_bundle(model, path):
-    """Save model bundled with version information."""
     bundle = {
         "model": model,
         "sklearn_version": sklearn.__version__,
@@ -31,7 +27,6 @@ def save_model_bundle(model, path):
 
 
 def save_checkpoint_versioned(model, optimizer, epoch, path):
-    """Save training checkpoint with all version info."""
     import torch
 
     checkpoint = {

@@ -12,37 +12,43 @@ updated = "2026-03-03"
 author = "scicode-lint"
 
 description = """
-train_test_split() without random_state parameter produces different splits each run, making experiments non-reproducible.
+Using multiple random libraries (numpy, random, torch, sklearn) without seeding all of them produces non-reproducible results. Each library has a separate random state.
 """
 
 explanation = """
-Missing random_state in train_test_split makes data splits non-reproducible. Add random_state=42 (or any fixed integer) for consistent results.
+Incomplete seeding causes non-reproducibility. Seed ALL random libraries you use: np.random.seed(), random.seed(), torch.manual_seed(), and random_state parameters in sklearn.
 """
 
 tags = []
 related_patterns = []
-references = []
+references = [
+    "https://docs.pytorch.org/docs/stable/notes/randomness.html",
+    "https://numpy.org/doc/stable/reference/random/generator.html",
+    "https://docs.python.org/3/library/random.html",
+]
 
 [detection]
 question = """
-Analyze data splitting for reproducibility.
+Analyze random operations for incomplete seeding.
 
-train_test_split() without random_state produces different splits each run, making experiments non-reproducible. Results will vary between runs even with identical code.
+CRITICAL FACTS:
+- sklearn functions (train_test_split, etc.) do NOT use numpy's global seed
+- sklearn requires EXPLICIT random_state parameter for reproducibility
+- np.random.seed() has NO effect on sklearn functions
 
-Correct approach: Add random_state=42 (or any fixed integer) for consistent splits.
+Incomplete seeding patterns:
+- train_test_split() without random_state parameter (even if np.random.seed is set!)
+- np.random.seed() set but random.seed() not set when both libraries are used
+- Using multiple random libraries but only seeding some
 
-Does this code split data without random_state?
+Does this code have incomplete random seeding?
 
-Look for:
-- train_test_split(...) without random_state parameter
-- Data splits that will differ between runs
-
-YES = Bug found: train_test_split missing random_state
-NO = Correct: random_state is set, or no train_test_split used
+YES = Bug: train_test_split missing random_state, OR uses multiple random sources without seeding all
+NO = Clean: train_test_split has random_state AND all other used random sources are seeded
 """
 
 warning_message = """
-train_test_split() missing random_state parameter. Add random_state=42 for reproducible data splits.
+Incomplete random seeding detected. Seed all random libraries: np.random.seed(), random.seed(), torch.manual_seed(), and sklearn random_state parameters.
 """
 
 min_confidence = 0.85
@@ -69,14 +75,14 @@ description = "train_test_split called with random_state parameter"
 # === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/partial_seed.py"
-description = "Sets np.random.seed but doesn't use random_state in sklearn functions, leaving data splits non-reproducible"
-expected_issue = "train_test_split() missing random_state - np.random seeding insufficient for sklearn data splitting"
+description = "Seeds numpy but uses random module without seeding it"
+expected_issue = "Uses both numpy.random and random module but only seeds numpy"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
 name = "train_model"
-snippet = "np.random.seed(seed)"
+snippet = "random.gauss(0, 0.1)"
 
 [[tests.positive]]
 file = "test_positive/partial_seeding.py"

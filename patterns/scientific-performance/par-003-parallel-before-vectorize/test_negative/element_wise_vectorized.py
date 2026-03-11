@@ -1,3 +1,6 @@
+import numpy as np
+
+
 def vectorized_square(arr):
     return arr**2
 

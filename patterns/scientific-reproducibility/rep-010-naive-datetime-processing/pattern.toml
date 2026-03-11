@@ -18,7 +18,10 @@ Use timezone-aware datetimes: datetime.now(timezone.utc) instead of datetime.now
 
 tags = []
 related_patterns = []
-references = []
+references = [
+    "https://docs.python.org/3/library/datetime.html",
+    "https://docs.python.org/3/library/zoneinfo.html",
+]
 
 [detection]
 question = """
@@ -30,12 +33,12 @@ Correct approach: Use datetime.now(timezone.utc) for timezone-aware UTC timestam
 
 Does this code create naive datetimes without timezone?
 
-Look for:
+Look for these specific calls (report the exact line containing the call, not the function definition):
 - datetime.now() without tz parameter
 - datetime.utcnow() (deprecated)
 - datetime.fromtimestamp() without tz parameter
 
-YES = Bug found: naive datetime creation without timezone
+YES = Bug found: naive datetime creation without timezone (report line with datetime.now/utcnow/fromtimestamp call)
 NO = Correct: timezone-aware datetime with tz parameter
 """
 
@@ -74,14 +77,14 @@ description = "Using timezone-aware datetime.now(timezone.utc)"
 # === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/datetime_naive.py"
-description = "Multiple datetime.now() calls without timezone in different functions"
+description = "Simple datetime.now() call without timezone"
 expected_issue = "datetime.now() without timezone parameter"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
-name = "log_event"
-snippet = "return {\"type\": event_type, \"timestamp\": datetime.now()}"
+type = "module"
+name = ""
+snippet = "timestamp = datetime.now()"
 
 [[tests.positive]]
 file = "test_positive/naive_datetime_now.py"

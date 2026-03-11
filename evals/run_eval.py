@@ -43,7 +43,14 @@ else:
 
 # Import scicode_lint components
 try:
-    from scicode_lint.config import LLMConfig, get_default_patterns_dir, load_config_from_toml
+    from scicode_lint import SciCodeLinter
+    from scicode_lint.config import (
+        LinterConfig,
+        LLMConfig,
+        get_default_patterns_dir,
+        load_config_from_toml,
+        load_llm_config,
+    )
     from scicode_lint.llm.client import create_client
     from scicode_lint.vllm import VLLMMetricsMonitor
 except ImportError:
@@ -79,80 +86,49 @@ class LLMJudgeEvaluator:
         self._semaphore = asyncio.Semaphore(max_concurrent)
         self.skip_judge = skip_judge
 
-    async def run_linter(self, file_path: Path, pattern_id: str | None = None) -> dict[str, Any]:
+    async def run_linter(self, file_path: Path, linter: SciCodeLinter) -> dict[str, Any]:
         """
-        Run linter on file and parse output (async to avoid blocking event loop).
+        Run linter on file using async API directly.
 
         Args:
             file_path: Path to test file
-            pattern_id: Optional pattern ID to filter to single pattern
+            linter: SciCodeLinter instance (pre-configured with pattern filter)
 
         Returns:
             Dictionary with detection results
         """
         try:
-            cmd = ["python", "-m", "scicode_lint", "check", str(file_path), "--format", "json"]
-            # Add pattern filter to check only the relevant pattern (speeds up evaluation)
-            if pattern_id:
-                cmd.extend(["--pattern", pattern_id])
+            # Use linter's async API directly (no subprocess overhead)
+            result = await linter._check_file_async(file_path)
 
-            # Use asyncio.create_subprocess_exec for truly async subprocess
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
+            # Process findings
+            if result.findings:
+                finding = result.findings[0]
+                location = finding.location
+                return {
+                    "detected": finding.detection_type,  # "yes"/"context-dependent"
+                    "lines": location.lines if location else [],
+                    "snippet": location.snippet if location else "",
+                    "reasoning": finding.reasoning or "",
+                    "issue": finding.issue or "",
+                    "confidence": finding.confidence,
+                    "explanation": finding.explanation or "",
+                    "thinking": finding.thinking,
+                }
 
-            # Wait for process with timeout
-            try:
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(), timeout=float(self.timeout)
-                )
-                stdout_text = stdout.decode()
-                _stderr_text = stderr.decode()
-            except asyncio.TimeoutError:
-                process.kill()
-                await process.wait()
-                raise RuntimeError(f"Linter timed out after {self.timeout}s on {file_path}")
-
-            if stdout_text:
-                output = json.loads(stdout_text)
-                # Linter returns a list of file results
-                if isinstance(output, list) and len(output) > 0:
-                    file_result = output[0]
-                    findings = file_result.get("findings", [])
-                    if findings:
-                        # Return first finding with new format (lines, snippet, reasoning)
-                        finding = findings[0]
-                        location = finding.get("location", {})
-                        return {
-                            "detected": finding.get(
-                                "detection_type", "yes"
-                            ),  # "yes"/"context-dependent"
-                            "lines": location.get("lines", []),
-                            "snippet": location.get("snippet", ""),
-                            "reasoning": finding.get("reasoning", ""),
-                            "issue": finding.get("issue", ""),
-                            "confidence": finding.get("confidence", 0.0),
-                            "explanation": finding.get("explanation", ""),
-                            "thinking": finding.get("thinking"),
-                        }
-
-                    # No findings - check checked_patterns for reasoning (new field)
-                    checked_patterns = file_result.get("checked_patterns", [])
-                    if checked_patterns:
-                        # Use the first (or only) pattern check result
-                        check_result = checked_patterns[0]
-                        return {
-                            "detected": check_result.get("detected", "no"),
-                            "lines": [],
-                            "snippet": "",
-                            "reasoning": check_result.get("reasoning", ""),
-                            "issue": None,
-                            "confidence": check_result.get("confidence", 0.0),
-                            "explanation": None,
-                            "thinking": check_result.get("thinking"),
-                        }
+            # No findings - check checked_patterns for reasoning
+            if result.checked_patterns:
+                check_result = result.checked_patterns[0]
+                return {
+                    "detected": check_result.detected,
+                    "lines": [],
+                    "snippet": "",
+                    "reasoning": check_result.reasoning or "",
+                    "issue": None,
+                    "confidence": check_result.confidence,
+                    "explanation": None,
+                    "thinking": check_result.thinking,
+                }
 
             return {
                 "detected": "no",
@@ -165,18 +141,6 @@ class LLMJudgeEvaluator:
                 "thinking": None,
             }
 
-        except FileNotFoundError:
-            logger.warning("Linter not found. Skipping linter execution.")
-            return {
-                "detected": "no",
-                "lines": [],
-                "snippet": "",
-                "reasoning": "",
-                "issue": None,
-                "confidence": 0.0,
-                "explanation": "Linter not available",
-                "thinking": None,
-            }
         except Exception as e:
             logger.error(f"Error running linter on {file_path}: {e}")
             return {
@@ -246,6 +210,7 @@ class LLMJudgeEvaluator:
         test_type: Literal["positive", "negative", "context_dependent"],
         pattern_id: str,
         expected_behavior: str,
+        linter: SciCodeLinter,
         min_confidence: float = 0.80,
     ) -> TestCaseEvaluation:
         """
@@ -256,14 +221,15 @@ class LLMJudgeEvaluator:
             test_type: "positive", "negative", or "context_dependent"
             pattern_id: Pattern identifier
             expected_behavior: Expected behavior from pattern.toml
+            linter: SciCodeLinter instance (pre-configured with pattern filter)
 
         Returns:
             TestCaseEvaluation with judge verdict
         """
         # Semaphore limits concurrent evaluations to avoid overwhelming vLLM/system
         async with self._semaphore:
-            # Run linter (filter to just this pattern for speed)
-            linter_output = await self.run_linter(test_file, pattern_id=pattern_id)
+            # Run linter (linter is pre-configured with pattern filter)
+            linter_output = await self.run_linter(test_file, linter)
 
             # Evaluate with direct metrics
             direct_passed, direct_reason = self._evaluate_direct(
@@ -424,11 +390,19 @@ class LLMJudgeEvaluator:
 
         logger.info(f"Evaluating {len(test_files)} test files for {pattern_id}")
 
+        # Create linter with pattern filter (only checks this one pattern)
+        linter_config = LinterConfig(
+            patterns_dir=self.patterns_dir,
+            llm_config=load_llm_config(),
+            enabled_patterns={actual_pattern_id},
+        )
+        linter = SciCodeLinter(config=linter_config)
+
         # Evaluate all test files in parallel - vLLM handles concurrent requests efficiently
         # with continuous batching, PagedAttention, and KV cache sharing
         evaluation_tasks = [
             self.evaluate_test_file(
-                test_file, test_type, actual_pattern_id, expected_behavior, min_conf
+                test_file, test_type, actual_pattern_id, expected_behavior, linter, min_conf
             )
             for test_file, test_type, expected_behavior, min_conf in test_files
         ]

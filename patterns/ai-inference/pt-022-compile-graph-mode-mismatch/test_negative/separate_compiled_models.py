@@ -36,15 +36,13 @@ def train_with_separate_compile(model, train_loader, val_loader):
             _ = eval_compiled(batch)
 
 
-def fullgraph_false_mode_switch(model):
-    """Using fullgraph=False allows safe mode switching."""
-    compiled = torch.compile(model, fullgraph=False)
+def inference_only_compiled(model):
+    """Compiled model used only in inference mode - no mode switching."""
+    model.eval()
+    compiled = torch.compile(model)
 
-    compiled.train()
-    out_train = compiled(torch.randn(1, 64))
-
-    compiled.eval()
     with torch.no_grad():
-        out_eval = compiled(torch.randn(1, 64))
+        out1 = compiled(torch.randn(1, 64))
+        out2 = compiled(torch.randn(1, 64))
 
-    return out_train, out_eval
+    return out1, out2

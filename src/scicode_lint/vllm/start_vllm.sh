@@ -99,10 +99,7 @@ if [ -z "$3" ] || [ -z "$4" ]; then
         MIN_VRAM_MB=$(python3 -c "
 import sys
 try:
-    if sys.version_info >= (3, 11):
-        import tomllib
-    else:
-        import tomli as tomllib
+    import tomllib
     with open('config.toml', 'rb') as f:
         config = tomllib.load(f)
     print(config.get('vllm', {}).get('min_vram_mb', 15500))
@@ -153,10 +150,7 @@ except:
         CONFIG_VALUES=$(python3 -c "
 import sys
 try:
-    if sys.version_info >= (3, 11):
-        import tomllib
-    else:
-        import tomli as tomllib
+    import tomllib
     with open('config.toml', 'rb') as f:
         config = tomllib.load(f)
     llm = config.get('llm', {})
@@ -205,10 +199,7 @@ else
     CONFIG_VALUES=$(python3 -c "
 import sys
 try:
-    if sys.version_info >= (3, 11):
-        import tomllib
-    else:
-        import tomli as tomllib
+    import tomllib
     with open('config.toml', 'rb') as f:
         config = tomllib.load(f)
     llm = config.get('llm', {})

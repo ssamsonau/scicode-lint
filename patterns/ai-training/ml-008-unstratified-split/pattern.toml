@@ -20,9 +20,9 @@ Unstratified split on imbalanced data can produce folds with skewed class distri
 
 """
 
-tags = []
-related_patterns = []
-references = []
+tags = ["sklearn", "train-test-split", "classification", "stratification"]
+related_patterns = ["ml-004"]
+references = ["https://scikit-learn.org/stable/modules/cross_validation.html#stratification"]
 
 [detection]
 question = """
@@ -67,7 +67,7 @@ min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "split_imbalanced_without_stratify"
+name = "prepare_train_test"
 snippet = "train_test_split"
 
 [[tests.negative]]
@@ -82,7 +82,6 @@ allow_detection = true
 allow_skip = true
 
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/random_split.py"
 description = "Multiple unstratified splits without stratify parameter"

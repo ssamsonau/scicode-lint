@@ -49,6 +49,7 @@ class SciCodeLinter:
         self.config = config or get_default_config()
         self.catalog = DetectionCatalog(self.config.patterns_dir)
         self.llm = create_client(self.config.llm_config)
+        self._semaphore = asyncio.Semaphore(self.config.max_concurrent)
 
     def get_pattern(self, pattern_id: str) -> DetectionPattern | None:
         """
@@ -292,16 +293,17 @@ class SciCodeLinter:
         Raises:
             Exception: If pattern check fails
         """
-        pattern_start = time.time()
-        logger.debug(f"Starting async check for pattern {pattern.id}")
+        async with self._semaphore:
+            pattern_start = time.time()
+            logger.debug(f"Starting async check for pattern {pattern.id}")
 
-        # Query LLM with structured output asynchronously
-        detection = await self.llm.async_complete_structured(
-            system_prompt, user_prompt, DetectionResult
-        )
+            # Query LLM with structured output asynchronously
+            detection = await self.llm.async_complete_structured(
+                system_prompt, user_prompt, DetectionResult
+            )
 
-        pattern_elapsed = time.time() - pattern_start
-        return detection, pattern_elapsed
+            pattern_elapsed = time.time() - pattern_start
+            return detection, pattern_elapsed
 
     def _create_findings(
         self,

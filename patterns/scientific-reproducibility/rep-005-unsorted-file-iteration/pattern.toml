@@ -16,28 +16,43 @@ explanation = """
 File iteration order is not guaranteed to be consistent. Always wrap file listing in sorted() for reproducible processing order.
 """
 
-tags = []
-related_patterns = []
-references = []
+tags = ["filesystem", "ordering", "reproducibility"]
+related_patterns = ["rep-011-set-iteration-order-dependency"]
+references = [
+    "https://docs.python.org/3/library/os.html",
+    "https://docs.python.org/3/library/glob.html",
+]
 
 [detection]
 question = """
 Analyze file iteration for reproducibility issues.
 
-os.listdir(), glob.glob(), and Path.iterdir() return files in arbitrary order that depends on the filesystem. This order varies between runs and machines, causing non-reproducible data loading.
+os.listdir(), glob.glob(), and Path.iterdir() return files in arbitrary order that depends on the filesystem. This order varies between runs and machines.
 
-Correct approach: Always wrap in sorted() - sorted(os.listdir()), sorted(glob.glob()), etc.
+ONLY these functions have non-deterministic order:
+- os.listdir()
+- os.scandir()
+- glob.glob()
+- Path.glob()
+- Path.rglob()
+- Path.iterdir()
 
-Does this code iterate over files without sorting?
+Does this code use these functions without sorted()?
 
-Look for:
-- os.listdir() not wrapped in sorted()
+Look for these specific patterns:
+- os.listdir() or os.scandir() not wrapped in sorted()
 - glob.glob() or Path.glob() not wrapped in sorted()
 - Path.iterdir() not wrapped in sorted()
-- File iteration where order affects the output
 
-YES = Bug found: file iteration without sorting
-NO = Correct: sorted() used, or order doesn't affect results
+Examples of CORRECT usage (NO bug):
+- sorted(os.listdir(dir)) - explicitly sorted
+- sorted(glob.glob(pattern)) - explicitly sorted
+- Iterating over a JSON array (manifest["files"]) - JSON arrays preserve order
+- Iterating over a list read from file - text files preserve order
+- Iterating over Python list/tuple - these preserve order
+
+YES = Bug: os.listdir/glob.glob/Path.iterdir used without sorted()
+NO = Correct: sorted() used, or iterating over ordered data structure (JSON array, text file, list)
 """
 
 warning_message = """

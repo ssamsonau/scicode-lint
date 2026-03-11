@@ -20,6 +20,7 @@ def create_scripted_model(vocab_size, embed_dim, num_classes):
     return scripted
 
 
+@torch.inference_mode()
 def run_scripted_inference(scripted_model, text_tensor, offsets):
     return scripted_model(text_tensor, offsets)
 
@@ -29,12 +30,14 @@ class InferenceServer:
         self.model = torch.jit.load(model_path)
         self.model.eval()
 
+    @torch.inference_mode()
     def predict(self, text_tensor, offsets):
         return self.model(text_tensor, offsets)
 
     def batch_predict(self, batches):
         results = []
-        for text, offsets in batches:
-            output = self.model(text, offsets)
-            results.append(output.argmax(dim=1))
+        with torch.inference_mode():
+            for text, offsets in batches:
+                output = self.model(text, offsets)
+                results.append(output.argmax(dim=1))
         return results

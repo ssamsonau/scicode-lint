@@ -2,6 +2,7 @@ import numpy as np
 
 
 def sort_unique_ids(user_ids):
+    assert len(user_ids) == len(np.unique(user_ids)), "IDs must be unique"
     return np.sort(user_ids)
 
 
@@ -12,6 +13,8 @@ def rank_by_unique_key(items, unique_keys):
 
 
 def get_sorted_timestamps(timestamps):
+    if len(timestamps) != len(np.unique(timestamps)):
+        raise ValueError("Timestamps must be unique")
     return np.sort(timestamps)
 
 

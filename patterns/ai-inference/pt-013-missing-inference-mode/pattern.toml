@@ -16,28 +16,29 @@ explanation = """
 torch.inference_mode() is faster than no_grad() for production inference. Use inference_mode() when gradients will never be needed.
 """
 
-tags = []
-related_patterns = []
-references = []
+tags = ["pytorch", "inference", "performance"]
+related_patterns = ["pt-007-inference-without-eval"]
+references = [
+    "https://pytorch.org/docs/stable/generated/torch.autograd.grad_mode.inference_mode.html",
+    "https://pytorch.org/docs/stable/generated/torch.no_grad.html",
+]
 
 [detection]
 question = """
-Analyze inference code for optimal gradient context manager usage.
+Is this PRODUCTION INFERENCE code using torch.no_grad() instead of torch.inference_mode()?
 
-torch.no_grad() disables gradient computation but still tracks views and versions.
-torch.inference_mode() (PyTorch 1.9+) is faster and uses less memory because it also disables view tracking and version counting.
+KEY DISTINCTION:
+- PRODUCTION INFERENCE: API endpoints, model serving, standalone prediction scripts
+- TRAINING VALIDATION: evaluate/validation functions in training pipelines (no_grad is fine here)
 
-For production inference (serving, deployment, benchmarking), inference_mode() is preferred.
-For validation during training where model.train() might be called later, no_grad() is fine.
+How to tell the difference:
+- If the file has model.train() or optimizer.step() anywhere → it's training code, no_grad() is OK
+- If the file is an API/serving endpoint with no training code → production inference, use inference_mode()
 
-Does this code use no_grad() in a production inference context where inference_mode() would be better?
+Does this file contain PRODUCTION SERVING code (no training) using no_grad()?
 
-Look for:
-- Inference serving code using torch.no_grad() instead of torch.inference_mode()
-- Production model deployment with no_grad() context
-
-YES = Bug found: no_grad() used in production inference where inference_mode() is better
-NO = Correct: inference_mode() used, or no_grad() appropriate for training validation
+YES = Production inference API/serving code using no_grad() instead of inference_mode()
+NO = Training validation (file has training code), or already uses inference_mode()
 """
 
 warning_message = """
@@ -66,13 +67,12 @@ description = "Training validation using no_grad() appropriately"
 
 [[tests.negative]]
 file = "test_negative/scripted_model_inference.py"
-description = "Using TorchScript models for inference"
+description = "TorchScript model inference correctly using torch.inference_mode()"
 
 [[tests.negative]]
 file = "test_negative/production_inference_mode.py"
 description = "Production inference correctly using torch.inference_mode()"
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/api_endpoint_no_grad.py"
 description = "API endpoint for text classification using torch.no_grad() in inference functions"
@@ -80,9 +80,9 @@ expected_issue = "API inference functions using no_grad() instead of inference_m
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "class"
-name = "TextClassifier"
-snippet = "class TextClassifier"
+type = "function"
+name = "classify_text"
+snippet = "with torch.no_grad():"
 
 [[tests.positive]]
 file = "test_positive/embedding_service.py"
@@ -91,6 +91,6 @@ expected_issue = "Embedding inference using no_grad() where inference_mode() wou
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "class"
-name = "EmbeddingModel"
-snippet = "class EmbeddingModel"
+type = "function"
+name = "get_embedding"
+snippet = "with torch.no_grad():"

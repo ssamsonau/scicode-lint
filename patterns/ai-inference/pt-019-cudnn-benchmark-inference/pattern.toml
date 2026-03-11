@@ -16,9 +16,12 @@ explanation = """
 cudnn.benchmark=True is beneficial for training with fixed input sizes but harmful for inference with varying shapes. Disable it for production inference with variable inputs.
 """
 
-tags = []
+tags = ["pytorch", "cudnn", "performance", "inference"]
 related_patterns = []
-references = []
+references = [
+    "https://pytorch.org/docs/stable/backends.html",
+    "https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html",
+]
 
 [detection]
 question = """
@@ -60,7 +63,7 @@ min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "setup_inference"
+name = "run_variable_batch_inference"
 snippet = "cudnn.benchmark = True"
 
 [[tests.negative]]
@@ -75,7 +78,10 @@ description = "CPU-only inference (no cuDNN)"
 file = "test_negative/benchmark_disabled.py"
 description = "Benchmark disabled for variable-shape inference"
 
-# === Auto-generated entries (review and update) ===
+[[tests.negative]]
+file = "test_negative/training_with_backward.py"
+description = "Training code with loss.backward() - benchmark=True is correct"
+
 [[tests.positive]]
 file = "test_positive/benchmark_variable_inputs.py"
 description = "CuDNN benchmark enabled for inference with variable image sizes"
@@ -83,9 +89,9 @@ expected_issue = "cudnn.benchmark=True when processing variable-sized image batc
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "class"
-name = "ImageEncoder"
-snippet = "class ImageEncoder"
+type = "function"
+name = "inference_server"
+snippet = "cudnn.benchmark = True"
 
 [[tests.positive]]
 file = "test_positive/dynamic_input_benchmark.py"

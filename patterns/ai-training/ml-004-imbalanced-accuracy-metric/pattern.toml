@@ -20,25 +20,27 @@ Wrong metric: accuracy on imbalanced classes is misleading. A model predicting t
 
 """
 
-tags = []
-related_patterns = []
-references = []
+tags = ["sklearn", "metrics", "classification", "imbalanced-data"]
+related_patterns = ["ml-008"]
+references = ["https://scikit-learn.org/stable/modules/model_evaluation.html#classification-metrics"]
 
 [detection]
 question = """
-Analyze evaluation metrics for imbalanced classification.
+Does this code use accuracy_score() on data that is described as IMBALANCED or for RARE EVENT detection (fraud, anomaly, disease)?
 
-Accuracy is misleading on imbalanced data. With 95% negative / 5% positive, predicting all-negative achieves 95% accuracy while being useless. Appropriate metrics: F1-score, precision/recall, AUC-ROC.
+WHY THIS MATTERS: On imbalanced data (e.g., 1% fraud), a model predicting "no fraud" always gets 99% accuracy while catching zero fraud cases.
 
-Does this code use accuracy on imbalanced classes?
+PROBLEMATIC patterns:
+- accuracy_score() with comments mentioning imbalance, rare events, or low percentages
+- Fraud/anomaly/disease detection using accuracy_score()
+- Code noting class distribution like "1% positive" or "rare cases"
 
-Look for:
-- accuracy_score() or scoring="accuracy" with class imbalance
-- High majority class ratio (80/20 or more skewed)
-- Classification task without appropriate metrics (F1, AUC, precision, recall)
+ACCEPTABLE patterns:
+- Using f1_score, roc_auc_score, precision_score, recall_score, balanced_accuracy_score
+- accuracy_score() with no evidence of imbalance in the code
 
-YES = Bug found: accuracy used on imbalanced classification
-NO = Correct: appropriate metrics (F1/AUC/precision/recall), or balanced classes
+YES = accuracy_score() used on explicitly imbalanced or rare-event data
+NO = Appropriate metrics used, or no evidence of imbalance in code
 """
 
 warning_message = """
@@ -75,17 +77,16 @@ allow_detection = true
 allow_skip = true
 
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/binary_accuracy.py"
-description = "Using accuracy_score() for model evaluation on binary classification without considering potential class imbalance"
+description = "Using accuracy_score() for rare disease detection with ~3% positive class - highly imbalanced"
 expected_issue = "Wrong metric: accuracy on imbalanced classes is misleading"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
 name = "evaluate_model"
-snippet = "predictions = model.predict(X_test)"
+snippet = "return accuracy_score(y_test, predictions)"
 
 [[tests.positive]]
 file = "test_positive/fraud_accuracy.py"
@@ -96,7 +97,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "train_fraud_detector"
-snippet = "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)"
+snippet = "score = accuracy_score(y_test, predictions)"
 
 [[tests.negative]]
 file = "test_negative/balanced_metrics.py"

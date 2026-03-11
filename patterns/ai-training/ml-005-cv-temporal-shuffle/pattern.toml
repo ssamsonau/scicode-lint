@@ -20,9 +20,9 @@ Temporal leakage: shuffled cross-validation on time-series data trains on future
 
 """
 
-tags = []
-related_patterns = []
-references = []
+tags = ["sklearn", "cross-validation", "time-series", "temporal-data"]
+related_patterns = ["ml-006"]
+references = ["https://scikit-learn.org/stable/modules/cross_validation.html#time-series-split"]
 
 [detection]
 question = """
@@ -77,7 +77,6 @@ allow_detection = true
 allow_skip = true
 
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/shuffled_time_cv.py"
 description = "Time-series data shuffled with KFold(shuffle=True), causing temporal order to be lost."
@@ -98,7 +97,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "cross_validate_timeseries"
-snippet = "X = df[feature_cols].values"
+snippet = "kf = KFold(n_splits=5, shuffle=True)"
 
 [[tests.negative]]
 file = "test_negative/temporal_cv.py"

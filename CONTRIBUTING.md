@@ -83,7 +83,7 @@ This runs:
 pip install scicode-lint[vllm-server]
 
 # Start vLLM server
-vllm serve Qwen/Qwen3-8B-FP8 \
+vllm serve RedHatAI/Qwen3-8B-FP8-dynamic \
     --trust-remote-code --max-model-len 20000
 ```
 
@@ -127,8 +127,8 @@ See [patterns/README.md](patterns/README.md) for test file requirements (pure co
 # Run comprehensive validation (9 checks - see pattern_verification/README.md)
 python pattern_verification/deterministic/validate.py ml-050-temporal-split-leakage
 
-# Optional: Semantic review for consistency
-claude --agent pattern_verification/semantic/pattern-reviewer "Review ml-050-temporal-split-leakage"
+# Semantic review for consistency
+python pattern_verification/semantic/semantic_validate.py ml-050-temporal-split-leakage
 
 # Rebuild registry
 python -m scicode_lint.tools.rebuild_registry

@@ -1,7 +1,4 @@
-def optimize_for_inference(model):
-    model.eval()
-    model.half()
-    return model
+import torch
 
 
 def run_cpu_inference(model, inputs):

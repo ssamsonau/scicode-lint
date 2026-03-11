@@ -18,7 +18,7 @@
 pip install -e ".[vllm-server]"
 
 # 2. Start vLLM server (downloads model on first run - see "Model Storage" below)
-vllm serve Qwen/Qwen3-8B-FP8 \
+vllm serve RedHatAI/Qwen3-8B-FP8-dynamic \
     --trust-remote-code --gpu-memory-utilization 0.85 \
     --max-model-len 20000
 
@@ -87,7 +87,7 @@ pip install vllm-cpu scicode-lint
 vllm serve \
     --host 0.0.0.0 \
     --port 5001 \
-    --model Qwen/Qwen3-8B-FP8 \
+    --model RedHatAI/Qwen3-8B-FP8-dynamic \
     --trust-remote-code \
     --gpu-memory-utilization 0.85 \
     --max-model-len 20000  # 20K context (16K input + 4K response)
@@ -103,7 +103,7 @@ The script will exit with an error if your hardware doesn't meet requirements (1
 **Starting vLLM (CPU):**
 ```bash
 vllm serve \
-    --model Qwen/Qwen3-8B-FP8 \
+    --model RedHatAI/Qwen3-8B-FP8-dynamic \
     --trust-remote-code \
     --max-model-len 20000 \
     --device cpu
@@ -128,7 +128,7 @@ Colab is not supported. Use cloud providers with L4/A10 GPUs instead.
 # 2. Start vLLM server in background
 # NOTE: First run downloads ~13GB model to /root/.cache/huggingface/ (takes 2-5 min)
 !nohup vllm serve \
-    --model Qwen/Qwen3-8B-FP8 \
+    --model RedHatAI/Qwen3-8B-FP8-dynamic \
     --trust-remote-code \
     --max-model-len 20000 \
     --gpu-memory-utilization 0.85 \
@@ -303,20 +303,20 @@ When you first start vLLM with a model, it will automatically download the model
 ```
 
 **Disk space requirements:**
-- **FP8 model** (Qwen/Qwen3-8B-FP8): ~13GB
+- **FP8 model** (RedHatAI/Qwen3-8B-FP8-dynamic): ~13GB
 - **Recommended free space:** ~15GB (allows for updates and cache)
 
 **First run behavior:**
 ```bash
 # First time running vLLM - downloads model (2-5 minutes depending on connection)
-vllm serve Qwen/Qwen3-8B-FP8 --trust-remote-code
+vllm serve RedHatAI/Qwen3-8B-FP8-dynamic --trust-remote-code
 
 # Output will show:
 # Downloading model from HuggingFace...
 # ━━━━━━━━━━━━━━━━━━━━━ 100% 13.3GB/13.3GB
 
 # Subsequent runs - uses cached model (starts in seconds)
-vllm serve Qwen/Qwen3-8B-FP8 --trust-remote-code
+vllm serve RedHatAI/Qwen3-8B-FP8-dynamic --trust-remote-code
 ```
 
 **Customizing cache location:**
@@ -326,7 +326,7 @@ Set the `HF_HOME` environment variable to change where models are stored:
 ```bash
 # Store models in custom location (e.g., larger disk partition)
 export HF_HOME=/mnt/data/huggingface
-vllm serve Qwen/Qwen3-8B-FP8
+vllm serve RedHatAI/Qwen3-8B-FP8-dynamic
 ```
 
 **Managing cached models:**
@@ -352,13 +352,13 @@ Model downloads to `~/.cache/huggingface/` on first use (~13GB). You can pre-dow
 
 ```bash
 # Pre-download FP8 model
-python3 -c "from huggingface_hub import snapshot_download; snapshot_download('Qwen/Qwen3-8B-FP8')"
+python3 -c "from huggingface_hub import snapshot_download; snapshot_download('RedHatAI/Qwen3-8B-FP8-dynamic')"
 ```
 
 To use a custom download location:
 ```bash
 export HF_HOME=/path/to/large/disk
-python3 -c "from huggingface_hub import snapshot_download; snapshot_download('Qwen/Qwen3-8B-FP8')"
+python3 -c "from huggingface_hub import snapshot_download; snapshot_download('RedHatAI/Qwen3-8B-FP8-dynamic')"
 ```
 
 ### WSL2 issues
@@ -374,7 +374,7 @@ Create a `config.toml` in your project or `~/.config/scicode-lint/`:
 ```toml
 [llm]
 # base_url = "http://localhost:5001"  # Optional, auto-detects if not set
-# model = "Qwen/Qwen3-8B-FP8"  # Optional, auto-detects if not set
+# model = "RedHatAI/Qwen3-8B-FP8-dynamic"  # Optional, auto-detects if not set
 temperature = 0.3
 
 [linter]

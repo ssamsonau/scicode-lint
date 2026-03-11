@@ -4,16 +4,9 @@ Pattern loader for TOML-based patterns.
 Loads and validates pattern definitions from pattern.toml files.
 """
 
-import sys
 from pathlib import Path
 
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    try:
-        import tomli as tomllib
-    except ImportError:
-        raise ImportError("tomli is required for Python < 3.11. Install with: pip install tomli")
+import tomllib
 
 from .catalog import DetectionPattern
 from .pattern_models import PatternTOML

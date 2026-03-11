@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2026-03-10
+
+### Added
+- **Semantic validation script** (`semantic_validate.py`) - batch pattern review using Claude Code CLI
+- **Documentation grounding** - new `references` field in pattern.toml linking to official docs, with URL fetching/caching in deterministic validator
+- **Doc caching** with two-stage cleaning pipeline for fetched reference documentation
+- Extended test coverage
+
+### Changed
+- **Architecture principle**: Patterns must be grounded in official documentation
+- **Improvement loop restructured**: Per-pattern fix cycle, `--fetch-refs` and `--clean-cache` options
+- **Semantic reviewer**: Added documentation alignment check
+- **Concurrency control**: Added semaphore to linter (150 limit)
+- **Eval runner refactored**: Direct async linter API instead of subprocess calls
+
+### Fixed
+- Memory explosion in semantic validation from sub-agent spawning
+
 ## [0.1.4] - 2026-03-09
 
 ### Changed
@@ -19,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.3] - 2026-03-08
 
 ### Added
+- **Deterministic pattern validation** (`pattern_verification/deterministic/validate.py`) - 9 structural checks for pattern quality
 - **Dependency Health Checker** (`tools/check_dependencies.py`) - security auditing with pip-audit, safety, bandit, and deprecation warning capture
 - **vLLM Monitoring Dashboard** (`tools/vllm_dashboard.py`) - Streamlit real-time metrics (requests, throughput, KV cache, GPU utilization) with time-series charts
 - **Alignment Metrics** in evaluation - tracks agreement between direct metrics and LLM judge, highlights divergent cases
@@ -105,6 +124,7 @@ Initial public release.
 - Evaluation framework with precision/recall metrics
 - Designed for both human developers and AI coding agents
 
+[0.1.5]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.1.5
 [0.1.4]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.1.4
 [0.1.3]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.1.3
 [0.1.2]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.1.2

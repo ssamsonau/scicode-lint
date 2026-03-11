@@ -16,9 +16,12 @@ explanation = """
 Always specify map_location when loading models to ensure portability. Use map_location='cpu' for CPU inference or map_location=device for flexible deployment.
 """
 
-tags = []
+tags = ["pytorch", "model-loading", "deployment"]
 related_patterns = []
-references = []
+references = [
+    "https://pytorch.org/docs/stable/generated/torch.load.html",
+    "https://pytorch.org/tutorials/beginner/saving_loading_models.html",
+]
 
 [detection]
 question = """
@@ -35,7 +38,7 @@ Look for:
 - Model loading that will fail on CPU-only systems
 
 YES = Bug found: torch.load() without map_location
-NO = Correct: map_location specified, or weights_only with explicit device handling
+NO = Correct: map_location specified for portable loading
 """
 
 warning_message = """
@@ -58,6 +61,17 @@ type = "function"
 name = "load_model"
 snippet = "torch.load(path)"
 
+[[tests.positive]]
+file = "test_positive/load_without_map_location.py"
+description = "Loading checkpoint without map_location parameter"
+expected_issue = "torch.load() without map_location will fail on CPU-only systems"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "load_checkpoint"
+snippet = "torch.load(checkpoint_path)"
+
 [[tests.negative]]
 file = "test_negative/jit_load_model.py"
 description = "Using torch.jit.load with map_location"
@@ -70,7 +84,10 @@ description = "Creating model from scratch without loading"
 file = "test_negative/safetensors_load.py"
 description = "Loading with safetensors (no device mismatch)"
 
-# === Auto-generated entries (review and update) ===
+[[tests.negative]]
+file = "test_negative/load_with_map_location.py"
+description = "Using torch.load with map_location parameter for portable loading"
+
 [[tests.positive]]
 file = "test_positive/load_ensemble.py"
 description = "Loading multiple models in a loop without map_location will fail when models were saved on GPU"
@@ -83,6 +100,17 @@ name = "load_ensemble"
 snippet = "torch.load(path)"
 
 [[tests.positive]]
+file = "test_positive/load_ensemble.py"
+description = "Restoring optimizer state without map_location will fail on CPU-only systems"
+expected_issue = "torch.load() without map_location in optimizer restoration"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "restore_optimizer"
+snippet = "torch.load(checkpoint_path)"
+
+[[tests.positive]]
 file = "test_positive/restore_training.py"
 description = "Restoring training checkpoint without map_location will fail on CPU-only systems when checkpoint was saved on GPU"
 expected_issue = "torch.load() without map_location in checkpoint restoration"
@@ -92,3 +120,14 @@ min_confidence = 0.85
 type = "function"
 name = "restore_from_checkpoint"
 snippet = "torch.load(path)"
+
+[[tests.positive]]
+file = "test_positive/restore_training.py"
+description = "Loading pretrained weights without map_location will fail on CPU-only systems"
+expected_issue = "torch.load() without map_location in pretrained weights loading"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "load_pretrained_weights"
+snippet = "torch.load(weights_path)"

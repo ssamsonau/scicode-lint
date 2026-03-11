@@ -94,7 +94,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "parallel_matrix_multiply"
-snippet = "result = np.zeros((A.shape[0], B.shape[1]))"
+snippet = "t = threading.Thread(target=worker, args=(start, end))"
 
 [[tests.negative]]
 file = "test_negative/parallel_compute_mp.py"

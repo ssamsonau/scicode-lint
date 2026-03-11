@@ -20,9 +20,13 @@ Missing model.eval() disables dropout incorrectly and changes batchnorm behavior
 
 """
 
-tags = []
-related_patterns = []
-references = []
+tags = ["pytorch", "inference", "dropout", "batchnorm"]
+related_patterns = ["pt-001-missing-train-mode"]
+references = [
+    "https://pytorch.org/docs/stable/generated/torch.nn.Module.html#torch.nn.Module.eval",
+    "https://pytorch.org/docs/stable/generated/torch.nn.Dropout.html",
+    "https://pytorch.org/docs/stable/generated/torch.nn.BatchNorm2d.html",
+]
 
 [detection]
 question = """
@@ -37,7 +41,7 @@ Look for:
 - Inference code that disables gradients but leaves model in training mode
 
 YES = Bug found: no_grad() used but model.eval() is missing
-NO = Correct: both model.eval() and no_grad() present, or no inference code
+NO = Correct: model.eval() present (with or without no_grad()), or no no_grad() usage at all
 """
 
 warning_message = """
@@ -70,7 +74,6 @@ file = "test_negative/complete_inference_setup.py"
 description = "Properly configured inference that sets eval mode and disables gradients"
 
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/feature_extractor.py"
 description = "Feature extraction function that uses torch.no_grad() for inference but forgets model.eval(), leaving dropout and batchnorm in training mode"
@@ -78,9 +81,9 @@ expected_issue = "The extract_features function wraps inference in no_grad() but
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "class"
-name = "FeatureExtractor"
-snippet = "class FeatureExtractor"
+type = "function"
+name = "extract_features"
+snippet = "with torch.no_grad():"
 
 [[tests.positive]]
 file = "test_positive/model_server.py"
@@ -94,5 +97,5 @@ name = "ModelServer"
 snippet = "class ModelServer"
 
 [[tests.negative]]
-file = "test_negative/missing_no_grad.py"
+file = "test_negative/eval_only_no_grad.py"
 description = "Correctly implemented evaluation functions that call model.eval() to disable dropout and batchnorm training behavior, without torch.no_grad()"

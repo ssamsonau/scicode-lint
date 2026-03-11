@@ -22,7 +22,10 @@ Division by zero in normalization: std is 0 for constant features, producing inf
 
 tags = []
 related_patterns = []
-references = []
+references = [
+    "https://numpy.org/doc/stable/reference/generated/numpy.std.html",
+    "https://numpy.org/doc/stable/reference/generated/numpy.maximum.html",
+]
 
 [detection]
 question = """
@@ -72,8 +75,8 @@ min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "minmax_scale"
-snippet = "scaled = (arr - min_val) / (max_val - min_val)"
+name = "min_max_normalize"
+snippet = "normalized = (data - data_min) / range_val"
 
 [[tests.negative]]
 file = "test_negative/safe_normalization.py"
@@ -94,7 +97,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "normalize_features"
-snippet = "mean = X.mean(axis=0)"
+snippet = "return (X - mean) / std"
 
 [[tests.negative]]
 file = "test_negative/feature_norm_safe.py"

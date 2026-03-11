@@ -164,19 +164,12 @@ def check_package_warnings(packages: list[str]) -> dict[str, list[str]]:
 
 def get_packages_from_pyproject(groups: list[str] | None = None) -> list[str]:
     """Extract packages from pyproject.toml."""
+    import tomllib
+
     pyproject_path = Path(__file__).parent.parent / "pyproject.toml"
 
     if not pyproject_path.exists():
         return []
-
-    try:
-        import tomllib
-    except ImportError:
-        try:
-            import tomli as tomllib  # type: ignore[no-redef]
-        except ImportError:
-            print("tomli/tomllib not available, cannot parse pyproject.toml")
-            return []
 
     with open(pyproject_path, "rb") as f:
         data = tomllib.load(f)

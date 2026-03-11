@@ -1,30 +1,24 @@
 {
   "name": "pattern-reviewer",
   "displayName": "Pattern Reviewer",
-  "description": "Reviews, corrects, improves, and creates test cases for scicode-lint pattern definitions",
-  "version": "1.0.0",
+  "description": "Reviews scicode-lint pattern definitions and reports issues (read-only)",
+  "version": "2.0.0",
   "author": "scicode-lint team",
   "model": "opus",
   "systemPrompt": "system_prompt.md",
   "defaultMode": "dontAsk",
   "tools": [
     "Read",
-    "Write",
-    "Edit",
     "Glob",
-    "Grep",
-    "Bash"
+    "Grep"
   ],
   "capabilities": [
     "review-patterns",
-    "improve-test-cases",
-    "create-test-cases",
-    "validate-toml",
-    "suggest-improvements"
+    "validate-consistency",
+    "report-issues"
   ],
   "context": {
     "patternsDirectory": "patterns",
-    "evaluationFramework": "evals",
     "patternFormat": "TOML"
   }
 }

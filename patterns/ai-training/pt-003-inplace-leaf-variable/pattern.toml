@@ -20,8 +20,8 @@ In-place operations on leaf variables modify tensors that require gradients, whi
 """
 
 tags = ["pytorch", "gradients", "autograd", "in-place-operations"]
-related_patterns = []
-references = []
+related_patterns = ["pt-005"]
+references = ["https://pytorch.org/docs/stable/notes/autograd.html#in-place-operations-with-autograd"]
 
 [detection]
 question = """
@@ -81,7 +81,6 @@ file = "test_negative/safe_tensor_operations.py"
 description = "Correct usage: non-in-place tensor operations for normalization"
 
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/weight_normalize.py"
 description = "In-place division (div_) on nn.Parameter within forward() and in-place multiplication on parameters during weight decay"

@@ -16,28 +16,37 @@ explanation = """
 float16 on CPU can be 50x slower than float32. Use float32 for CPU inference, or bfloat16 if available. Reserve float16 for GPU inference only.
 """
 
-tags = []
+tags = ["pytorch", "precision", "cpu", "performance"]
 related_patterns = []
-references = []
+references = [
+    "https://pytorch.org/tutorials/recipes/recipes/amp_recipe.html",
+    "https://github.com/pytorch/pytorch/issues/97068",
+]
 
 [detection]
 question = """
-Analyze precision settings for CPU inference.
+Does this code use float16/half precision on CPU?
 
-float16 (half precision) on CPU is extremely slow because CPUs lack native float16 arithmetic units. Each operation requires conversion to float32, computation, then conversion back - adding significant overhead.
+float16 on CPU is extremely slow because CPUs lack native float16 arithmetic.
 
-For CPU inference, use float32 or bfloat16 (on supported hardware).
-float16 should only be used on GPUs with tensor cores.
+CRITICAL: float16 on GPU is CORRECT - only flag float16 on CPU as a bug.
 
-Does this code use float16/half on CPU?
+Check for BOTH conditions:
+1. Half precision: .half(), torch.float16, dtype=torch.float16
+2. EXPLICIT CPU device: .cpu(), device='cpu', device="cpu", map_location='cpu'
 
-Look for:
-- model.half().cpu() or model.cpu().half()
-- .to(torch.float16) followed by CPU operations
-- Half-precision tensors on CPU device
+ANSWER NO (not a bug) if ANY of these are true:
+- Code uses .cuda() anywhere with .half()
+- Code uses device='cuda' or device="cuda"
+- Code has device_type="cuda" or "cuda" in device strings
+- No explicit CPU device is mentioned
 
-YES = Bug found: float16/half used on CPU (extremely slow)
-NO = Correct: float32 on CPU, or float16 only on GPU
+ANSWER YES (bug) only if:
+- Code has EXPLICIT CPU device (.cpu(), device='cpu', device="cpu")
+- AND uses float16 (.half(), torch.float16)
+
+YES = Bug: float16/half AND explicit CPU device in same code path
+NO = Not a bug: GPU code, no explicit CPU, or no float16
 """
 
 warning_message = """
@@ -72,16 +81,15 @@ description = "float16 on GPU with tensor cores (correct usage)"
 file = "test_negative/bfloat16_cpu.py"
 description = "bfloat16 on CPU (efficient on supported hardware)"
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/cpu_half_model.py"
-description = "Converting model to half precision without device check, then running inference on CPU in optimize_for_inference function."
-expected_issue = "model.half() used on CPU without checking if hardware supports float16"
+description = "Converting model to CPU then half precision"
+expected_issue = "model.cpu() then model.half() - float16 on CPU"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "optimize_for_inference"
+name = "run_cpu_inference"
 snippet = "model.half()"
 
 [[tests.positive]]

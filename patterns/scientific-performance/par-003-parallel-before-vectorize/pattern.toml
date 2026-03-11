@@ -100,7 +100,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "parallel_square"
-snippet = "def square(x):"
+snippet = "result = pool.map(square, arr.tolist())"
 
 [[tests.negative]]
 file = "test_negative/element_wise_vectorized.py"

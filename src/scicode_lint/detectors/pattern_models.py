@@ -70,8 +70,8 @@ class ContextDependentTest(BaseModel):
 
     file: str
     description: str
-    allow_detection: bool = True
-    allow_skip: bool = True
+    allow_detection: bool  # Must be explicit - no default
+    allow_skip: bool  # Must be explicit - no default
     context_notes: str
     rationale_for_detection: Optional[str] = None
     rationale_against_detection: Optional[str] = None

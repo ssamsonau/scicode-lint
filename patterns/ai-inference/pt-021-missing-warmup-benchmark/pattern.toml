@@ -16,23 +16,24 @@ explanation = """
 Always run warmup iterations before timing inference. The first few forward passes include one-time overhead that doesn't represent steady-state performance.
 """
 
-tags = []
+tags = ["benchmark", "cuda", "performance"]
 related_patterns = []
-references = []
+references = ["https://pytorch.org/tutorials/recipes/recipes/benchmark.html"]
 
 [detection]
 question = """
-Does this benchmark code time ALL model iterations without any warmup handling?
+Does this CUDA/GPU benchmark code time ALL model iterations without any warmup handling?
 
-ONLY flag if: timing measures from first pass AND results include first passes.
+ONLY flag if: GPU timing measures from first pass AND results include first passes.
 
 NOT a bug (answer NO):
 - Warmup loop runs BEFORE timing starts
 - First N iterations discarded from results
-- Using torch.profiler (handles warmup internally)
+- Code uses `with profile(` or `torch.profiler` (profiler handles overhead internally)
+- CPU-only code (no .cuda(), no CUDA tensors) - CPU doesn't need GPU warmup
 
-YES = Bug: all iterations timed and averaged, no warmup or discard
-NO = Clean: warmup before timing, or first iterations discarded
+YES = Bug: GPU benchmark times all iterations including first, no warmup or discard
+NO = Clean: has warmup, uses torch.profiler, or CPU-only code
 """
 
 warning_message = """
@@ -67,7 +68,6 @@ description = "CPU-only timing without GPU warmup needs"
 file = "test_negative/warmup_benchmark.py"
 description = "Proper benchmarking with warmup iterations"
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/profile_model.py"
 description = "Profiling inference timing without warmup iterations before measurement loop"
@@ -77,7 +77,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "profile_inference"
-snippet = "model.cuda()"
+snippet = "times.append(time.perf_counter()"
 
 [[tests.positive]]
 file = "test_positive/throughput_test.py"
@@ -88,4 +88,4 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "measure_throughput"
-snippet = "model.cuda()"
+snippet = "start = time.time()"

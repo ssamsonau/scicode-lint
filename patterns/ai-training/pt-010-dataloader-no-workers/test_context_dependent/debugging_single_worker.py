@@ -31,12 +31,13 @@ def create_debug_loader(dataset, batch_size=8):
     return loader
 
 
-def debug_training_step(model, data, labels):
+def debug_training_step(model, data, labels, device):
     dataset = DebugDataset(data, labels)
     loader = create_debug_loader(dataset)
 
     model.train()
     for batch_data, batch_labels in loader:
+        batch_data, batch_labels = batch_data.to(device), batch_labels.to(device)
         output = model(batch_data)
         loss = torch.nn.functional.mse_loss(output, batch_labels)
         loss.backward()

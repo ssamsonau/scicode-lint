@@ -1,0 +1,249 @@
+# Quality Gates & Validation Forces
+
+This document explains the different validation layers, what each checks, and the tensions between them.
+
+**Related:** [CONTINUOUS_IMPROVEMENT.md](CONTINUOUS_IMPROVEMENT.md) for the workflow.
+
+---
+
+## Overview
+
+Pattern development has multiple validation layers that catch different types of issues:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Pattern Creation                          │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│  1. DETERMINISTIC CHECKS (free, fast)                        │
+│     Structure, syntax, file sync, data leakage               │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│  2. SEMANTIC VALIDATION (Claude CLI)                         │
+│     Docs ↔ tests ↔ question consistency                      │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│  3. PATTERN EVALS (vLLM)                                     │
+│     Detection accuracy on pattern test files                 │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│  4. INTEGRATION TESTS (vLLM + Claude)                        │
+│     Generalization to realistic multi-pattern code           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+Each layer filters different problems. Passing earlier checks doesn't guarantee passing later ones.
+
+---
+
+## Layer 1: Deterministic Checks
+
+**Location:** `pattern_verification/deterministic/validate.py`
+
+**Cost:** Free, fast (~seconds)
+
+**13 checks:**
+
+| Check | Severity | What It Catches |
+|-------|----------|-----------------|
+| TOML/file sync | error | Missing or orphaned test files |
+| Schema validation | error | Invalid `pattern.toml` structure |
+| Data leakage | error | Hint comments (`# BUG:`, `# CORRECT:`) in tests |
+| Test file count | warning | < 3 positive or negative tests |
+| TODO markers | error | Unfinished placeholders |
+| Detection question format | warning | Missing YES/NO conditions |
+| Test file syntax | error | Python parse errors |
+| Empty fields | error | Required fields without content |
+| Category mismatch | error | `meta.category` doesn't match directory |
+| Snippet verification | warning | Expected location snippets missing in tests |
+| Related patterns exist | error | Invalid `related_patterns` references |
+| Test diversity | warning | Copy-paste tests (AST similarity) |
+| Reference URL validation | warning | Unreachable URLs |
+
+**Auto-fix:** `--fix` flag can repair TOML sync issues.
+
+---
+
+## Layer 2: Semantic Validation
+
+**Location:** `pattern_verification/semantic/semantic_validate.py`
+
+**Cost:** Token cost (Claude CLI)
+
+**What it checks:**
+
+- Description accurately describes test file code
+- `expected_issue` aligns with detection question's YES condition
+- Snippets in `expected_location` exist in test files
+- Positive tests contain the described bug
+- Negative tests avoid the bug
+- Pattern aligns with official documentation (if cached)
+
+**Why separate from deterministic:** These require understanding code semantics, not just structure.
+
+---
+
+## Layer 3: Pattern Evals
+
+**Location:** `evals/run_eval.py`
+
+**Cost:** vLLM calls (local)
+
+**Two modes:**
+
+| Mode | What It Measures | Use Case |
+|------|------------------|----------|
+| Direct metrics | Exact location matching | Fast regression testing |
+| LLM judge | Semantic correctness | Comprehensive evaluation |
+
+**Metrics:**
+- Precision = TP / (TP + FP)
+- Recall = TP / (TP + FN)
+- F1 Score
+- Critical severity precision ≥ 0.95 threshold
+
+**Why separate from semantic validation:** Semantic validation checks internal consistency. Evals check whether the pattern actually **detects** bugs correctly at runtime.
+
+---
+
+## Layer 4: Integration Tests
+
+**Location:** `evals/integration/`
+
+**Cost:** vLLM + Claude calls
+
+**Two types:**
+
+| Type | What It Tests |
+|------|---------------|
+| Static (`run_integration_eval.py`) | Pre-written realistic scenarios with multiple bugs |
+| Dynamic (`dynamic_eval.py`) | Fresh Claude-generated code with intentional bugs |
+
+**Why integration tests exist:** Pattern tests are narrow by design. Integration tests catch:
+- Overfitting to specific test file patterns
+- Cross-pattern interactions
+- Behavior on realistic multi-bug code
+
+---
+
+## Tensions Between Forces
+
+These forces pull in different directions. Understanding the tensions helps when fixing issues.
+
+### Speed vs Depth
+
+| Force | Tradeoff |
+|-------|----------|
+| Deterministic checks | Fast, free, but can't verify semantics |
+| Semantic validation | Thorough, but costs tokens and time |
+
+**Resolution:** Run deterministic first (catch cheap errors early), semantic only when structure is valid.
+
+### Strictness vs Flexibility
+
+| Force | Tradeoff |
+|-------|----------|
+| Direct metrics | Exact location match required |
+| LLM judge | Semantic match accepted |
+
+**Resolution:** Use direct metrics for regression, LLM judge for comprehensive evaluation.
+
+### Test Clarity vs Data Leakage
+
+| Force | Tradeoff |
+|-------|----------|
+| Clear test descriptions | Help understand what test validates |
+| No hints in test files | Prevent leaking ground truth to linter |
+
+**Resolution:** Put descriptions in `pattern.toml`, keep test files as pure code.
+
+### Precision vs Recall
+
+| Force | Tradeoff |
+|-------|----------|
+| Minimize false positives | A noisy tool gets ignored |
+| Catch all bugs | Missing bugs defeats the purpose |
+
+**Resolution:** Project philosophy prioritizes precision. Better to miss some bugs than flood users with false positives.
+
+### Simple Prompts vs Accuracy
+
+| Force | Tradeoff |
+|-------|----------|
+| Local LLM constraints | Small model needs simple questions |
+| Detection accuracy | Complex bugs need detailed context |
+
+**Resolution:** Include "why it matters" in detection questions. Qwen3 is a thinking model - context helps reasoning without making questions complex.
+
+### Doc Grounding vs Focus
+
+| Force | Tradeoff |
+|-------|----------|
+| Reference URL validation | Ensures patterns cite real docs |
+| Cached docs may be verbose | Lots of boilerplate in official docs |
+
+**Resolution:** Two-stage cache cleaning (HTML stripping + AI boilerplate removal).
+
+### Detection Question vs System Prompt
+
+| Force | Tradeoff |
+|-------|----------|
+| Detection question flexibility | Pattern authors write questions their way |
+| System prompt framing | LLM is primed for "scientific correctness" perspective |
+
+**Resolution:** Document the system prompt context in `patterns/README.md` ("Runtime Context: System Prompt" section). Pattern-reviewer checks alignment.
+
+**Key system prompt constraints:**
+- LLM is told: "scientific correctness perspective" - questions should frame bugs as research validity issues
+- LLM is told: "do NOT look for style/performance/general bugs" - questions must be self-contained
+- LLM is told: "understand structure first, then answer" - questions can reference high-level concepts
+
+---
+
+## What Each Layer Catches (Examples)
+
+| Issue | Caught By |
+|-------|-----------|
+| Missing test file entry in TOML | Deterministic |
+| `# BUG: this is wrong` in test file | Deterministic (data leakage) |
+| Description says X but test does Y | Semantic validation |
+| Expected_location snippet not in test | Deterministic (but semantic validates alignment) |
+| Detection question is ambiguous | Semantic validation |
+| Question misaligned with system prompt framing | Semantic validation (pattern-reviewer) |
+| Pattern detects wrong location | Pattern evals |
+| Pattern works on tests but fails on real code | Integration tests |
+| Pattern conflicts with another pattern | Integration tests |
+
+---
+
+## Failure Patterns
+
+| Symptom | Likely Cause | Check First |
+|---------|--------------|-------------|
+| Deterministic fails, semantic passes | Impossible - deterministic runs first | - |
+| Semantic passes, evals fail | Detection question unclear or tests too easy | Review detection question phrasing |
+| Evals pass, integration fails | Overfitting to test patterns | Check test diversity, add varied tests |
+| High precision, low recall | Detection question too narrow | Broaden YES conditions |
+| Low precision, high recall | Detection question too broad | Narrow YES conditions or add NO exceptions |
+| LLM ignores question, flags style issues | Question not self-contained | Check system prompt alignment (see `patterns/README.md`) |
+
+---
+
+## Summary Table
+
+| Layer | Type | Location | Catches | Cost |
+|-------|------|----------|---------|------|
+| Deterministic | Automated | `pattern_verification/deterministic/` | Structure, syntax, leakage | Free |
+| Semantic | LLM review | `pattern_verification/semantic/` | Consistency, alignment | Claude tokens |
+| Pattern evals | Automated + LLM | `evals/run_eval.py` | Detection accuracy | vLLM calls |
+| Integration | Automated + LLM | `evals/integration/` | Generalization | vLLM + Claude |
+| Pre-commit | Automated | `scripts/pre-commit` | Code style, types | Free |
+| Unit tests | Automated | `tests/` | Framework correctness | Free |

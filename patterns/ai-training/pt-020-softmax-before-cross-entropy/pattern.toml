@@ -1,7 +1,7 @@
 [meta]
 id = "pt-020"
 name = "softmax-before-cross-entropy"
-category = "ai-inference"
+category = "ai-training"
 severity = "high"
 version = "1.0.0"
 created = "2026-03-08"
@@ -16,9 +16,9 @@ explanation = """
 CrossEntropyLoss expects raw logits, not probabilities. It internally applies log_softmax for numerical stability. Pass logits directly to the loss function.
 """
 
-tags = []
-related_patterns = []
-references = []
+tags = ["pytorch", "loss-function", "cross-entropy", "softmax"]
+related_patterns = ["pt-005"]
+references = ["https://pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html"]
 
 [detection]
 question = """
@@ -75,7 +75,6 @@ description = "CrossEntropyLoss with raw logits (correct usage)"
 file = "test_negative/softmax_for_inference_only.py"
 description = "Softmax used for inference probabilities, raw logits for CrossEntropyLoss"
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/double_softmax.py"
 description = "Multiple instances of softmax applied before CrossEntropyLoss in training and inference code paths."
@@ -83,9 +82,9 @@ expected_issue = "softmax() applied before CrossEntropyLoss"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "class"
-name = "Classifier"
-snippet = "class Classifier"
+type = "function"
+name = "train_step"
+snippet = "probs = F.softmax(logits, dim=1)"
 
 [[tests.positive]]
 file = "test_positive/redundant_softmax.py"
@@ -97,3 +96,14 @@ min_confidence = 0.85
 type = "function"
 name = "compute_loss"
 snippet = "probs = F.softmax(logits, dim=-1)"
+
+[[tests.positive]]
+file = "test_positive/log_softmax_then_ce.py"
+description = "Applying log_softmax before CrossEntropyLoss"
+expected_issue = "log_softmax() applied before CrossEntropyLoss"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "compute_loss_with_log_softmax"
+snippet = "log_probs = output.log_softmax(dim=-1)"

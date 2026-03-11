@@ -22,7 +22,9 @@ Catastrophic cancellation: subtracting nearly equal large numbers loses precisio
 
 tags = []
 related_patterns = []
-references = []
+references = [
+    "https://numpy.org/doc/stable/reference/generated/numpy.var.html",
+]
 
 [detection]
 question = """
@@ -67,7 +69,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "compute_variance_naive"
-snippet = "variance = mean_sq - mean_val ** 2"
+snippet = "variance = mean_sq - mean_val**2"
 
 [[tests.positive]]
 file = "test_positive/nearly_equal_subtraction.py"
@@ -99,7 +101,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "compute_variance"
-snippet = "n = len(data)"
+snippet = "(sum_sq - sum_x**2 / n) / (n - 1)"
 
 [[tests.negative]]
 file = "test_negative/variance_stable.py"

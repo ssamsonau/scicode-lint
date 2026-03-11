@@ -22,7 +22,10 @@ No random seed set. Results will differ between runs. Set seeds for np.random, t
 
 tags = []
 related_patterns = []
-references = []
+references = [
+    "https://docs.python.org/3/library/random.html",
+    "https://numpy.org/doc/stable/reference/random/generator.html",
+]
 
 [detection]
 question = """
@@ -92,14 +95,14 @@ description = "Monte Carlo simulation with torch.manual_seed and random.seed pro
 # === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/no_seed.py"
-description = "Machine learning pipeline using train_test_split and RandomForestClassifier without setting any random seed or random_state parameters."
-expected_issue = "Random operations (train_test_split, RandomForestClassifier) used without random_state parameter, causing non-reproducible splits and model initialization"
+description = "Data generation using np.random.randn without any seed initialization in the file."
+expected_issue = "np.random.randn used without np.random.seed anywhere in file"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "run_experiment"
-snippet = "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)"
+name = "generate_synthetic_data"
+snippet = "X = np.random.randn(n_samples, 10)"
 
 [[tests.negative]]
 file = "test_negative/with_seed.py"

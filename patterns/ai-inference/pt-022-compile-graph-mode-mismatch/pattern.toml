@@ -9,40 +9,40 @@ updated = "2026-03-08"
 author = "scicode-lint"
 
 description = """
-A torch.compile() model may incorrectly reuse a graph compiled for one mode (training vs inference) when used in the other mode, causing errors or incorrect behavior.
+A torch.compile() model used in both training and inference modes triggers recompilation overhead when switching modes, degrading performance.
 """
 
 explanation = """
-torch.compile() caches graphs based on input shapes and modes. Switching between train()/eval() or no_grad()/requires_grad on a compiled model can trigger recompilation or errors.
+torch.compile() caches graphs based on input shapes and modes. Switching between train()/eval() or no_grad()/requires_grad on a compiled model triggers recompilation each time, adding significant overhead. This is a performance issue, not a functional error - the code still runs correctly but slower than expected.
 """
 
-tags = []
+tags = ["pytorch", "torch-compile", "performance"]
 related_patterns = []
-references = []
+references = [
+    "https://pytorch.org/docs/stable/generated/torch.compile.html",
+    "https://pytorch.org/tutorials/intermediate/torch_compile_tutorial.html",
+]
 
 [detection]
 question = """
 Does this code use the SAME torch.compile() model in BOTH training and inference modes?
 
-PROBLEM: torch.compile() caches graphs for the mode (train/eval) at first call. Reusing one compiled model for both modes causes recompilation or errors.
-
-EXCEPTION: fullgraph=False allows mode switching safely.
+PERFORMANCE ISSUE: torch.compile() caches graphs for the mode (train/eval) at first call. Reusing one compiled model for both modes triggers recompilation each time the mode switches, adding significant overhead. This is NOT a functional error - the code runs correctly but slower than expected due to repeated recompilations.
 
 Look for a SINGLE compiled model that:
 1. Calls train() then later eval() (or vice versa)
 2. Used both with and without no_grad()/inference_mode()
 
-NOT a bug:
+NOT an issue:
 - Separate torch.compile() calls for train and eval modes
-- fullgraph=False parameter used
-- Only one mode used throughout
+- Only one mode used throughout (always train or always eval)
 
-YES = Same compiled model switches between train/eval modes (without fullgraph=False)
-NO = Separate compilations, or fullgraph=False, or single mode only
+YES = Same compiled model switches between train/eval modes (performance issue)
+NO = Separate compilations for each mode, or single mode only
 """
 
 warning_message = """
-torch.compile() models may have issues when switching between training and inference modes. Consider separate compiled models for each mode.
+torch.compile() models incur recompilation overhead when switching between training and inference modes. Consider separate compiled models for each mode to avoid repeated recompilation.
 """
 
 min_confidence = 0.85
@@ -73,7 +73,6 @@ description = "Compiled model used only in eval mode"
 file = "test_negative/separate_compiled_models.py"
 description = "Separate compiled models for train/eval modes"
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/compiled_mode_switch.py"
 description = "Compiled model switches between training and evaluation modes in validation loop. Calls train() then eval() on the same compiled model without fullgraph=False."
@@ -81,9 +80,9 @@ expected_issue = "torch.compile() model reuses cached graph across train/eval mo
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "class"
-name = "TransformerBlock"
-snippet = "class TransformerBlock"
+type = "function"
+name = "train_and_validate"
+snippet = "compiled_model = torch.compile(model)"
 
 [[tests.positive]]
 file = "test_positive/train_eval_compile.py"

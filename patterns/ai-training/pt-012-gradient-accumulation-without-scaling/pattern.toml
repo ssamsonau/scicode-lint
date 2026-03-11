@@ -46,7 +46,7 @@ Gradient accumulation without loss scaling: accumulating over N steps without di
 """
 
 min_confidence = 0.85
-false_positive_risks = []
+false_positive_risks = ["Intentional unscaled accumulation with adjusted learning rate"]
 
 [tests]
 
@@ -81,7 +81,6 @@ file = "test_negative/no_accumulation.py"
 description = "Standard training loop without gradient accumulation - single backward per step"
 
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/accumulate_unscaled.py"
 description = "Gradient accumulation with modulo-based optimizer.step() pattern but loss not divided by accumulation factor in multiple functions"

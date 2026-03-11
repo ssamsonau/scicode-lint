@@ -17,7 +17,7 @@ The linter requires a local LLM server to run. vLLM is the only supported backen
 pip install scicode-lint[vllm-server]
 
 # Start vLLM server (downloads model automatically on first run)
-vllm serve Qwen/Qwen3-8B-FP8 \
+vllm serve RedHatAI/Qwen3-8B-FP8-dynamic \
     --trust-remote-code --gpu-memory-utilization 0.85 \
     --max-model-len 20000
 
@@ -147,7 +147,7 @@ scicode-lint check myfile.py
 # Specify custom URL and model
 scicode-lint check myfile.py \
   --vllm-url http://localhost:8000 \
-  --model Qwen/Qwen3-8B-FP8
+  --model RedHatAI/Qwen3-8B-FP8-dynamic
 ```
 
 ## Exit Codes
@@ -189,7 +189,7 @@ See the `patterns/` directory for complete list.
 
 Make sure vLLM is running:
 ```bash
-vllm serve Qwen/Qwen3-8B-FP8
+vllm serve RedHatAI/Qwen3-8B-FP8-dynamic
 ```
 
 ### "Model not found" error
@@ -232,7 +232,7 @@ Suggestions:
 2. **Adjust context limit**: The default 20K context (16K input + 4K response) supports ~1,500 line files (90-95th percentile):
    ```bash
    # Standard: 20K total tokens (16K input + 4K response)
-   vllm serve Qwen/Qwen3-8B-FP8 --max-model-len 20000
+   vllm serve RedHatAI/Qwen3-8B-FP8-dynamic --max-model-len 20000
    ```
 
 3. **Use environment variable**: Override context limit via config

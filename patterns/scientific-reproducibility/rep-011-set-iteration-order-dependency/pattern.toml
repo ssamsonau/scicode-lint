@@ -7,6 +7,8 @@ version = "1.0.0"
 created = "2026-03-08"
 updated = "2026-03-08"
 author = "scicode-lint"
+context_dependent = true
+context_dependent_reason = "Set iteration may be intentional when order genuinely doesn't matter for the output"
 
 description = """
 Iterating over sets and using the order for computation produces hash-dependent results. Due to PYTHONHASHSEED randomization, set iteration order varies between interpreter runs.
@@ -18,11 +20,15 @@ Convert sets to sorted lists before iteration: sorted(my_set) instead of iterati
 
 tags = []
 related_patterns = []
-references = []
+references = [
+    "https://docs.python.org/3/library/stdtypes.html",
+]
 
 [detection]
 question = """
 Does this code iterate over a set without sorted()?
+
+WHY THIS MATTERS: Set iteration order depends on hash values, which are randomized by PYTHONHASHSEED. The same code produces different output order between Python runs, breaking reproducibility.
 
 Check for: for x in some_set (not sorted(some_set))
 

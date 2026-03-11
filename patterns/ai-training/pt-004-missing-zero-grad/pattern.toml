@@ -20,16 +20,34 @@ Missing optimizer.zero_grad() causes gradients to accumulate across batches inst
 """
 
 tags = ["pytorch", "gradients", "optimizer", "training"]
-related_patterns = []
-references = []
+related_patterns = ["pt-012"]
+references = ["https://pytorch.org/docs/stable/optim.html#torch.optim.Optimizer.zero_grad"]
 
 [detection]
 question = """
 Analyze the PyTorch training loop structure.
 
-PyTorch accumulates gradients by default. Correct training clears gradients INSIDE the batch loop before each backward(). Common bug: calling zero_grad() once before the loop starts, causing gradients to accumulate across batches.
+WHY THIS MATTERS: PyTorch accumulates gradients by default. Without clearing gradients before each backward(), gradients from previous batches add up, causing incorrect updates, exploding gradients, and NaN losses.
 
-Does this code clear gradients correctly inside each batch iteration?
+Does this code have missing or misplaced zero_grad()?
+
+Look for:
+- Training loop with backward() but no zero_grad() call
+- zero_grad() called once before the batch loop instead of inside each batch iteration
+- Manual gradient clearing done outside the per-batch iteration
+
+CORRECT pattern (zero_grad inside batch loop):
+  for batch in loader:      # batch loop
+      optimizer.zero_grad() # inside batch loop - CORRECT
+      ...
+      loss.backward()
+
+BUG pattern (zero_grad outside batch loop):
+  optimizer.zero_grad()     # outside - BUG
+  for batch in loader:
+      loss.backward()
+
+Check indentation carefully: zero_grad() must be INSIDE the loop that iterates over batches.
 
 YES = Bug found: zero_grad() is missing or called outside the per-batch loop
 NO = Correct: zero_grad() is called inside the batch loop before backward()
@@ -75,7 +93,6 @@ file = "test_negative/zero_grad_before_backward.py"
 description = "Correct usage: proper sequence of zero_grad(), backward(), step() in training loop"
 
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/multi_loss_train.py"
 description = "Multi-task training loop with backward() calls but no optimizer.zero_grad() - gradients accumulate across batches"
@@ -85,7 +102,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "train_multi_task"
-snippet = "model.train()"
+snippet = "loss_a.backward(retain_graph=True)"
 
 [[tests.negative]]
 file = "test_negative/multi_loss_train_correct.py"

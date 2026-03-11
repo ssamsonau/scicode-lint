@@ -87,14 +87,14 @@ description = "DataLoader with adaptive num_workers capped at safe value - prope
 # === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/many_workers.py"
-description = "DataLoader with num_workers=64 and 128 - extremely excessive worker counts causing severe memory duplication"
-expected_issue = "num_workers set to 64 and 128, far exceeding safe threshold and causing memory thrashing"
+description = "DataLoader with num_workers=64 - excessive worker count"
+expected_issue = "num_workers set to 64, far exceeding safe threshold"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
 name = "create_loader"
-snippet = "return DataLoader(dataset, batch_size=batch_size, num_workers=64, shuffle=True)"
+snippet = "num_workers=64"
 
 [[tests.negative]]
 file = "test_negative/cpu_adaptive.py"

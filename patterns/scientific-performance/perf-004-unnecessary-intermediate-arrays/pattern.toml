@@ -28,19 +28,23 @@ references = []
 question = """
 Analyze computations for unnecessary temporary arrays.
 
-Creating large intermediate arrays (squared = diff ** 2; summed = np.sum(squared)) wastes memory when optimized functions exist. np.linalg.norm() computes norms without materializing intermediates.
+Creating multiple intermediate arrays wastes memory. Two common patterns:
 
-Correct approach: Use np.linalg.norm(), np.einsum(), or in-place operations.
+1. Manual norm computation: diff = a - b; squared = diff ** 2; norm = np.sqrt(np.sum(squared))
+   Fix: Use np.linalg.norm() which computes norms without materializing intermediates.
+
+2. Chained operations creating temporaries: temp1 = data * 2; temp2 = temp1 + 10; temp3 = np.sqrt(temp2)
+   Fix: Use in-place operations (+=, -=, *=, /=) or out= parameter.
 
 Does this code create unnecessary large intermediate arrays?
 
 Look for:
-- diff = a - b; squared = diff ** 2; norm = np.sqrt(np.sum(squared))
-- Multiple separate array operations that could be combined
-- Manual norm/distance computation instead of np.linalg.norm()
+- Manual norm/distance computation with squared, summed variables
+- Multiple named temporaries (temp1, temp2, ...) for sequential operations
+- Operations that could use in-place modification instead
 
-YES = Bug found: large intermediate arrays where optimized function exists
-NO = Correct: uses optimized functions like np.linalg.norm()
+YES = Bug found: multiple intermediate arrays where optimized approach exists
+NO = Correct: uses np.linalg.norm(), in-place operations (+=, *=, out=), or single expressions
 """
 
 warning_message = """
@@ -62,7 +66,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "compute_normalized_distance"
-snippet = "squared = diff ** 2"
+snippet = "squared = diff**2"
 
 [[tests.positive]]
 file = "test_positive/manual_norm_computation.py"
@@ -73,7 +77,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "calculate_vector_norms"
-snippet = "squared_matrix = matrix ** 2"
+snippet = "squared_matrix = matrix**2"
 
 [[tests.negative]]
 file = "test_negative/linalg_norm.py"
@@ -84,7 +88,6 @@ file = "test_negative/inplace_operations_opt.py"
 description = "Uses in-place operations with -= and /= to avoid creating temporary arrays"
 
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/chained_ops.py"
 description = "Creates multiple unnecessary intermediate arrays (temp1, temp2, temp3, temp4) through chained operations instead of combining computations"

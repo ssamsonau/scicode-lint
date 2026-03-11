@@ -93,8 +93,8 @@ min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "process_chunks"
-snippet = "def worker(chunk):"
+name = "parallel_transform"
+snippet = "results = pool.map(transform_fn, [large_array] * 4)"
 
 [[tests.negative]]
 file = "test_negative/shared_array_proper.py"

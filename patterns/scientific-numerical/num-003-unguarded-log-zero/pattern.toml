@@ -22,7 +22,10 @@ np.log(0) returns -inf silently and poisons downstream computations. Use np.log1
 
 tags = []
 related_patterns = []
-references = []
+references = [
+    "https://numpy.org/doc/stable/reference/generated/numpy.log.html",
+    "https://numpy.org/doc/stable/reference/generated/numpy.log1p.html",
+]
 
 [detection]
 question = """

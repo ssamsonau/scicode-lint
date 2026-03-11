@@ -22,7 +22,10 @@ Mutable default argument: the default object is shared across all calls. Use Non
 
 tags = []
 related_patterns = []
-references = []
+references = [
+    "https://docs.python.org/3/tutorial/controlflow.html#default-argument-values",
+    "https://docs.python.org/3/faq/programming.html#why-are-default-values-shared-between-objects",
+]
 
 [detection]
 question = """
@@ -72,8 +75,8 @@ min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "cached_compute"
-snippet = "def cached_compute(key, cache={}):"
+name = "memoized_computation"
+snippet = "def memoized_computation(x, cache={}):"
 
 [[tests.negative]]
 file = "test_negative/proper_defaults.py"
@@ -94,7 +97,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "build_config"
-snippet = "options[\"name\"] = name"
+snippet = "def build_config(name, options={}):"
 
 [[tests.negative]]
 file = "test_negative/config_builder_fixed.py"

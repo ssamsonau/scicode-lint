@@ -20,8 +20,8 @@ Accumulating loss tensors directly keeps the entire computation graph in memory 
 """
 
 tags = ["pytorch", "memory", "computation-graph", "loss"]
-related_patterns = []
-references = []
+related_patterns = ["pt-005"]
+references = ["https://pytorch.org/docs/stable/notes/faq.html#my-model-reports-cuda-runtime-error-2-out-of-memory"]
 
 [detection]
 question = """
@@ -93,7 +93,6 @@ However, accumulating the loss tensor itself (not just gradients) still causes m
 """
 
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/epoch_loss_track.py"
 description = "Accumulating raw loss tensors in training loop (total_loss += loss and losses.append(loss)) - keeps computation graphs and causes memory leak"
@@ -103,7 +102,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "train_epoch"
-snippet = "model.train()"
+snippet = "total_loss += loss"
 
 [[tests.negative]]
 file = "test_negative/epoch_loss_track_correct.py"

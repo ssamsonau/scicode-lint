@@ -20,22 +20,27 @@ Data leakage: scaler/encoder is fit on full data including test set. Model perfo
 
 """
 
-tags = []
-related_patterns = []
-references = []
+tags = ["sklearn", "preprocessing", "data-leakage", "train-test-split"]
+related_patterns = ["ml-003", "ml-007"]
+references = ["https://scikit-learn.org/stable/common_pitfalls.html#data-leakage"]
 
 [detection]
 question = """
-Look for scaler.fit() or fit_transform() or manual mean()/std()/min()/max() calls.
-Is "test" data (named test_data, X_test, test_set, etc.) used BEFORE the statistics are computed?
+Analyze data preprocessing for data leakage.
 
-Check for:
-1. Variables named "test" concatenated with train BEFORE fit/statistics
-2. fit_transform() called BEFORE train_test_split()
-3. Manual stats on combined train+test arrays
+WHY THIS MATTERS: If preprocessing statistics (mean, std, min, max, quantiles) are computed on the full dataset including test data, then test set information leaks into training. This causes overly optimistic validation metrics that don't reflect real-world performance.
 
-YES = test data is included in preprocessing statistics (data leakage)
-NO = test data is NOT used in statistics computation
+Correct approach: Split data first, then fit scalers/encoders only on training data.
+
+Does this code have data leakage from preprocessing?
+
+Look for:
+- Scaler/transformer fit_transform() called on full data BEFORE train_test_split()
+- Train and test arrays concatenated/vstacked BEFORE computing statistics
+- Manual mean()/std()/min()/max() on combined train+test data
+
+YES = Bug found: preprocessing statistics include test data
+NO = Correct: statistics computed on training data only, after split
 """
 
 warning_message = """
@@ -44,7 +49,7 @@ Data leakage: scaler/encoder is fit on full data including test set. Model perfo
 """
 
 min_confidence = 0.85
-false_positive_risks = []
+false_positive_risks = ["Scaler fit on train-only data before explicit split variable naming"]
 
 [tests]
 # Test cases for ml-001-scaler-leakage
@@ -58,7 +63,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "normalize_with_test_stats"
-snippet = "all_data = torch.cat([train_data, test_data])"
+snippet = "full_dataset = torch.vstack([train_data, test_data])"
 
 [[tests.negative]]
 file = "test_negative/scaler_after_split.py"

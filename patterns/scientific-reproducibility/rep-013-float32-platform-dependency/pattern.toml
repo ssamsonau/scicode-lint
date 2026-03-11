@@ -16,9 +16,12 @@ explanation = """
 For reproducible results across platforms, prefer float64 for critical computations or document acceptable tolerance for float32 results.
 """
 
-tags = []
-related_patterns = []
-references = []
+tags = ["numpy", "floating-point", "precision", "reproducibility"]
+related_patterns = ["num-001-float-equality-comparison"]
+references = [
+    "https://numpy.org/doc/stable/user/basics.types.html",
+    "https://numpy.org/doc/stable/reference/generated/numpy.finfo.html",
+]
 
 [detection]
 question = """
@@ -45,7 +48,7 @@ NO = Clean: tolerance-based comparison, or float64, or no equality comparison
 """
 
 warning_message = """
-float32 results may vary across platforms. Use float64 for critical computations requiring exact reproducibility.
+float32 exact equality comparisons are unreliable across platforms. Use tolerance-based comparisons (np.isclose, np.allclose) instead of == or !=.
 """
 
 min_confidence = 0.85
@@ -61,8 +64,8 @@ min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "compute_hash"
-snippet = "float32"
+name = "validate_results"
+snippet = "return np.array_equal(expected_arr, actual_arr)"
 
 [[tests.negative]]
 file = "test_negative/integer_operations.py"
@@ -101,4 +104,4 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "verify_computation"
-snippet = "result = np.sum(data.astype(np.float32))"
+snippet = "return result == expected"

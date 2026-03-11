@@ -22,7 +22,11 @@ Never use == on floats. 0.1 + 0.2 != 0.3 in floating point. Use np.isclose() or 
 
 tags = []
 related_patterns = []
-references = []
+references = [
+    "https://numpy.org/doc/stable/reference/generated/numpy.isclose.html",
+    "https://numpy.org/doc/stable/reference/generated/numpy.allclose.html",
+    "https://docs.python.org/3/tutorial/floatingpoint.html",
+]
 
 [detection]
 question = """

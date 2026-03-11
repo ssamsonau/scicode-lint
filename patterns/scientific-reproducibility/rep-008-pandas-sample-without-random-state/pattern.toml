@@ -16,9 +16,11 @@ explanation = """
 Always specify random_state when sampling with pandas for reproducible results.
 """
 
-tags = []
-related_patterns = []
-references = []
+tags = ["pandas", "sampling", "reproducibility"]
+related_patterns = ["rep-004-missing-random-seed"]
+references = [
+    "https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.sample.html",
+]
 
 [detection]
 question = """

@@ -18,7 +18,7 @@ CUDA operations are asynchronous. Without synchronize(), timing only captures th
 
 tags = []
 related_patterns = []
-references = []
+references = ["https://pytorch.org/docs/stable/notes/cuda.html#asynchronous-execution"]
 
 [detection]
 question = """
@@ -47,7 +47,7 @@ CUDA timing without torch.cuda.synchronize() is inaccurate. Call synchronize() b
 """
 
 min_confidence = 0.85
-false_positive_risks = []
+false_positive_risks = ["Code that intentionally measures queue overhead rather than execution time", "Timing regions where GPU work is negligible compared to CPU work"]
 
 [tests]
 
@@ -62,6 +62,17 @@ type = "function"
 name = "benchmark_model"
 snippet = "time.perf_counter()"
 
+[[tests.positive]]
+file = "test_positive/timing_without_sync.py"
+description = "Single inference timing without CUDA synchronization"
+expected_issue = "time.time() used without torch.cuda.synchronize()"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "measure_inference_time"
+snippet = "time.time()"
+
 [[tests.negative]]
 file = "test_negative/cpu_benchmark.py"
 description = "CPU-only benchmarking (no CUDA sync needed)"
@@ -74,7 +85,6 @@ description = "Using torch.profiler for GPU profiling"
 file = "test_negative/cuda_events.py"
 description = "Using CUDA events for accurate GPU timing"
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/gpu_profiler.py"
 description = "Layer-by-layer GPU timing without synchronization causing inaccurate measurements"
@@ -84,7 +94,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "profile_layers"
-snippet = "timings = {}"
+snippet = "time.time()"
 
 [[tests.positive]]
 file = "test_positive/latency_measurement.py"
@@ -95,4 +105,4 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "profile_forward_pass"
-snippet = "model.cuda()"
+snippet = "time.perf_counter()"

@@ -2,7 +2,6 @@ import torch
 
 
 def setup_inference_variable_shapes():
-    """Benchmark disabled for variable-shape inference - correct."""
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
 

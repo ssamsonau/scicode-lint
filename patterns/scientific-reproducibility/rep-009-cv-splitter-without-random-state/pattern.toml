@@ -16,27 +16,32 @@ explanation = """
 Always specify random_state when using shuffled cross-validation splitters for reproducible fold assignments.
 """
 
-tags = []
-related_patterns = []
-references = []
+tags = ["sklearn", "cross-validation", "reproducibility"]
+related_patterns = ["rep-001-incomplete-random-seeds", "rep-004-missing-random-seed"]
+references = [
+    "https://scikit-learn.org/stable/modules/cross_validation.html",
+    "https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.StratifiedKFold.html",
+]
 
 [detection]
 question = """
 Analyze cross-validation splitters for reproducibility.
 
-scikit-learn CV splitters with shuffle=True but without random_state produce different fold assignments each run. This makes cross-validation scores non-reproducible.
+scikit-learn CV splitters that shuffle data produce different fold assignments each run without random_state. This makes cross-validation scores non-reproducible.
 
-Correct approach: Specify random_state=42 when shuffle=True.
+Correct approach: Always specify random_state for shuffled splitters.
 
 Does this code use shuffled CV splitters without random_state?
 
 Look for:
 - KFold(shuffle=True) without random_state
 - StratifiedKFold(shuffle=True) without random_state
-- ShuffleSplit() without random_state
+- ShuffleSplit() without random_state (ShuffleSplit always shuffles)
+- GroupShuffleSplit() without random_state
+- RepeatedKFold() or RepeatedStratifiedKFold() without random_state
 
 YES = Bug found: shuffled CV splitter without random_state
-NO = Correct: random_state specified, or shuffle=False
+NO = Correct: random_state specified, or shuffle=False (for KFold/StratifiedKFold)
 """
 
 warning_message = """

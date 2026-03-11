@@ -2,7 +2,6 @@ import torch
 
 
 def run_gpu_inference(model, inputs):
-    """float16 on GPU is correct - tensor cores provide speed benefit."""
     model = model.cuda().half()
     inputs = inputs.cuda().half()
     with torch.no_grad():

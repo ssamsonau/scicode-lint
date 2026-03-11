@@ -43,11 +43,13 @@ python pattern_verification/deterministic/validate.py --strict
 
 Deep review that catches consistency issues scripts can't detect.
 
-### ⚠️ COST WARNING - IMPORTANT
+**Requires:** Claude CLI (`claude login`) with Claude Code subscription. No API keys needed.
+
+### ⚠️ COST WARNING
 
 **THIS USES CLAUDE CODE AGENTS AND CONSUMES YOUR TOKENS QUICKLY!**
 
-Each pattern review spawns a Claude Code agent (Opus model) that reads and analyzes files. This costs tokens from your Claude subscription or API quota.
+Each pattern review spawns a Claude Code agent (Opus model) that reads and analyzes files. This costs tokens from your Claude Code subscription.
 
 Before running semantic validation, CONFIRM with user:
 - **Single pattern?** OK to proceed.
@@ -66,17 +68,31 @@ When asked to review patterns:
 
 ### Usage
 
-```bash
-# Review single pattern (recommended)
-claude --agent pattern-reviewer "Review ml-001-scaler-leakage"
+**Script-based (recommended for batch validation):**
 
-# Review category (use sparingly)
-claude --agent pattern-reviewer "Review all ai-inference patterns"
+```bash
+# Single pattern
+python pattern_verification/semantic/semantic_validate.py pt-001
+
+# All patterns in a category
+python pattern_verification/semantic/semantic_validate.py --category ai-training
+
+# All 64 patterns (auto-generates timestamped output directory)
+python pattern_verification/semantic/semantic_validate.py --all
+# Creates: reports/YYYYMMDD_HHMMSS_all/
+#   ├── summary.md       # Overall summary
+#   ├── progress.log     # One line per pattern
+#   └── patterns/*.log   # Raw Claude output per pattern
+
+# Increase parallelism (default: 4)
+python pattern_verification/semantic/semantic_validate.py --all --parallel 8
+
+# Background execution with real-time monitoring
+python pattern_verification/semantic/semantic_validate.py --all &
+tail -f pattern_verification/semantic/reports/*/progress.log
 ```
 
-**Note:** The agent is symlinked from `pattern_verification/semantic/pattern-reviewer/` to `.claude/agents/pattern-reviewer` for better parallel execution support. Edit the source at `pattern_verification/semantic/pattern-reviewer/`.
-
-**Model:** Uses Opus (configured in YAML frontmatter). Do NOT use Haiku - it lacks reasoning capability for consistency verification.
+**Note:** Uses Opus model via Claude CLI. Agent definition at `pattern_verification/pattern-reviewer/`.
 
 ### What it checks
 
@@ -85,6 +101,7 @@ claude --agent pattern-reviewer "Review all ai-inference patterns"
 - Does `snippet` actually exist in the test file?
 - Do positive tests actually contain the bug described?
 - Do negative tests actually avoid the bug?
+- Does the pattern align with official documentation? (if cached docs available)
 
 ### When to use
 
@@ -102,25 +119,98 @@ python pattern_verification/deterministic/validate.py
 # 2. Fix any errors
 python pattern_verification/deterministic/validate.py --fix
 
-# 3. Run semantic review (slower, catches consistency issues)
-claude --agent pattern_verification/semantic/pattern-reviewer "Review <pattern-id>"
+# 3. Run semantic review (uses pattern-reviewer agent - read-only)
+python pattern_verification/semantic/semantic_validate.py <pattern-id>  # Single
+python pattern_verification/semantic/semantic_validate.py --all        # All (16 concurrent)
 
-# 4. Run evals (requires vLLM server)
+# 4. Fix issues directly in Claude Code session
+# Claude Code has write permissions - no need for separate agent
+
+# 5. Run evals (requires vLLM server)
 python evals/run_eval.py --pattern <pattern-id>
 ```
+
+## Pattern Reviewer Agent
+
+| Agent | Role | Tools | Location |
+|-------|------|-------|----------|
+| `pattern-reviewer` | Identifies issues (read-only) | Read, Glob, Grep | `pattern_verification/pattern-reviewer/` |
+
+Semantic validation (step 3) runs `pattern-reviewer` to identify issues. Fix issues directly in your Claude Code session.
+
+## ⚠️ Memory Safety: No Sub-Agent Spawning
+
+**CRITICAL:** The `pattern-reviewer` agent MUST NOT use the Task tool to spawn sub-agents.
+
+When running batch validation (64 patterns), each Claude process may try to spawn sub-agents via the Task tool. This causes uncontrolled and unpredictable token usage.
+
+**How it's prevented:**
+1. `semantic_validate.py` passes `--disallowed-tools Task,WebSearch,WebFetch,Bash,Write,Edit,NotebookEdit` to Claude CLI
+2. Agent system prompt explicitly prohibits Task tool usage
+
+If you modify the agent or script, ensure Task tool remains blocked.
+
+**RAM requirements (same for haiku/sonnet/opus):**
+- ~450MB per Claude process (model choice doesn't affect RAM)
+- 32 parallel processes ≈ 16GB RAM
+- Formula: `parallel_count × 500MB` (use 500MB for safety margin)
+- Example: 16GB RAM system → safe with `--parallel 28` max
+
+## Reference Documentation Cache
+
+For documentation alignment checks, fetch and cache official docs:
+
+```bash
+python pattern_verification/deterministic/validate.py --fetch-refs
+```
+
+Cached docs are stored as `<pattern-id>_<domain>_<hash>.md` in `doc_cache/clean/`. The semantic reviewer uses these to verify patterns align with official documentation.
+
+### Doc Processing Pipeline
+
+Fetched HTML goes through two-stage cleaning:
+
+1. **HTML stripping** (deterministic) - Removes `<nav>`, `<footer>`, `<aside>`, `<header>` tags and elements with nav-related CSS classes (navbar, sidebar, breadcrumb, toc, etc.)
+
+2. **vLLM cleaning** (AI-based) - Removes remaining boilerplate (cookie notices, "Rate this page", etc.) while preserving technical content
+
+**Requirements:**
+- vLLM server must be running for stage 2
+- Content must be <64K chars after HTML stripping (configurable via `max_input_tokens`)
+- If vLLM unavailable or content too large: warns and skips clean cache
+
+### Warnings
+
+The validator warns about:
+- **Doc too large** (>1000 lines after cleanup) - find more specific page or use anchor link
+- **Useless docs** flagged by semantic reviewer - thin API pages that don't explain the concept
+
+See "Choosing good reference URLs" in [patterns/README.md](../patterns/README.md) for URL selection guidance.
 
 ## Directory Structure
 
 ```
 pattern_verification/
 ├── deterministic/
-│   └── validate.py          # 9 automated checks
+│   ├── validate.py          # Automated checks
+│   └── doc_cache/           # Cached reference documentation
+│       ├── raw/             # Unprocessed fetched docs
+│       └── clean/           # Cleaned docs (nav stripped)
 ├── semantic/
-│   └── pattern-reviewer/    # Agent source (symlinked to .claude/agents/)
-│       ├── agent.json
-│       └── system_prompt.md
+│   ├── semantic_validate.py # Batch semantic validation script
+│   └── reports/             # Output directory (gitignored)
+│       └── YYYYMMDD_HHMMSS_<scope>/
+│           ├── summary.md   # Overall summary
+│           ├── progress.log # One line per pattern completion
+│           └── patterns/    # Raw Claude output per pattern
+│               ├── pt-001.log
+│               └── ...
 └── README.md
 
-.claude/agents/
-└── pattern-reviewer -> ../../pattern_verification/semantic/pattern-reviewer
+pattern-reviewer/                # Read-only analysis agent
+├── agent.json
+└── system_prompt.md
+
+.claude/agents/                  # Symlinks for Claude CLI
+└── pattern-reviewer -> ../../pattern_verification/pattern-reviewer
 ```

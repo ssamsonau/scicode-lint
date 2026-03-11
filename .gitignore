@@ -55,6 +55,12 @@ Thumbs.db
 
 .ruff_cache/
 
+# Log files
+*.log
+
+# Semantic validation reports (generated on each run)
+pattern_verification/semantic/reports/
+
 # Benchmarking results and temporary files
 benchmark_results.json
 benchmark_results.txt
@@ -76,3 +82,9 @@ evals/ML_PATTERNS_TEST_STATUS.md
 PROJECT_STATS.md
 PROJECT_STATS.json
 stats/
+
+# Temporary review output files
+*_review.txt
+
+# Reference doc cache (auto-generated, expires after 7 days)
+pattern_verification/deterministic/doc_cache/

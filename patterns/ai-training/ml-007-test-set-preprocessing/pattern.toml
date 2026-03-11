@@ -20,9 +20,9 @@ Data leakage: fit_transform on test data means the test set uses its own statist
 
 """
 
-tags = []
-related_patterns = []
-references = []
+tags = ["sklearn", "preprocessing", "data-leakage", "train-test-split"]
+related_patterns = ["ml-001"]
+references = ["https://scikit-learn.org/stable/common_pitfalls.html#data-leakage"]
 
 [detection]
 question = """
@@ -77,7 +77,6 @@ allow_detection = true
 allow_skip = true
 
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/feature_selection_leak.py"
 description = "Feature selection is fit on full dataset before train/test split, causing leakage when test features are selected based on test data statistics."
@@ -87,7 +86,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "train_with_feature_selection"
-snippet = "selector = SelectKBest(f_classif, k=k)"
+snippet = "selector.fit_transform(X, y)"
 
 [[tests.positive]]
 file = "test_positive/transform_test_first.py"
@@ -98,7 +97,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "preprocess_data"
-snippet = "scaler = StandardScaler()"
+snippet = "scaler.fit_transform(X_test)"
 
 [[tests.negative]]
 file = "test_negative/feature_selection_proper.py"

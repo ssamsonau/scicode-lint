@@ -22,7 +22,10 @@ NumPy view mutation: basic slicing returns a view — modifying it modifies the 
 
 tags = []
 related_patterns = []
-references = []
+references = [
+    "https://numpy.org/doc/stable/user/basics.indexing.html#basic-slicing-and-indexing",
+    "https://numpy.org/doc/stable/user/basics.copies.html",
+]
 
 [detection]
 question = """
@@ -95,7 +98,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "normalize_features"
-snippet = "normalized = data[:, :10]"
+snippet = "normalized -= mean"
 
 [[tests.negative]]
 file = "test_negative/batch_normalize_copy.py"

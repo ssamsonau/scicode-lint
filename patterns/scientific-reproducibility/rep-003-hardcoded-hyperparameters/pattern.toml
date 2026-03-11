@@ -20,9 +20,11 @@ Hardcoded magic numbers: parameters buried in code can't be tracked or reproduce
 
 """
 
-tags = []
+tags = ["configuration", "hyperparameters", "reproducibility"]
 related_patterns = []
-references = []
+references = [
+    "https://scikit-learn.org/stable/common_pitfalls.html",
+]
 
 [detection]
 question = """
@@ -73,7 +75,7 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "load_data"
-snippet = "with open(\"/data/experiments/trial_042/results.json\", \"r\") as f:"
+snippet = "with open(\"/data/experiments/trial_042/results.json\") as f:"
 
 [[tests.negative]]
 file = "test_negative/config_based.py"

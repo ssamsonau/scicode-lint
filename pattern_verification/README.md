@@ -54,7 +54,7 @@ Each pattern review spawns a Claude Code agent (Opus model) that reads and analy
 Before running semantic validation, CONFIRM with user:
 - **Single pattern?** OK to proceed.
 - **Selected few patterns?** OK if deterministic checks pass first.
-- **ALL 64 patterns?** CONFIRM with user first - this is expensive!
+- **ALL 66 patterns?** CONFIRM with user first - this is expensive!
 
 When asked to review patterns:
 1. Always run deterministic checks first (free, no tokens)
@@ -63,7 +63,7 @@ When asked to review patterns:
 
 **Token costs:**
 - Each pattern review reads pattern.toml + all test files
-- Reviewing all 64 patterns in parallel multiplies token usage significantly
+- Reviewing all 66 patterns in parallel multiplies token usage significantly
 - Always run deterministic checks first - they're free and catch most issues
 
 ### Usage
@@ -77,14 +77,14 @@ python pattern_verification/semantic/semantic_validate.py pt-001
 # All patterns in a category
 python pattern_verification/semantic/semantic_validate.py --category ai-training
 
-# All 64 patterns (auto-generates timestamped output directory)
+# All 66 patterns (auto-generates timestamped output directory)
 python pattern_verification/semantic/semantic_validate.py --all
 # Creates: reports/YYYYMMDD_HHMMSS_all/
 #   ├── summary.md       # Overall summary
 #   ├── progress.log     # One line per pattern
 #   └── patterns/*.log   # Raw Claude output per pattern
 
-# Increase parallelism (default: 4)
+# Increase parallelism (default: 16)
 python pattern_verification/semantic/semantic_validate.py --all --parallel 8
 
 # Background execution with real-time monitoring
@@ -142,7 +142,7 @@ Semantic validation (step 3) runs `pattern-reviewer` to identify issues. Fix iss
 
 **CRITICAL:** The `pattern-reviewer` agent MUST NOT use the Task tool to spawn sub-agents.
 
-When running batch validation (64 patterns), each Claude process may try to spawn sub-agents via the Task tool. This causes uncontrolled and unpredictable token usage.
+When running batch validation (66 patterns), each Claude process may try to spawn sub-agents via the Task tool. This causes uncontrolled and unpredictable token usage.
 
 **How it's prevented:**
 1. `semantic_validate.py` passes `--disallowed-tools Task,WebSearch,WebFetch,Bash,Write,Edit,NotebookEdit` to Claude CLI

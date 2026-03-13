@@ -1,0 +1,124 @@
+# Pattern: ml-009-overlap-leakage
+# Train/test data overlap - data flows from same source without verified disjoint split
+# Based on Yang et al. ASE'22 "Data Leakage in Notebooks" overlap definition
+
+[meta]
+id = "ml-009"
+name = "overlap-leakage"
+category = "ai-training"
+severity = "critical"
+version = "2.0.0"
+created = "2026-03-11"
+updated = "2026-03-12"
+author = "scicode-lint"
+
+description = """
+Overlap leakage occurs when training and test data both derive from the same source without using a splitting function that guarantees disjoint sets. This can result in the same data points appearing in both sets, invalidating evaluation metrics.
+"""
+
+explanation = """
+Train/test overlap: Both datasets flow from the same source variable without verified disjoint splitting. Use sklearn.model_selection.train_test_split or similar functions that guarantee no overlap.
+"""
+
+tags = ["sklearn", "data-leakage", "train-test-split", "overlap"]
+related_patterns = ["ml-001", "ml-007"]
+references = [
+    "https://scikit-learn.org/stable/common_pitfalls.html#data-leakage",
+    "https://arxiv.org/abs/2209.03345"
+]
+
+[detection]
+question = """
+Analyze this code for OVERLAP LEAKAGE where train and test data derive from the same source without guaranteed disjoint splitting.
+
+WHY THIS MATTERS: If train and test datasets both come from the same source data without using a proper splitting function, they may contain overlapping data points. The model would be evaluated on data it was trained on.
+
+OVERLAP LEAKAGE EXISTS when:
+
+1. UNSAFE MANUAL SPLITTING:
+   - data.sample(frac=0.8) for train AND data.sample(frac=0.2) for test (may overlap!)
+   - Random index selection without ensuring disjointness
+   - Manual slicing with potential overlap (e.g., data[:800] and data[700:])
+
+2. SAME SOURCE, NO SPLIT FUNCTION:
+   - Both train_data and test_data assigned from same DataFrame/array
+   - Using iloc/loc indexing without verified disjoint indices
+   - Filtering same dataset with conditions that may overlap
+
+3. DUPLICATE-PRONE OPERATIONS:
+   - pd.concat() or np.vstack() combining data before any split
+   - Merging datasets that may share rows
+   - Loading same file into both train and test variables
+
+NO OVERLAP (correct patterns):
+- sklearn.model_selection.train_test_split() - guarantees disjoint indices
+- Explicit index sets: train_idx, test_idx = indices[:800], indices[800:]
+- Separate data sources: train from file A, test from file B
+- Cross-validation with proper fold handling
+
+Does train and test data flow from the same source WITHOUT a guaranteed disjoint split?
+
+YES = Bug found: train/test derive from same source, may overlap
+NO = Correct: proper splitting ensures no overlap, OR data from separate sources
+"""
+
+warning_message = """
+Overlap leakage: Train and test data derive from the same source without guaranteed disjoint splitting. Use sklearn.model_selection.train_test_split() or verify indices are disjoint.
+"""
+
+min_confidence = 0.75
+false_positive_risks = ["Data from genuinely separate sources that happen to use similar variable names"]
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/unsafe_sample_split.py"
+description = "Using .sample() twice from same DataFrame - may have overlapping rows"
+expected_issue = "Overlap leakage: train and test both sampled from same source, may overlap"
+min_confidence = 0.75
+
+[tests.positive.expected_location]
+type = "function"
+name = "split_with_sample"
+snippet = "train = data.sample(frac=0.8, random_state=42)"
+
+[[tests.positive]]
+file = "test_positive/overlapping_indices.py"
+description = "Manual index slicing with overlap - train uses indices 0-800, test uses 700-1000"
+expected_issue = "Overlap leakage: indices 700-800 appear in both sets"
+min_confidence = 0.75
+
+[tests.positive.expected_location]
+type = "function"
+name = "split_data_wrong"
+snippet = "train = data[:800]"
+
+[[tests.positive]]
+file = "test_positive/same_source_no_split.py"
+description = "Train and test both derived from same loaded data via filtering"
+expected_issue = "Overlap leakage: both datasets from same source without disjoint split"
+min_confidence = 0.75
+
+[tests.positive.expected_location]
+type = "function"
+name = "prepare_data"
+snippet = "train_data = data[data[\"split\"] == \"train\"]"
+
+[[tests.negative]]
+file = "test_negative/proper_split.py"
+description = "Correct: sklearn train_test_split ensures disjoint sets"
+
+[[tests.negative]]
+file = "test_negative/separate_sources.py"
+description = "Correct: train and test loaded from separate files"
+
+[[tests.negative]]
+file = "test_negative/explicit_disjoint_indices.py"
+description = "Correct: explicit disjoint index assignment"
+
+[[tests.context_dependent]]
+file = "test_context_dependent/sample_with_seed.py"
+description = "Using .sample() with different random seeds - technically could still overlap"
+context_notes = "With different seeds, overlap is unlikely but not impossible. Some may consider this acceptable."
+allow_detection = true
+allow_skip = true

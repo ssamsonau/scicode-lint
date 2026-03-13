@@ -32,12 +32,12 @@ import hashlib
 import re
 import sys
 import time
+import tomllib
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
-import tomllib
 from pydantic import BaseModel
 
 # Cache settings for reference docs

@@ -46,7 +46,8 @@ import subprocess
 import time
 import types
 from dataclasses import dataclass
-from typing import Any, Optional
+from datetime import UTC
+from typing import Any
 
 import httpx
 import requests
@@ -177,7 +178,7 @@ def _check_vllm_version() -> None:
         pass
 
 
-def _auto_detect_vram_settings(override_vram_mb: Optional[int] = None) -> tuple[int, float]:
+def _auto_detect_vram_settings(override_vram_mb: int | None = None) -> tuple[int, float]:
     """Verify VRAM requirements and return settings from config.
 
     Args:
@@ -227,10 +228,10 @@ def _auto_detect_vram_settings(override_vram_mb: Optional[int] = None) -> tuple[
 
 
 def start_server(
-    model: Optional[str] = None,
+    model: str | None = None,
     port: int = 5001,
-    max_model_len: Optional[int] = None,
-    gpu_memory_utilization: Optional[float] = None,
+    max_model_len: int | None = None,
+    gpu_memory_utilization: float | None = None,
     wait: bool = False,
     wait_timeout: int = 60,
 ) -> subprocess.Popen[str]:
@@ -388,11 +389,11 @@ class VLLMServer:
 
     def __init__(
         self,
-        model: Optional[str] = None,
+        model: str | None = None,
         port: int = 5001,
-        base_url: Optional[str] = None,
-        max_model_len: Optional[int] = None,
-        gpu_memory_utilization: Optional[float] = None,
+        base_url: str | None = None,
+        max_model_len: int | None = None,
+        gpu_memory_utilization: float | None = None,
         wait_timeout: int = 60,
     ):
         """Initialize VLLMServer context manager.
@@ -423,7 +424,7 @@ class VLLMServer:
             )
 
         self.wait_timeout = wait_timeout
-        self.process: Optional[subprocess.Popen[str]] = None
+        self.process: subprocess.Popen[str] | None = None
         self.was_already_running = False
         self.is_remote = base_url is not None
 
@@ -479,9 +480,9 @@ class VLLMServer:
 
     def __exit__(
         self,
-        exc_type: Optional[type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[types.TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: types.TracebackType | None,
     ) -> None:
         """Stop vLLM server only if we started it (local only)."""
         # Only stop if we started the server (don't kill existing/remote servers)
@@ -521,13 +522,13 @@ class ServerInfo:
         max_model_len: Maximum context length configured on server
     """
 
-    model: Optional[str]
+    model: str | None
     is_running: bool
     base_url: str
-    max_model_len: Optional[int] = None
+    max_model_len: int | None = None
 
 
-def get_gpu_info() -> Optional[GPUInfo]:
+def get_gpu_info() -> GPUInfo | None:
     """Get GPU information using nvidia-smi.
 
     Returns:
@@ -652,7 +653,7 @@ class VLLMMetricsMonitor:
         self,
         base_url: str = "http://localhost:5001",
         interval: float = 5.0,
-        output_file: Optional[str] = None,
+        output_file: str | None = None,
         console: bool = True,
     ):
         self.metrics_url = f"{base_url}/metrics"
@@ -690,7 +691,7 @@ class VLLMMetricsMonitor:
     async def _monitor_loop(self) -> None:
         """Background loop collecting metrics."""
         import os
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         self._start_time = time.time()
         last_finished = 0.0
@@ -706,7 +707,7 @@ class VLLMMetricsMonitor:
             while not self._stop:
                 metrics = await self._fetch_metrics()
                 if metrics:
-                    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+                    now = datetime.now(UTC).isoformat(timespec="seconds")
                     elapsed = time.time() - self._start_time
                     running = int(metrics.get("running", 0))
                     waiting = int(metrics.get("waiting", 0))

@@ -12,7 +12,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from evals.run_eval import LLMJudgeEvaluator
-from scicode_lint.config import LLMConfig
 
 # Use anyio for async tests (already installed as pytest plugin)
 pytestmark = pytest.mark.anyio
@@ -25,12 +24,10 @@ class TestRunLinter:
     def evaluator(self) -> LLMJudgeEvaluator:
         """Create evaluator with mocked LLM client."""
         mock_client = MagicMock()
-        llm_config = LLMConfig(base_url="http://localhost:5001")
         patterns_dir = Path(__file__).parent.parent / "patterns"
         return LLMJudgeEvaluator(
             llm_client=mock_client,
             patterns_dir=patterns_dir,
-            llm_config=llm_config,
             skip_judge=True,
         )
 
@@ -109,12 +106,10 @@ class TestEvaluateDirect:
     def evaluator(self) -> LLMJudgeEvaluator:
         """Create evaluator with mocked LLM client."""
         mock_client = MagicMock()
-        llm_config = LLMConfig(base_url="http://localhost:5001")
         patterns_dir = Path(__file__).parent.parent / "patterns"
         return LLMJudgeEvaluator(
             llm_client=mock_client,
             patterns_dir=patterns_dir,
-            llm_config=llm_config,
         )
 
     def test_positive_test_detected(self, evaluator: LLMJudgeEvaluator) -> None:
@@ -165,14 +160,12 @@ class TestSemaphoreUsage:
     async def test_semaphore_limits_concurrency(self) -> None:
         """Verify semaphore limits concurrent evaluations."""
         mock_client = MagicMock()
-        llm_config = LLMConfig(base_url="http://localhost:5001")
         patterns_dir = Path(__file__).parent.parent / "patterns"
 
         # Create evaluator with very low concurrency limit
         evaluator = LLMJudgeEvaluator(
             llm_client=mock_client,
             patterns_dir=patterns_dir,
-            llm_config=llm_config,
             max_concurrent=2,  # Only allow 2 concurrent
             skip_judge=True,
         )

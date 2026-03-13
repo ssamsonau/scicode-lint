@@ -6,7 +6,7 @@ LLM hallucination issues.
 
 import re
 from difflib import SequenceMatcher
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -169,7 +169,7 @@ class ValidationResult(BaseModel):
 class FindingValidator:
     """Validates linter findings against ground truth."""
 
-    def __init__(self, location_matcher: Optional[LocationMatcher] = None):
+    def __init__(self, location_matcher: LocationMatcher | None = None):
         """Initialize validator with optional custom location matcher."""
         self.location_matcher = location_matcher or LocationMatcher()
 

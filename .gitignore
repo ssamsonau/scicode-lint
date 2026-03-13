@@ -88,3 +88,13 @@ stats/
 
 # Reference doc cache (auto-generated, expires after 7 days)
 pattern_verification/deterministic/doc_cache/
+
+# Real-world demo: collected code, cloned repos, and reports (large/generated, not tracked)
+real_world_demo/data/
+real_world_demo/cloned_repos/
+real_world_demo/collected_code/
+real_world_demo/reports/
+
+# Databases
+*.db
+*.sqlite

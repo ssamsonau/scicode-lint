@@ -30,6 +30,11 @@
   - Deterministic checks (9 automated checks, no LLM)
   - Semantic checks (LLM-based consistency review)
 
+- **[../real_world_demo/README.md](../real_world_demo/README.md)** - Real-world validation demo
+  - Pipeline to analyze scientific ML papers from PapersWithCode
+  - Produces impact statistics (e.g., "X% of papers had data leakage")
+  - Claude-based verification of findings
+
 ---
 
 ## When to Use These Docs

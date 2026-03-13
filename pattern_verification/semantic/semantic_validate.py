@@ -47,13 +47,13 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+import tomllib
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import aiofiles
-import tomllib
 
 if TYPE_CHECKING:
     from asyncio.subprocess import Process
@@ -268,7 +268,7 @@ async def run_semantic_check(
                     proc.communicate(),
                     timeout=timeout,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 proc.kill()
                 await proc.wait()
                 result.status = "error"

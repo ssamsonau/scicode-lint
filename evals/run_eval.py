@@ -65,7 +65,6 @@ class LLMJudgeEvaluator:
         self,
         llm_client: LLMClient,
         patterns_dir: Path,
-        llm_config: LLMConfig,
         max_concurrent: int = 150,
         skip_judge: bool = False,
     ):
@@ -75,14 +74,12 @@ class LLMJudgeEvaluator:
         Args:
             llm_client: LLM client for judge evaluations
             patterns_dir: Directory containing patterns
-            llm_config: LLM configuration (used for timeout)
             max_concurrent: Max concurrent test evaluations (from config.toml).
                            Higher values improve GPU utilization but use more memory.
             skip_judge: If True, skip LLM judge evaluation (only compute direct metrics)
         """
         self.llm = llm_client
         self.patterns_dir = Path(patterns_dir)
-        self.timeout = llm_config.timeout
         self._semaphore = asyncio.Semaphore(max_concurrent)
         self.skip_judge = skip_judge
 
@@ -865,7 +862,6 @@ async def main() -> int:
         evaluator = LLMJudgeEvaluator(
             llm_client,
             args.patterns_dir,
-            llm_config,
             max_concurrent=args.max_concurrent,
             skip_judge=args.skip_judge,
         )

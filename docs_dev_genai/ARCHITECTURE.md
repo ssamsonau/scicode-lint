@@ -521,6 +521,16 @@ def test_numpy_indexing_pattern():
 
 Uses **OpenAI-compatible API** for ease of use.
 
+### Critical: Thinking Models Require `guided_json`
+
+**⚠️ Never use `response_format: json_schema` with Qwen3 (or models with visible thinking tokens).**
+
+It skips the `<think>` reasoning phase, dropping accuracy from ~99% to ~78%.
+
+Always use `guided_json` in `extra_body` instead. vLLM's XGrammar/Outlines backend is enabled by default.
+
+**📖 Full explanation:** See module docstring in `src/scicode_lint/llm/client.py`
+
 ---
 
 ## 9. Context Window Sizing
@@ -987,6 +997,7 @@ Key architectural decisions:
 6. **Minimize false positives** - Conservative > noisy
 7. **Keep it simple** - Modern Python, minimal dependencies
 8. **Local-first** - Privacy, cost, speed, reproducibility
+   - **Thinking models need `guided_json`** - Never use `response_format: json_schema` (skips reasoning, drops accuracy from 99% to 78%)
 9. **20K total context** (16K input + 4K response) - Empirically sized for 90-95% coverage based on 10M+ repository analysis
    - **Efficient allocation** - vLLM paged attention means no waste on smaller files
    - **Configurable** - Values set in config.toml, not hardcoded

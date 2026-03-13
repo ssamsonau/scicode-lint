@@ -198,7 +198,7 @@ for p in matching:
 ## Key Takeaways
 
 1. **Simple lookup**: `linter.get_pattern(pattern_id)` → returns full pattern details
-2. **List all**: `linter.list_patterns()` → returns all 64 patterns
+2. **List all**: `linter.list_patterns()` → returns all 66 patterns
 3. **Workflow**: Check file → Get findings → Look up pattern details → Apply fix
 4. **What you get**:
    - `pattern.id` - Pattern identifier

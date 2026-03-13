@@ -163,7 +163,7 @@ scicode-lint check myfile.py \
 
 ## Detection Categories
 
-The linter checks 64 patterns across these categories:
+The linter checks 66 patterns across these categories:
 
 - **ai-training** (16 patterns) - Data leakage, PyTorch training modes, gradient management
 - **ai-inference** (13 patterns) - Missing eval mode, missing no_grad, device mismatches
@@ -176,7 +176,7 @@ See the `patterns/` directory for complete list.
 ## Limitations
 
 1. **Requires LLM**: vLLM must be running
-2. **Speed**: Checking 64 patterns takes time (varies by file size and GPU)
+2. **Speed**: Checking 66 patterns takes time (varies by file size and GPU)
 3. **False positives possible**: Review all findings - the linter is conservative but not perfect
 4. **Function/class level only**: Findings report function/class names, not exact line numbers
 5. **Context length limits**: Files must fit within model's input context (16K tokens = ~1,500 lines)

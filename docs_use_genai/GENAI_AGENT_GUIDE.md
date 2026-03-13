@@ -241,7 +241,7 @@ def fix_ml_pipeline(file_path: str):
     Focus on ML correctness patterns only.
     """
 
-    # Step 1: Check ONLY ML correctness issues (not all 64 patterns)
+    # Step 1: Check ONLY ML correctness issues (not all 66 patterns)
     config = LinterConfig(
         enabled_categories={"ai-training"},  # 16 patterns
     )
@@ -439,7 +439,7 @@ All information needed to fix the issue is in the `Finding` object.
 
 ---
 
-## Detection Categories (64 patterns)
+## Detection Categories (66 patterns)
 
 | Category | Patterns | Examples |
 |----------|----------|----------|
@@ -540,7 +540,7 @@ except Exception as e:
 **Speed (per file):**
 - Single pattern: ~50 seconds
 - Category (8 patterns): ~60 seconds
-- Full scan (64 patterns): ~90 seconds
+- Full scan (66 patterns): ~90 seconds
 
 **Optimization:**
 - vLLM's prefix caching reuses code analysis across patterns for significant speedup

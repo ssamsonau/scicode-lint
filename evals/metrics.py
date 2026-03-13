@@ -5,7 +5,7 @@ Calculates precision, recall, F1 scores and aggregates by category and severity.
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 
 @dataclass
@@ -27,9 +27,9 @@ class PatternMetrics:
     context_dependent_cases: int = 0
 
     # Computed metrics
-    precision: Optional[float] = None
-    recall: Optional[float] = None
-    f1_score: Optional[float] = None
+    precision: float | None = None
+    recall: float | None = None
+    f1_score: float | None = None
 
     # Pass/fail status
     passes_thresholds: bool = False
@@ -90,9 +90,9 @@ class AggregatedMetrics:
     true_positives: int = 0
     false_positives: int = 0
     false_negatives: int = 0
-    precision: Optional[float] = None
-    recall: Optional[float] = None
-    f1_score: Optional[float] = None
+    precision: float | None = None
+    recall: float | None = None
+    f1_score: float | None = None
     pattern_count: int = 0
 
     def calculate_metrics(self) -> None:

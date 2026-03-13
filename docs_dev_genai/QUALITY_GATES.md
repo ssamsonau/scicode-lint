@@ -38,6 +38,12 @@ Pattern development has multiple validation layers that catch different types of
 │  4. INTEGRATION TESTS (vLLM + Claude)                        │
 │     Generalization to realistic multi-pattern code           │
 └─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│  5. REAL-WORLD VALIDATION (vLLM + Claude)                    │
+│     External validation on scientific ML papers              │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 Each layer filters different problems. Passing earlier checks doesn't guarantee passing later ones.
@@ -134,6 +140,28 @@ Each layer filters different problems. Passing earlier checks doesn't guarantee 
 
 ---
 
+## Layer 5: Real-World Validation
+
+**Location:** `real_world_demo/`
+
+**Cost:** vLLM + Claude calls
+
+**What it does:**
+- Collects Python files from scientific ML papers (via PapersWithCode)
+- Runs scicode-lint on real research code
+- Claude verifies whether findings are real issues or false positives
+
+**Metrics:**
+- Precision on real-world code
+- Finding rate by scientific domain
+- Category distribution of issues found
+
+**Why separate from integration tests:** Integration tests use controlled scenarios (synthetic or LLM-generated). Real-world validation uses actual research code from published papers - the ultimate test of whether patterns catch bugs scientists actually make.
+
+See [real_world_demo/README.md](../real_world_demo/README.md) for pipeline details.
+
+---
+
 ## Tensions Between Forces
 
 These forces pull in different directions. Understanding the tensions helps when fixing issues.
@@ -206,6 +234,15 @@ These forces pull in different directions. Understanding the tensions helps when
 - LLM is told: "do NOT look for style/performance/general bugs" - questions must be self-contained
 - LLM is told: "understand structure first, then answer" - questions can reference high-level concepts
 
+### Pattern Development Effort vs Generalization Confidence
+
+| Force | Tradeoff |
+|-------|----------|
+| Minimal tests | Faster pattern development |
+| Diverse, uncorrelated tests | Proves detection question captures the concept |
+
+**Resolution:** Require ≥3 positive and ≥3 negative tests that are diverse (different code structures, contexts, variable names) - not copy-paste variations. If a detection question works on multiple uncorrelated examples, it captures the underlying bug concept rather than overfitting to surface features. This is the same principle as ML generalization: diverse training data prevents overfitting.
+
 ---
 
 ## What Each Layer Catches (Examples)
@@ -221,6 +258,8 @@ These forces pull in different directions. Understanding the tensions helps when
 | Pattern detects wrong location | Pattern evals |
 | Pattern works on tests but fails on real code | Integration tests |
 | Pattern conflicts with another pattern | Integration tests |
+| False positives on real research code | Real-world validation |
+| Pattern detects unrealistic bugs only | Real-world validation |
 
 ---
 
@@ -234,6 +273,7 @@ These forces pull in different directions. Understanding the tensions helps when
 | High precision, low recall | Detection question too narrow | Broaden YES conditions |
 | Low precision, high recall | Detection question too broad | Narrow YES conditions or add NO exceptions |
 | LLM ignores question, flags style issues | Question not self-contained | Check system prompt alignment (see `patterns/README.md`) |
+| Integration passes, real-world fails | Tests don't reflect actual code | Review real-world findings, add similar tests |
 
 ---
 
@@ -245,5 +285,6 @@ These forces pull in different directions. Understanding the tensions helps when
 | Semantic | LLM review | `pattern_verification/semantic/` | Consistency, alignment | Claude tokens |
 | Pattern evals | Automated + LLM | `evals/run_eval.py` | Detection accuracy | vLLM calls |
 | Integration | Automated + LLM | `evals/integration/` | Generalization | vLLM + Claude |
+| Real-world | Automated + LLM | `real_world_demo/` | Precision on actual papers | vLLM + Claude |
 | Pre-commit | Automated | `scripts/pre-commit` | Code style, types | Free |
 | Unit tests | Automated | `tests/` | Framework correctness | Free |

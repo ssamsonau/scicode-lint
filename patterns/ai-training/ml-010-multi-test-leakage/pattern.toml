@@ -1,0 +1,134 @@
+# Pattern: ml-010-multi-test-leakage
+# No held-out test set - only validation data used for final evaluation
+# Based on Yang et al. ASE'22 "Data Leakage in Notebooks" multi-test definition
+
+[meta]
+id = "ml-010"
+name = "multi-test-leakage"
+category = "ai-training"
+severity = "critical"
+version = "2.0.0"
+created = "2026-03-11"
+updated = "2026-03-12"
+author = "scicode-lint"
+
+description = """
+Multi-test leakage occurs when code only has train/validation split but no separate held-out test set. The validation set is used for both model selection AND final evaluation, causing optimistic metrics.
+"""
+
+explanation = """
+Multi-test leakage: No held-out test set exists. Validation data used for final evaluation means the model was tuned on the same data used to report performance. Always keep a separate test set that is never used during development.
+"""
+
+tags = ["sklearn", "data-leakage", "validation", "test-set", "model-selection"]
+related_patterns = ["ml-001", "ml-009"]
+references = [
+    "https://scikit-learn.org/stable/common_pitfalls.html#data-leakage",
+    "https://arxiv.org/abs/2209.03345"
+]
+
+[detection]
+question = """
+Analyze this code for MULTI-TEST LEAKAGE where there is NO held-out test set - only validation data is used.
+
+WHY THIS MATTERS: The validation set is used for model selection and hyperparameter tuning. If you report final performance on this same validation set, you're reporting optimistic metrics that don't reflect true generalization.
+
+MULTI-TEST LEAKAGE EXISTS when:
+
+1. NO TEST SET - ONLY TRAIN/VAL SPLIT:
+   - train_test_split() creates X_train, X_val but no X_test
+   - Only two splits exist: training and validation
+   - Final accuracy reported on validation set
+
+2. VALIDATION USED AS FINAL EVALUATION:
+   - Model selection done on val_loss/val_acc
+   - Same val_loss/val_acc reported as final performance
+   - No separate test set for unbiased final evaluation
+
+3. CROSS-VALIDATION WITHOUT HOLDOUT:
+   - GridSearchCV or cross_val_score used for selection
+   - Best CV score reported as final performance
+   - No separate test set held out from CV
+
+CORRECT PATTERNS (no leakage):
+- Three-way split: train/val/test - final eval on test only
+- CV for selection + separate held-out test for final eval
+- train_test_split twice to create train, val, AND test sets
+
+Does this code lack a held-out test set (only validation data for final evaluation)?
+
+YES = Bug found: no test set, validation used for final evaluation
+NO = Correct: separate held-out test set exists for final evaluation
+"""
+
+warning_message = """
+Multi-test leakage: No held-out test set. Validation set used for both tuning and final evaluation. Create a separate test set that is never used during model development.
+"""
+
+min_confidence = 0.70
+false_positive_risks = ["Code that loads test data from external source not visible in this file", "Partial code snippet where test split exists elsewhere"]
+
+[tests]
+
+[[tests.positive]]
+file = "test_positive/no_test_set.py"
+description = "Only train/val split exists, val accuracy reported as final result"
+expected_issue = "Multi-test leakage: no test set, validation used for final evaluation"
+min_confidence = 0.70
+
+[tests.positive.expected_location]
+type = "function"
+name = "train_and_evaluate"
+snippet = "X_train, X_val, y_train, y_val = train_test_split"
+
+[[tests.positive]]
+file = "test_positive/cv_as_final_score.py"
+description = "Cross-validation score reported as final performance, no held-out test"
+expected_issue = "Multi-test leakage: CV score used as final metric, no separate test set"
+min_confidence = 0.70
+
+[tests.positive.expected_location]
+type = "function"
+name = "evaluate_model"
+snippet = "return np.mean(cv_scores)"
+
+[[tests.positive]]
+file = "test_positive/gridsearch_no_holdout.py"
+description = "GridSearchCV best score reported as final, no separate test evaluation"
+expected_issue = "Multi-test leakage: GridSearchCV score is final result, no test set"
+min_confidence = 0.70
+
+[tests.positive.expected_location]
+type = "function"
+name = "tune_and_report"
+snippet = "return grid_search.best_score_"
+
+[[tests.positive]]
+file = "test_positive/nested_cv_no_holdout.py"
+description = "Nested CV (inner for tuning, outer for eval) but no held-out test set"
+expected_issue = "Multi-test leakage: nested CV scores used as final metric, no separate test set"
+min_confidence = 0.70
+
+[tests.positive.expected_location]
+type = "function"
+name = "nested_cv_evaluation"
+snippet = "return np.mean(outer_scores)"
+
+[[tests.negative]]
+file = "test_negative/proper_three_way_split.py"
+description = "Correct: train/val/test split with final evaluation on test only"
+
+[[tests.negative]]
+file = "test_negative/cv_with_holdout_test.py"
+description = "Correct: CV for tuning + separate test set for final evaluation"
+
+[[tests.negative]]
+file = "test_negative/single_final_evaluation.py"
+description = "Correct: Simple train/test split with single final evaluation on test set"
+
+[[tests.context_dependent]]
+file = "test_context_dependent/implicit_test_from_file.py"
+description = "Test data might be loaded from external file not visible in code"
+context_notes = "If test data is loaded from an external source (e.g., Kaggle competition), the code may be correct even if no test split is visible."
+allow_detection = true
+allow_skip = true

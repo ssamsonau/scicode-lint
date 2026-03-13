@@ -14,6 +14,7 @@ Quick guide to find the right documentation for your needs.
 **Setup Guides:**
 - [INSTALLATION.md](INSTALLATION.md) - Installation and vLLM setup
 - [docs_use_human/VRAM_REQUIREMENTS.md](docs_use_human/VRAM_REQUIREMENTS.md) - VRAM requirements and model selection
+- [docs_use_human/MODEL_SELECTION.md](docs_use_human/MODEL_SELECTION.md) - Model selection guide
 
 **Performance:**
 - [docs_use_human/performance/BENCHMARKING.md](docs_use_human/performance/BENCHMARKING.md) - Benchmarking guide
@@ -74,6 +75,7 @@ Quick guide to find the right documentation for your needs.
 ├── docs_use_human/                 # Human user documentation
 │   ├── USAGE.md
 │   ├── VRAM_REQUIREMENTS.md
+│   ├── MODEL_SELECTION.md
 │   └── performance/
 │       ├── BENCHMARKING.md
 │       ├── CONCURRENCY_GUIDE.md
@@ -110,6 +112,13 @@ Quick guide to find the right documentation for your needs.
 │
 ├── benchmarks/                     # Performance benchmarks
 │   └── max_tokens_experiment.py    # Token limit tuning
+│
+├── real_world_demo/                # Real-world validation demo
+│   ├── README.md                   # Pipeline documentation
+│   ├── sources/                    # Data source implementations
+│   │   ├── papers_with_code/       # PapersWithCode repos
+│   │   └── leakage_paper/          # Yang et al. ASE'22 notebooks
+│   └── reports/                    # Generated findings reports
 │
 ├── tools/                          # Development and monitoring tools
 │   ├── vllm_dashboard.py           # Streamlit monitoring dashboard
@@ -155,3 +164,6 @@ Quick guide to find the right documentation for your needs.
 
 ### "I need project statistics"
 → Run `python scripts/project_stats_generate.py --help`
+
+### "I want to validate on real-world scientific ML papers"
+→ [real_world_demo/README.md](real_world_demo/README.md)

@@ -1,6 +1,7 @@
 """Main linter orchestration."""
 
 import asyncio
+import json
 import time
 from pathlib import Path
 from typing import Any, Literal
@@ -20,7 +21,73 @@ from scicode_lint.output.formatter import (
     LintResult,
     Location,
     PatternCheckResult,
+    PatternFailure,
 )
+
+
+class NotebookParseError(Exception):
+    """Raised when a Jupyter notebook cannot be parsed."""
+
+    pass
+
+
+def calculate_scaled_timeout(line_count: int, base_timeout: float) -> float:
+    """Calculate timeout scaled by code line count.
+
+    Larger files need more processing time. Scale timeout based on line count:
+    - Files <= 200 lines: base_timeout
+    - Files > 200 lines: scale up, +50s per 200 lines above threshold
+    - Maximum: 5x base_timeout
+
+    Args:
+        line_count: Number of lines in code.
+        base_timeout: Base timeout for small files.
+
+    Returns:
+        Scaled timeout in seconds.
+    """
+    if line_count <= 200:
+        return base_timeout
+
+    # Scale: +50s per 200 lines above threshold
+    extra_blocks = (line_count - 200) // 200
+    scaled = base_timeout + (extra_blocks * 50)
+
+    # Cap at 5x base timeout
+    max_timeout = base_timeout * 5
+    return min(scaled, max_timeout)
+
+
+def extract_code_from_notebook(notebook_path: Path) -> str:
+    """Extract Python code from Jupyter notebook.
+
+    Args:
+        notebook_path: Path to .ipynb file.
+
+    Returns:
+        Concatenated Python code from all code cells.
+
+    Raises:
+        NotebookParseError: If notebook cannot be parsed.
+    """
+    try:
+        with open(notebook_path, encoding="utf-8") as f:
+            notebook = json.load(f)
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise NotebookParseError(f"Could not parse notebook {notebook_path}: {e}") from e
+
+    code_cells = []
+    cells = notebook.get("cells", [])
+
+    for cell in cells:
+        if cell.get("cell_type") == "code":
+            source = cell.get("source", [])
+            if isinstance(source, list):
+                code_cells.append("".join(source))
+            elif isinstance(source, str):
+                code_cells.append(source)
+
+    return "\n\n".join(code_cells)
 
 
 class SciCodeLinter:
@@ -98,12 +165,16 @@ class SciCodeLinter:
         """
         return asyncio.run(self._check_file_async(file_path))
 
-    async def _check_file_async(self, file_path: Path) -> LintResult:
+    async def _check_file_async(
+        self, file_path: Path, pattern_timeout: float | None = None
+    ) -> LintResult:
         """
         Check a single file asynchronously with parallel pattern checks.
 
         Args:
             file_path: Path to Python file to check
+            pattern_timeout: Optional timeout in seconds per pattern, applied AFTER
+                semaphore acquired (so queue wait doesn't count toward timeout).
 
         Returns:
             Lint results for the file
@@ -111,9 +182,23 @@ class SciCodeLinter:
         file_start = time.time()
         logger.info(f"Checking file: {file_path}")
 
-        # Read file
-        code = file_path.read_text()
-        logger.debug(f"File size: {len(code)} bytes")
+        # Read file (extract Python from notebooks)
+        if file_path.suffix == ".ipynb":
+            code = extract_code_from_notebook(file_path)
+            logger.debug(f"Extracted {len(code)} bytes from notebook")
+        else:
+            code = file_path.read_text()
+            logger.debug(f"File size: {len(code)} bytes")
+
+        # Scale timeout based on line count (larger files need more time)
+        if pattern_timeout is not None:
+            line_count = len(code.splitlines())
+            scaled_timeout = calculate_scaled_timeout(line_count, pattern_timeout)
+            if scaled_timeout != pattern_timeout:
+                logger.debug(
+                    f"Scaled timeout: {pattern_timeout}s -> {scaled_timeout}s ({line_count} lines)"
+                )
+            pattern_timeout = scaled_timeout
 
         # Collect patterns to check
         patterns_to_check = []
@@ -157,12 +242,15 @@ class SciCodeLinter:
             max_tokens = self.llm.get_max_model_len()
             _, user_prompt = prompts[0]
             try:
+                # vLLM reserves max_new_tokens (4096 by default) for output
+                # Effective input limit = max_tokens - 4096
                 fits, estimated = check_context_length(
                     code=code,
                     system_prompt=system_prompt,
                     user_prompt=user_prompt,
                     max_tokens=max_tokens,
                     file_path=str(file_path),
+                    output_buffer=4096,
                 )
                 logger.debug(
                     f"Context check passed: {estimated:,} tokens "
@@ -184,7 +272,9 @@ class SciCodeLinter:
         logger.debug(f"Checking {len(prompts)} patterns concurrently (vLLM will batch)")
 
         tasks = [
-            self._check_pattern_async_with_prompt(pattern, system_prompt, user_prompt, file_path)
+            self._check_pattern_async_with_prompt(
+                pattern, system_prompt, user_prompt, file_path, pattern_timeout
+            )
             for pattern, user_prompt in prompts
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -195,13 +285,34 @@ class SciCodeLinter:
         # Process results
         findings: list[Finding] = []
         checked_patterns: list[PatternCheckResult] = []
+        failed_patterns: list[PatternFailure] = []
         patterns_checked = 0
         patterns_failed = 0
 
         for pattern, result in zip(patterns_to_check, results):
             if isinstance(result, Exception):
                 patterns_failed += 1
-                logger.warning(f"Error running pattern {pattern.id}: {result}")
+                if isinstance(result, asyncio.TimeoutError):
+                    error_type = "timeout"
+                    error_msg = f"Timed out after {pattern_timeout}s"
+                    logger.warning(f"Pattern {pattern.id} timed out after {pattern_timeout}s")
+                elif (
+                    "context length" in str(result).lower() or "input tokens" in str(result).lower()
+                ):
+                    error_type = "context_length"
+                    error_msg = str(result)[:200]
+                    logger.warning(f"Pattern {pattern.id} context error: {result}")
+                else:
+                    error_type = "api_error"
+                    error_msg = str(result)[:200]
+                    logger.warning(f"Error running pattern {pattern.id}: {result}")
+                failed_patterns.append(
+                    PatternFailure(
+                        pattern_id=pattern.id,
+                        error_type=error_type,
+                        error_message=error_msg,
+                    )
+                )
                 continue
 
             # Type narrowing: result is tuple[DetectionResult, float] here
@@ -241,7 +352,13 @@ class SciCodeLinter:
             f"{patterns_failed} failed, {len(findings)} findings)"
         )
 
-        return LintResult(file=file_path, findings=findings, checked_patterns=checked_patterns)
+        return LintResult(
+            file=file_path,
+            findings=findings,
+            checked_patterns=checked_patterns,
+            patterns_failed=patterns_failed,
+            failed_patterns=failed_patterns,
+        )
 
     async def _check_pattern_async(
         self, code: str, pattern: Any, file_path: Path
@@ -276,7 +393,12 @@ class SciCodeLinter:
         return detection, pattern_elapsed
 
     async def _check_pattern_async_with_prompt(
-        self, pattern: Any, system_prompt: str, user_prompt: str, file_path: Path
+        self,
+        pattern: Any,
+        system_prompt: str,
+        user_prompt: str,
+        file_path: Path,
+        timeout: float | None = None,
     ) -> tuple[DetectionResult, float]:
         """
         Check a single pattern asynchronously with pre-generated prompts.
@@ -286,21 +408,30 @@ class SciCodeLinter:
             system_prompt: Pre-generated system prompt
             user_prompt: Pre-generated user prompt
             file_path: File being analyzed
+            timeout: Optional timeout in seconds for LLM processing time only.
+                     Queue wait time (semaphore) does not count toward timeout,
+                     ensuring fair processing time for all patterns regardless
+                     of queue position.
 
         Returns:
             Tuple of (detection result, elapsed time)
 
         Raises:
-            Exception: If pattern check fails
+            asyncio.TimeoutError: If LLM processing exceeds timeout
+            Exception: If pattern check fails for other reasons
         """
         async with self._semaphore:
             pattern_start = time.time()
             logger.debug(f"Starting async check for pattern {pattern.id}")
 
-            # Query LLM with structured output asynchronously
-            detection = await self.llm.async_complete_structured(
+            # Timeout applies to LLM call only (after semaphore acquired)
+            llm_coro = self.llm.async_complete_structured(
                 system_prompt, user_prompt, DetectionResult
             )
+            if timeout is not None:
+                detection = await asyncio.wait_for(llm_coro, timeout=timeout)
+            else:
+                detection = await llm_coro
 
             pattern_elapsed = time.time() - pattern_start
             return detection, pattern_elapsed

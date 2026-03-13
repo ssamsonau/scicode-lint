@@ -9,6 +9,7 @@ AI-powered linter for scientific Python code using local LLM (Qwen3 via vLLM).
 ## Table of Contents
 
 - [Key Files](#key-files)
+- [Project Statistics](#project-statistics)
 - [Architecture Overview](#architecture-overview)
 - [Local LLM Setup](#local-llm-setup)
 - [Claude CLI for Development](#claude-cli-for-development)
@@ -26,7 +27,7 @@ AI-powered linter for scientific Python code using local LLM (Qwen3 via vLLM).
 - [INSTALLATION.md](./INSTALLATION.md) - Detailed installation guide
 - [DOCUMENTATION_MAP.md](./DOCUMENTATION_MAP.md) - Navigation guide to all documentation
 - [CLAUDE.md](./CLAUDE.md) - This file, main instructions for AI agents working on the codebase
-- [patterns/](./patterns/) - Detection patterns (64 patterns across 5 categories)
+- [patterns/](./patterns/) - Detection patterns (66 patterns across 5 categories)
 
 **For humans (docs_use_human/):**
 - [README.md](docs_use_human/README.md) - Documentation index
@@ -45,6 +46,23 @@ AI-powered linter for scientific Python code using local LLM (Qwen3 via vLLM).
 
 **Pattern verification (pattern_verification/):**
 - [pattern_verification/](pattern_verification/) - Deterministic + semantic pattern quality checks
+
+**Real-world validation (real_world_demo/):**
+- [real_world_demo/README.md](real_world_demo/README.md) - Run scicode-lint on real scientific ML code
+- Data sources: `sources/papers_with_code/` (PapersWithCode repos), `sources/leakage_paper/` (Yang et al. ASE'22)
+- Uses Claude CLI for finding verification (`verify_findings.py`)
+
+---
+
+## Project Statistics
+
+**To get project stats, run the stats script — do NOT gather stats manually:**
+
+```bash
+python scripts/project_stats_generate.py
+```
+
+Collects: git stats (commits, branches, age), tech stack (from pyproject.toml), code line counts, pattern counts, documentation stats. Outputs to `PROJECT_STATS.md`.
 
 ---
 
@@ -80,6 +98,43 @@ python -m scicode_lint check myfile.py
 ```
 
 **📖 Complete setup:** [INSTALLATION.md](INSTALLATION.md)
+
+### vLLM Client Usage in Code
+
+When writing code that calls vLLM, **always use the shared infrastructure**:
+
+```python
+from scicode_lint.config import load_llm_config
+from scicode_lint.llm.client import create_client
+
+# Create client (auto-detects vLLM server)
+llm_config = load_llm_config()
+llm_client = create_client(llm_config)
+
+# Use async with semaphore for concurrency control
+semaphore = asyncio.Semaphore(max_concurrent)
+async with semaphore:
+    result = await llm_client.async_complete_structured(
+        system_prompt=SYSTEM_PROMPT,
+        user_prompt=prompt,
+        schema=MyPydanticSchema,
+    )
+```
+
+**Rules:**
+- **Use `VLLMClient`** from `scicode_lint.llm.client` — NOT raw `httpx` calls
+- **Use Pydantic schemas** for structured output — client uses vLLM's `guided_json` for guaranteed valid JSON
+- **Use `asyncio.Semaphore`** for concurrency control — prevents overwhelming the server
+- **Define response schemas** with `pydantic.BaseModel` — enables type-safe responses
+
+**Example Pydantic schema:**
+```python
+from pydantic import BaseModel, Field
+
+class FilterResult(BaseModel):
+    is_valid: bool = Field(description="Whether the item passes the filter")
+    explanation: str = Field(description="Brief explanation of the decision")
+```
 
 ---
 
@@ -165,7 +220,11 @@ Evaluates detection accuracy and iteratively improves patterns. See [Continuous 
 
 ### Initial Setup (once per clone)
 ```bash
-git config core.hooksPath scripts  # Enable pre-commit hooks (ruff + mypy)
+# Activate dedicated environment (see INSTALLATION.md for setup)
+conda activate scicode  # or: source ~/.scicode-venv/bin/activate
+
+# Enable pre-commit hooks
+git config core.hooksPath scripts
 ```
 
 ### Mandatory Checks (RUN AFTER EVERY CODE CHANGE)

@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from scicode_lint.config import Severity
 
@@ -58,7 +58,7 @@ class DetectionCatalog:
         >>> print(pattern.warning_message)
     """
 
-    def __init__(self, patterns_dir: Optional[Path] = None):
+    def __init__(self, patterns_dir: Path | None = None):
         """Initialize catalog from TOML patterns directory.
 
         Args:

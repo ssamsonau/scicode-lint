@@ -4,9 +4,8 @@ Pattern loader for TOML-based patterns.
 Loads and validates pattern definitions from pattern.toml files.
 """
 
-from pathlib import Path
-
 import tomllib
+from pathlib import Path
 
 from .catalog import DetectionPattern
 from .pattern_models import PatternTOML

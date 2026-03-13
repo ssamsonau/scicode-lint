@@ -348,7 +348,7 @@ def main() -> None:
         throughput_ma = moving_average(list(st.session_state.history["throughput"]), ma_window)
         tokens_ma = moving_average(list(st.session_state.history["tokens_per_sec"]), ma_window)
 
-        df = pd.DataFrame(
+        df: pd.DataFrame = pd.DataFrame(
             {
                 "Time": list(st.session_state.history["time"]),
                 "Running": list(st.session_state.history["running"]),

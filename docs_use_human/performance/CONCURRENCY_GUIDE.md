@@ -7,7 +7,7 @@ scicode-lint maximizes GPU utilization by sending concurrent requests to vLLM. v
 ## Linter Concurrency
 
 **All patterns checked concurrently:**
-- All 64 patterns are sent to vLLM simultaneously
+- All 66 patterns are sent to vLLM simultaneously
 - vLLM's internal scheduler batches them efficiently
 - Prefix caching works best with concurrent requests
 
@@ -21,7 +21,7 @@ results = await asyncio.gather(*tasks)
 ## Evaluation Concurrency
 
 **All patterns AND test files evaluated concurrently:**
-- All ~64 patterns evaluated in parallel (not sequentially)
+- All ~66 patterns evaluated in parallel (not sequentially)
 - Each pattern's ~5 test files also run in parallel
 - Total: ~220 concurrent requests to vLLM
 - Semaphore limits max concurrent to avoid overwhelming system
@@ -50,13 +50,13 @@ python -m evals.run_eval_llm_judge --max-concurrent 32
 ## Performance
 
 **Linter (single file):**
-- 64 patterns, sequential: ~132s
-- 64 patterns, concurrent: ~15-20s
+- 66 patterns, sequential: ~132s
+- 66 patterns, concurrent: ~15-20s
 - **Speedup: 6-8x**
 
 **Evaluation (all patterns):**
-- 64 patterns × 5 tests, sequential patterns: ~10 min
-- 64 patterns × 5 tests, concurrent patterns: ~2-3 min
+- 66 patterns × 5 tests, sequential patterns: ~10 min
+- 66 patterns × 5 tests, concurrent patterns: ~2-3 min
 - **Speedup: 3-5x**
 
 **Why concurrent is better:**

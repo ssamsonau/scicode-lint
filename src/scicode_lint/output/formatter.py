@@ -77,6 +77,14 @@ class LintError(BaseModel):
     )
 
 
+class PatternFailure(BaseModel):
+    """Record of a pattern that failed to execute."""
+
+    pattern_id: str = Field(description="Pattern ID that failed")
+    error_type: str = Field(description="Type of error (e.g., 'timeout', 'api_error')")
+    error_message: str = Field(default="", description="Error message")
+
+
 class PatternCheckResult(BaseModel):
     """Result of checking a single pattern (includes 'no' detections for eval)."""
 
@@ -99,6 +107,12 @@ class LintResult(BaseModel):
     checked_patterns: list[PatternCheckResult] = Field(
         default_factory=list,
         description="All patterns checked with their results (for eval/debugging)",
+    )
+    patterns_failed: int = Field(
+        default=0, description="Number of patterns that failed (timeout/error)"
+    )
+    failed_patterns: list[PatternFailure] = Field(
+        default_factory=list, description="Details of patterns that failed"
     )
     error: LintError | None = Field(
         default=None, description="Error that occurred during linting (if any)"

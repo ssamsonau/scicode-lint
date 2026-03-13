@@ -29,7 +29,7 @@ src/scicode_lint/
 ### Core Components
 
 #### 1. Detection Catalog (`detectors/catalog.py`)
-- Loads all 64 patterns from patterns directory
+- Loads all 66 patterns from patterns directory
 - Parses pattern metadata: id, category, severity, detection_question, warning_message
 - Provides filtering by severity and category
 
@@ -80,7 +80,7 @@ From `ARCHITECTURE.md` principle #1:
 # Code comes FIRST
 user_prompt = f"{code}\n---\nDetection task: {question}"
 ```
-This enables vLLM prefix caching - the code is the common prefix across all 64 patterns.
+This enables vLLM prefix caching - the code is the common prefix across all 66 patterns.
 
 ### 1.5. Async Batching for Pattern Checks
 
@@ -209,7 +209,7 @@ pytest evals/test_all_patterns.py -v
 
 ## Detection Coverage
 
-All 64 patterns implemented across 5 categories:
+All 66 patterns implemented across 5 categories:
 
 | Category | Patterns |
 |----------|----------|
@@ -300,7 +300,7 @@ Testing:
 - **Type coverage**: 100% (all functions have type hints)
 - **Ruff compliance**: 100% (all checks pass)
 - **Mypy compliance**: 100% (strict mode, no errors)
-- **Test patterns**: 64 patterns with eval coverage
+- **Test patterns**: 66 patterns with eval coverage
 
 ## Status
 

@@ -39,3 +39,6 @@ docs_use_human/
 
 ### AI Development Docs
 - [docs_dev_genai/](../docs_dev_genai/) - Architecture and implementation docs for Claude
+
+### Validation & Demo
+- [real_world_demo/](../real_world_demo/) - Real-world validation on scientific ML papers from PapersWithCode

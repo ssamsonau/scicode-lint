@@ -5,7 +5,7 @@ These models define the structure of pattern.toml files and provide
 validation for pattern data.
 """
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -23,7 +23,7 @@ class PatternMeta(BaseModel):
     author: str = "scicode-lint"
     description: str
     explanation: str
-    research_impact: Optional[str] = None
+    research_impact: str | None = None
     tags: list[str] = Field(default_factory=list)
     related_patterns: list[str] = Field(default_factory=list)
     references: list[str] = Field(default_factory=list)
@@ -34,7 +34,7 @@ class DetectionConfig(BaseModel):
 
     question: str
     warning_message: str
-    suggestion: Optional[str] = None
+    suggestion: str | None = None
     min_confidence: float = 0.85
     false_positive_risks: list[str] = Field(default_factory=list)
 
@@ -62,7 +62,7 @@ class NegativeTest(BaseModel):
 
     file: str
     description: str
-    notes: Optional[str] = None
+    notes: str | None = None
 
 
 class ContextDependentTest(BaseModel):
@@ -73,8 +73,8 @@ class ContextDependentTest(BaseModel):
     allow_detection: bool  # Must be explicit - no default
     allow_skip: bool  # Must be explicit - no default
     context_notes: str
-    rationale_for_detection: Optional[str] = None
-    rationale_against_detection: Optional[str] = None
+    rationale_for_detection: str | None = None
+    rationale_against_detection: str | None = None
 
 
 class TestCases(BaseModel):
@@ -91,10 +91,10 @@ class AIScience(BaseModel):
     domains: list[str] = Field(default_factory=list)
     audience: list[str] = Field(default_factory=list)
     paper_sections: list[str] = Field(default_factory=list)
-    impact_severity: Optional[str] = None
-    impact_magnitude: Optional[str] = None
-    prevalence: Optional[str] = None
-    educational_notes: Optional[str] = None
+    impact_severity: str | None = None
+    impact_magnitude: str | None = None
+    prevalence: str | None = None
+    educational_notes: str | None = None
 
 
 class PatternTOML(BaseModel):
@@ -103,4 +103,4 @@ class PatternTOML(BaseModel):
     meta: PatternMeta
     detection: DetectionConfig
     tests: TestCases
-    ai_science: Optional[AIScience] = None
+    ai_science: AIScience | None = None

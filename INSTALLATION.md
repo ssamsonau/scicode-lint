@@ -46,9 +46,29 @@ python -m pipx ensurepath
 pipx install scicode-lint[vllm-server]
 ```
 
-### Option 2: Dedicated Virtual Environment (For Python API)
+### Option 2: Dedicated Environment (For Python API or Development)
 
-Create a dedicated virtual environment for scicode-lint if you need Python API access.
+**Using conda:**
+```bash
+conda create -n scicode python=3.13
+conda activate scicode
+pip install scicode-lint[vllm-server]
+
+# For development:
+pip install -e ".[all]"
+```
+
+**Using venv:**
+```bash
+python -m venv ~/.scicode-venv
+source ~/.scicode-venv/bin/activate
+pip install scicode-lint[vllm-server]
+```
+
+**Note:** Activate the environment in each new terminal session before using scicode-lint or Claude Code:
+```bash
+conda activate scicode   # or: source ~/.scicode-venv/bin/activate
+```
 
 ### Option 3: Install in Project Environment (Not Recommended)
 
@@ -260,25 +280,26 @@ For development with testing and linting tools:
 git clone https://github.com/ssamsonau/scicode-lint
 cd scicode-lint
 
-# Install with dev dependencies
-pip install -e ".[dev]"
+# Create isolated environment (recommended)
+conda create -n scicode python=3.13
+conda activate scicode
 
-# Install vLLM
-pip install vllm
+# Install all dependencies (dev, vllm, eval, dashboard, etc.)
+pip install -e ".[all]"
 
 # Run tests
-pytest evals/
+pytest
 
 # Run linter checks
-ruff check src/
-mypy src/
+ruff check . && ruff format .
+mypy .
 ```
 
 ## System Requirements
 
 **For FP8 models (default: Qwen3-8B-FP8):**
 
-- **Python:** 3.9+
+- **Python:** 3.13+
 - **GPU:** NVIDIA with native FP8 support
   - **VRAM:** 16GB minimum (20K context: 16K input + 4K response)
   - **Compute capability:** >= 8.9 (native FP8 tensor cores)

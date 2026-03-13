@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6] - 2026-03-12
+
+**Theme: Real-world validation on scientific ML code**
+
+### Real-World Validation (`real_world_demo/`)
+
+End-to-end pipeline for validating scicode-lint on real scientific ML code:
+
+**Pipeline:** PapersWithCode API → filter by scientific domain (biology, medical, physics) → clone repos → filter files with ML imports → LLM prefilter for scientific code → run scicode-lint → verify findings with Claude Opus
+
+**Two data sources tested:**
+
+- **PapersWithCode repos** - AI/ML + Science papers with code
+  - Every reviewed paper had at least one verified bug
+  - ~19% precision (5/26 verified findings are real issues)
+
+- **Yang et al. ASE'22 dataset** - 99 Jupyter notebooks with ground truth labels
+  - Academic benchmark for data leakage detection
+  - 67-90% precision on leakage patterns
+
+### Jupyter Notebook Support
+- **Python extraction** - extracts code cells before LLM analysis (99% token reduction)
+- Proper error handling with `NotebookParseError`
+
+### New Patterns (64 → 66)
+- `ml-009-overlap-leakage` - train/test data overlap (SMOTE before split, duplicates)
+- `ml-010-multi-test-leakage` - test set used for tuning/model selection
+
+### Pipeline Features
+- **Incremental saving** - analysis and verification results saved as each file completes
+- **Resume support** (`--resume`) - continue interrupted runs
+- **Pattern filtering** (`--patterns`) - analyze specific patterns only
+- **Report filtering** (`--verified-only`) - show only verified findings
+- **Valid findings sample** - curated export of verified critical findings
+
+### Infrastructure
+- **Python 3.13 type syntax** - `X | None`, `StrEnum`, `UTC` constant
+- **Direct async API** - no subprocess overhead, shared semaphore for vLLM
+- **Timeout fix** - per-pattern timeout inside semaphore (queue wait excluded)
+- Renamed `--pilot` to `--papers`
+
+### Tests
+- 49 tests for real_world_demo modules
+
 ## [0.1.5] - 2026-03-10
 
 ### Added
@@ -124,6 +168,7 @@ Initial public release.
 - Evaluation framework with precision/recall metrics
 - Designed for both human developers and AI coding agents
 
+[0.1.6]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.1.6
 [0.1.5]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.1.5
 [0.1.4]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.1.4
 [0.1.3]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.1.3

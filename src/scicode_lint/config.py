@@ -1,10 +1,10 @@
 """Configuration for scicode-lint with Pydantic validation."""
 
-from enum import Enum
-from pathlib import Path
-from typing import Any, Optional
-
 import tomllib
+from enum import StrEnum
+from pathlib import Path
+from typing import Any
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -33,7 +33,7 @@ _BUNDLED = _load_bundled_config()
 _LLM_DEFAULTS = _BUNDLED.get("llm", {})
 
 
-class Severity(str, Enum):
+class Severity(StrEnum):
     """Issue severity levels."""
 
     CRITICAL = "critical"
@@ -136,12 +136,12 @@ class LinterConfig:
 
     def __init__(
         self,
-        patterns_dir: Optional[Path] = None,
-        llm_config: Optional[LLMConfig] = None,
+        patterns_dir: Path | None = None,
+        llm_config: LLMConfig | None = None,
         min_confidence: float = 0.7,
-        enabled_severities: Optional[set[Severity]] = None,
-        enabled_patterns: Optional[set[str]] = None,
-        enabled_categories: Optional[set[str]] = None,
+        enabled_severities: set[Severity] | None = None,
+        enabled_patterns: set[str] | None = None,
+        enabled_categories: set[str] | None = None,
         max_concurrent: int = 150,
     ):
         self.patterns_dir = patterns_dir or get_default_patterns_dir()

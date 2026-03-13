@@ -44,11 +44,11 @@ Notebooks from ["Data Leakage in Notebooks"](https://arxiv.org/abs/2209.03345) (
 
 **See:** [sources/leakage_paper/LEAKAGE_PAPER_DATA_SOURCE.md](sources/leakage_paper/LEAKAGE_PAPER_DATA_SOURCE.md)
 
-| Paper Label | Description | scicode-lint Pattern | F1 Score |
-|-------------|-------------|---------------------|----------|
-| `pre` | Preprocessing leakage | `ml-001`, `ml-007` | 81.0% |
-| `overlap` | Train/test overlap | `ml-009` | 28.6% |
-| `multi` | Multi-test leakage | `ml-010` | 39.1% |
+| Paper Label | Description | scicode-lint Pattern | Recall | F1 Score |
+|-------------|-------------|---------------------|--------|----------|
+| `pre` | Preprocessing leakage | `ml-001`, `ml-007` | **100%** | 81.0% |
+| `overlap` | Train/test overlap | `ml-009` | 33.3% | 28.6% |
+| `multi` | Multi-test leakage | `ml-010` | 31.0% | 39.1% |
 
 **Required patterns for ground truth comparison:** `ml-001,ml-007,ml-009,ml-010`
 
@@ -318,6 +318,8 @@ Run `python -m real_world_demo.sources.leakage_paper.compare_ground_truth` for l
 | `pre` | ml-001, ml-007 | 68.0% | 100.0% | 81.0% |
 | `overlap` | ml-009 | 25.0% | 33.3% | 28.6% |
 | `multi` | ml-010 | 52.9% | 31.0% | 39.1% |
+
+**Notable:** Preprocessing leakage (`pre`) achieves **100% recall** - all 17 ground truth cases detected. These patterns catch `fit_transform` on full data before `train_test_split`.
 
 ### PapersWithCode
 

@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-03-13
+
+**First PyPI release** (alpha)
+
+### Changed
+- **Patterns bundled with package** - moved from `patterns/` to `src/scicode_lint/patterns/` so patterns are included when installing via `pip install scicode-lint`
+- Updated all documentation and scripts to reflect new patterns location
+
+### Fixed
+- Package now works correctly when installed from PyPI (patterns were previously not included in the wheel)
+
 ## [0.1.6] - 2026-03-12
 
 **Theme: Real-world validation on scientific ML code**
@@ -168,6 +179,7 @@ Initial public release.
 - Evaluation framework with precision/recall metrics
 - Designed for both human developers and AI coding agents
 
+[0.2.0]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.2.0
 [0.1.6]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.1.6
 [0.1.5]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.1.5
 [0.1.4]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.1.4

@@ -98,7 +98,7 @@ Quick guide to find the right documentation for your needs.
 │   ├── semantic/semantic_validate.py  # Batch validation script
 │   └── pattern-reviewer/           # Read-only analysis agent
 │
-├── patterns/                       # Pattern definitions and tests
+├── src/scicode_lint/patterns/      # Pattern definitions (bundled with package)
 │   ├── README.md                  # Pattern guide (structure, format, detection question template)
 │   └── {category}/{pattern}/       # Individual pattern directories
 │

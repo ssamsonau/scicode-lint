@@ -17,7 +17,7 @@ def _load_bundled_config() -> dict[str, Any]:
     """
 
     # Bundled config.toml is the source of truth for defaults
-    package_config = Path(__file__).parent.parent.parent / "config.toml"
+    package_config = Path(__file__).parent / "config.toml"
     if not package_config.exists():
         raise RuntimeError(
             f"Bundled config.toml not found at {package_config}. "
@@ -162,18 +162,18 @@ def get_default_patterns_dir() -> Path:
     Get path to patterns directory.
 
     Searches in order:
-    1. patterns/ (from package root)
-    2. ~/.config/scicode-lint/patterns (user patterns)
+    1. Package-bundled patterns (works after pip install)
+    2. ~/.config/scicode-lint/patterns (user patterns override)
 
     Returns:
         Path to patterns directory
     """
-    # Priority 1: Package patterns
-    pkg_patterns = Path(__file__).parent.parent.parent / "patterns"
+    # Priority 1: Package-bundled patterns
+    pkg_patterns = Path(__file__).parent / "patterns"
     if pkg_patterns.exists():
         return pkg_patterns
 
-    # Priority 2: User patterns directory
+    # Priority 2: User patterns directory (for custom patterns)
     user_patterns = Path.home() / ".config" / "scicode-lint" / "patterns"
     if user_patterns.exists():
         return user_patterns
@@ -221,7 +221,7 @@ def load_config_from_toml() -> dict[str, Any]:
             return tomllib.load(f)
 
     # Priority 4: Package default
-    package_config = Path(__file__).parent.parent.parent / "config.toml"
+    package_config = Path(__file__).parent / "config.toml"
     if package_config.exists():
         with open(package_config, "rb") as f:
             return tomllib.load(f)

@@ -160,17 +160,17 @@ class SemanticResult:
 
 def find_patterns_dir() -> Path:
     """Find the patterns directory."""
-    # Try relative to script
+    # Try relative to script (pattern_verification/semantic/ -> root -> src/scicode_lint/patterns)
     script_dir = Path(__file__).parent.parent.parent
-    patterns_dir = script_dir / "patterns"
+    patterns_dir = script_dir / "src" / "scicode_lint" / "patterns"
     if patterns_dir.exists():
         return patterns_dir
 
     # Try current directory
-    if Path("patterns").exists():
-        return Path("patterns")
+    if Path("src/scicode_lint/patterns").exists():
+        return Path("src/scicode_lint/patterns")
 
-    raise FileNotFoundError("patterns/ directory not found")
+    raise FileNotFoundError("src/scicode_lint/patterns/ directory not found")
 
 
 def get_all_pattern_ids(patterns_dir: Path) -> list[tuple[str, str]]:

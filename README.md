@@ -11,8 +11,10 @@ Runs locally on your GPU or institutional cluster. No cloud APIs, your code stay
 Local LLM linter for scientific ML code. Catches data leakage, missing seeds, numerical bugs. Runs on your GPU (16GB+ VRAM), code stays private.
 
 ```bash
-pip install git+https://github.com/ssamsonau/scicode-lint.git
-bash src/scicode_lint/vllm/start_vllm.sh  # Start local LLM server
+pip install scicode-lint                  # Use with remote vLLM server
+# or
+pip install scicode-lint[vllm-server]     # Run vLLM locally (16GB+ GPU)
+
 scicode-lint check train.py               # Scan for issues
 ```
 
@@ -67,27 +69,17 @@ See [INSTALLATION.md](INSTALLATION.md) for detailed setup.
 ### Installation
 
 ```bash
-# Install from GitHub (recommended)
-pip install git+https://github.com/ssamsonau/scicode-lint.git
+# With local vLLM server (runs on your GPU)
+pip install scicode-lint[vllm-server]
 
-# Or install a specific version
-pip install git+https://github.com/ssamsonau/scicode-lint.git@v0.1.5
+# Or with remote vLLM server (e.g., university/institutional server)
+pip install scicode-lint
+scicode-lint check my_code.py --vllm-url https://vllm.your-institution.edu
 
-# Or install from source for development
+# For development
 git clone https://github.com/ssamsonau/scicode-lint.git
 cd scicode-lint
-pip install -e ".[vllm-server]"
-
-# Start vLLM server
-bash src/scicode_lint/vllm/start_vllm.sh
-
-# Optional: Start monitoring dashboard
-bash tools/start_dashboard.sh
-```
-
-*Future (when published to PyPI):*
-```bash
-pipx install scicode-lint[vllm-server]
+pip install -e ".[all]"
 ```
 
 ### Usage
@@ -120,7 +112,7 @@ scicode-lint check train.py --severity critical,high
 
 ## Project Status
 
-**Work in Progress** (v0.1.6 alpha)
+**Work in Progress** (v0.2.0 alpha)
 
 | Test Type | Precision | Recall | Description |
 |-----------|-----------|--------|-------------|
@@ -182,7 +174,7 @@ Open an issue or start a discussion on GitHub.
 
 ## Contributing
 
-Each pattern lives in `patterns/{category}/{id}/` and needs:
+Each pattern lives in `src/scicode_lint/patterns/{category}/{id}/` and needs:
 - `pattern.toml`: the detection question and warning message
 - Test files: examples of buggy code (positive), correct code (negative), and edge cases (context-dependent)
 

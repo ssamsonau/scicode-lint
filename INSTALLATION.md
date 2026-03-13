@@ -13,9 +13,20 @@
 
 ## Quick Start
 
+**Option A: Using remote vLLM server** (university/institutional)
 ```bash
-# 1. Install scicode-lint with vLLM server
-pip install -e ".[vllm-server]"
+pip install scicode-lint
+scicode-lint check path/to/code.py --vllm-url https://vllm.your-institution.edu
+
+# Or configure once in ~/.config/scicode-lint/config.toml:
+# [llm]
+# base_url = "https://vllm.your-institution.edu"
+```
+
+**Option B: Running vLLM locally** (requires 16GB+ GPU)
+```bash
+# 1. Install with vLLM server
+pip install scicode-lint[vllm-server]
 
 # 2. Start vLLM server (downloads model on first run - see "Model Storage" below)
 vllm serve RedHatAI/Qwen3-8B-FP8-dynamic \
@@ -26,15 +37,9 @@ vllm serve RedHatAI/Qwen3-8B-FP8-dynamic \
 scicode-lint check path/to/code.py
 ```
 
-Or use the convenience script:
-```bash
-bash src/scicode_lint/vllm/start_vllm.sh  # Terminal 1
-scicode-lint check path/to/code.py  # Terminal 2
-```
-
 ## Installation: Isolated Environment (Recommended)
 
-**⚠️ Important:** scicode-lint has heavy dependencies (vLLM, etc.). Install it in an isolated environment to avoid conflicts.
+**⚠️ Important:** The `[vllm-server]` extra has heavy dependencies. Install in an isolated environment to avoid conflicts. If using a remote vLLM server, `pip install scicode-lint` (without extras) has minimal dependencies.
 
 **Safety Note:** scicode-lint only *reads* your code files as text - it never executes or imports your code.
 
@@ -43,7 +48,8 @@ scicode-lint check path/to/code.py  # Terminal 2
 ```bash
 python -m pip install --user pipx
 python -m pipx ensurepath
-pipx install scicode-lint[vllm-server]
+pipx install scicode-lint                  # Remote vLLM server
+pipx install scicode-lint[vllm-server]     # Local vLLM server
 ```
 
 ### Option 2: Dedicated Environment (For Python API or Development)
@@ -52,7 +58,9 @@ pipx install scicode-lint[vllm-server]
 ```bash
 conda create -n scicode python=3.13
 conda activate scicode
-pip install scicode-lint[vllm-server]
+pip install scicode-lint                   # Remote vLLM server
+# or
+pip install scicode-lint[vllm-server]      # Local vLLM server
 
 # For development:
 pip install -e ".[all]"
@@ -62,7 +70,9 @@ pip install -e ".[all]"
 ```bash
 python -m venv ~/.scicode-venv
 source ~/.scicode-venv/bin/activate
-pip install scicode-lint[vllm-server]
+pip install scicode-lint                   # Remote vLLM server
+# or
+pip install scicode-lint[vllm-server]      # Local vLLM server
 ```
 
 **Note:** Activate the environment in each new terminal session before using scicode-lint or Claude Code:
@@ -220,12 +230,16 @@ for finding in result.findings:
 
 **Example: Using institutional vLLM server**
 ```bash
-# Point to your HPC's vLLM server
+# Option 1: CLI flag (per-command)
 scicode-lint check your_code.py --vllm-url https://vllm.your-hpc.edu
 
-# Or set via environment variable
+# Option 2: Environment variable (per-session)
 export OPENAI_BASE_URL="https://vllm.your-hpc.edu/v1"
 scicode-lint check your_code.py
+
+# Option 3: Config file (persistent) - create ~/.config/scicode-lint/config.toml
+# [llm]
+# base_url = "https://vllm.your-hpc.edu"
 ```
 
 ---

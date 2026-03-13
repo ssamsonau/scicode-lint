@@ -98,3 +98,7 @@ real_world_demo/reports/
 # Databases
 *.db
 *.sqlite
+
+# Generated files that may accidentally land in package directory
+src/scicode_lint/evals/
+src/scicode_lint/reports/

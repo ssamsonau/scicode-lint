@@ -1272,9 +1272,9 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    patterns_dir = Path("patterns")
+    patterns_dir = Path("src/scicode_lint/patterns")
     if not patterns_dir.exists():
-        print("Error: patterns/ directory not found", file=sys.stderr)
+        print("Error: src/scicode_lint/patterns/ directory not found", file=sys.stderr)
         return 1
 
     # Clean orphaned cache if requested

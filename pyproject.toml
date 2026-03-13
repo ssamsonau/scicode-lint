@@ -4,15 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "scicode-lint"
-version = "0.1.6"
-description = "AI-powered linter for ML code written for scientific applications. Catches methodology bugs — data leakage, missing seeds, silent numerical errors — that traditional linters miss. Runs locally, no cloud APIs."
+version = "0.2.0"
+description = "AI-powered linter for scientific ML code. Detects methodology bugs such as data leakage, incorrect cross-validation, numerical instability, and reproducibility issues that produce plausible but wrong results. 66 detection patterns across 5 categories. Runs via local or institutional vLLM server, no cloud APIs."
 readme = "README.md"
 requires-python = ">=3.13"
 license = {text = "MIT"}
 authors = [
     {name = "Sergey Samsonau"}
 ]
-keywords = ["linting", "scientific-computing", "machine-learning", "pytorch", "research", "vllm", "local-first", "self-hosted"]
+keywords = ["linting", "scientific-computing", "machine-learning", "pytorch", "research", "vllm", "local-first", "self-hosted", "reproducibility", "data-leakage", "methodology-bugs"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -85,7 +85,7 @@ packages = ["src/scicode_lint"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 # Exclude pattern test files (they contain intentional bugs for evaluation)
-norecursedirs = ["patterns", "evals"]
+norecursedirs = ["src/scicode_lint/patterns", "evals"]
 # Custom markers
 markers = [
     "vllm: tests that require a running vLLM server (deselected by default, run with: pytest -m vllm)",
@@ -97,7 +97,7 @@ addopts = "-m 'not vllm'"
 line-length = 100
 target-version = "py313"
 # Exclude pattern test files (contain intentional bugs and minimal examples)
-exclude = ["patterns/"]
+exclude = ["src/scicode_lint/patterns/"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
@@ -118,7 +118,7 @@ warn_unused_configs = true
 disallow_untyped_defs = true
 # Exclude pattern files, integration scenarios, and demo data directories
 exclude = [
-    "patterns/",
+    "src/scicode_lint/patterns/",
     "evals/integration/scenarios/",
     "real_world_demo/collected_code/",
     "real_world_demo/cloned_repos/",

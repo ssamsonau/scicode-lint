@@ -101,7 +101,7 @@ See [INSTALLATION.md](INSTALLATION.md) for detailed setup.
 
 ## Adding New Detection Patterns
 
-**📖 Complete guide:** [patterns/README.md](patterns/README.md) - Structure, detection question template, test file rules
+**📖 Complete guide:** [src/scicode_lint/patterns/README.md](src/scicode_lint/patterns/README.md) - Structure, detection question template, test file rules
 
 ### 1. Create scaffold
 
@@ -115,11 +115,11 @@ python -m scicode_lint.tools.new_pattern \
 
 ### 2. Edit pattern.toml
 
-See [patterns/README.md](patterns/README.md) for detection question template.
+See [src/scicode_lint/patterns/README.md](src/scicode_lint/patterns/README.md) for detection question template.
 
 ### 3. Add test files
 
-See [patterns/README.md](patterns/README.md) for test file requirements (pure code, no hints).
+See [src/scicode_lint/patterns/README.md](src/scicode_lint/patterns/README.md) for test file requirements (pure code, no hints).
 
 ### 4. Validate and evaluate
 
@@ -141,8 +141,8 @@ python evals/run_eval.py --pattern ml-050
 
 1. **Commit your changes:**
 ```bash
-git add patterns/ai-training/ml-050-temporal-split-leakage/
-git add patterns/_registry.toml
+git add src/scicode_lint/patterns/ai-training/ml-050-temporal-split-leakage/
+git add src/scicode_lint/patterns/_registry.toml
 git commit -m "Add pattern ml-050: temporal split leakage detection
 
 - Detects shuffle=True on time-series data
@@ -165,7 +165,7 @@ git push origin feature/ml-050-temporal-leakage
 
 #### Choosing Pattern IDs
 
-Pattern IDs follow the format: `{category-prefix}-{number}`. Check `patterns/_registry.toml` for next available IDs.
+Pattern IDs follow the format: `{category-prefix}-{number}`. Check `src/scicode_lint/patterns/_registry.toml` for next available IDs.
 
 #### Common Pitfalls to Avoid
 

@@ -27,7 +27,7 @@ AI-powered linter for scientific Python code using local LLM (Qwen3 via vLLM).
 - [INSTALLATION.md](./INSTALLATION.md) - Detailed installation guide
 - [DOCUMENTATION_MAP.md](./DOCUMENTATION_MAP.md) - Navigation guide to all documentation
 - [CLAUDE.md](./CLAUDE.md) - This file, main instructions for AI agents working on the codebase
-- [patterns/](./patterns/) - Detection patterns (66 patterns across 5 categories)
+- [src/scicode_lint/patterns/](./src/scicode_lint/patterns/) - Detection patterns (66 patterns across 5 categories)
 
 **For humans (docs_use_human/):**
 - [README.md](docs_use_human/README.md) - Documentation index
@@ -152,7 +152,7 @@ All agent-based tooling (`semantic_validate.py`, future improvement loop) spawns
 
 ## Pattern Development
 
-**📖 Pattern guide:** [patterns/README.md](patterns/README.md) - Structure, detection question template, test file rules
+**📖 Pattern guide:** [src/scicode_lint/patterns/README.md](src/scicode_lint/patterns/README.md) - Structure, detection question template, test file rules
 
 ### Pattern Verification
 
@@ -218,6 +218,23 @@ Evaluates detection accuracy and iteratively improves patterns. See [Continuous 
 ### Git Commits
 - **Do NOT include Claude as co-author** in commit messages (no `Co-Authored-By: Claude` lines)
 
+### Release Checklist (before any build/release)
+Before building or releasing, verify version consistency:
+```bash
+# Check all version references match
+grep -rn "0\.[0-9]\.[0-9]" --include="*.py" --include="*.toml" --include="*.md" . | grep -v __pycache__ | grep -v cloned_repos | grep -v output_examples | grep -v CHANGELOG
+```
+Files that must have matching versions:
+- `pyproject.toml` - `version = "X.Y.Z"`
+- `src/scicode_lint/__init__.py` - `__version__ = "X.Y.Z"`
+- `evals/__init__.py` - `__version__ = "X.Y.Z"`
+- `evals/report_generator.py` - `"version": "X.Y.Z"`
+- `README.md` - version in Project Status section
+
+Also check:
+- `CHANGELOG.md` has entry for new version
+- No secrets/credentials in code (`grep -rE "sk-|apikey|password"`)
+
 ### Initial Setup (once per clone)
 ```bash
 # Activate dedicated environment (see INSTALLATION.md for setup)
@@ -243,7 +260,7 @@ pytest                         # Tests
 ### Documentation Rules
 - **Docs are snapshots** - Describe current state, not history (history lives in git)
 - **No "improved from" language** - Just state what IS, not what changed (e.g., "Precision: 34%" not "Precision: 34% (improved from 24%)")
-- **patterns/README.md** - Pattern guide with detection question template
+- **src/scicode_lint/patterns/README.md** - Pattern guide with detection question template
 - **Check after every change** - Fix documentation drift immediately
 - **Human docs:** Concise, link to external docs, scicode-lint-specific only
 - **GenAI docs:** Comprehensive, self-contained, complete examples, explain rationale

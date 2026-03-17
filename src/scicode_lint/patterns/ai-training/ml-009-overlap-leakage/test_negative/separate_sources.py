@@ -4,7 +4,6 @@ from sklearn.ensemble import GradientBoostingClassifier
 
 def train_from_separate_files():
     """Train and test loaded from completely separate files - no overlap possible."""
-    # Separate data sources guarantee no overlap
     train_data = pd.read_csv("train_dataset.csv")
     test_data = pd.read_csv("test_dataset.csv")
 

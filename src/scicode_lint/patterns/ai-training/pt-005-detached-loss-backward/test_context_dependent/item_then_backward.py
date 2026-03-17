@@ -22,7 +22,7 @@ def training_step(model, inputs, labels, optimizer):
     scalar_loss = float(loss)
 
     optimizer.zero_grad()
-    loss.backward()  # This works but pattern is suspicious
+    loss.backward()
     optimizer.step()
 
     return scalar_loss

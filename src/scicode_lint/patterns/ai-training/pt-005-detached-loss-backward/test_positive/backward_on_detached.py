@@ -23,7 +23,7 @@ def train_iteration(model, data, target):
     loss_disconnected = torch.tensor(loss.data)
 
     optimizer.zero_grad()
-    loss_disconnected.backward()  # No gradients will flow
+    loss_disconnected.backward()
     optimizer.step()
 
     return loss_disconnected.item()

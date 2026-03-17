@@ -1,35 +1,25 @@
-import random
+"""Reproducible simulation using explicit Generator injection."""
 
 import torch
 
-SEED = 42
-torch.manual_seed(SEED)
-random.seed(SEED)
+
+class DeterministicSimulator:
+    """Simulator that accepts a Generator for reproducibility."""
+
+    def __init__(self, n_particles: int, generator: torch.Generator):
+        self.n_particles = n_particles
+        self.gen = generator
+        self.positions = torch.randn(n_particles, 3, generator=self.gen)
+
+    def step(self) -> torch.Tensor:
+        """Single simulation step with deterministic noise."""
+        noise = torch.randn(self.n_particles, 3, generator=self.gen) * 0.01
+        self.positions += noise
+        return self.positions.clone()
 
 
-class MonteCarloSimulator:
-    def __init__(self, n_agents):
-        self.n_agents = n_agents
-        self.positions = torch.randn(n_agents, 2)
-        self.velocities = torch.randn(n_agents, 2) * 0.1
-
-    def step(self):
-        random_force = torch.randn_like(self.positions) * 0.05
-
-        for i in range(self.n_agents):
-            if random.random() > 0.7:
-                self.velocities[i] *= 0.9
-
-        self.velocities += random_force
-        self.positions += self.velocities
-
-    def run(self, steps):
-        trajectory = []
-        for _ in range(steps):
-            self.step()
-            trajectory.append(self.positions.clone())
-        return torch.stack(trajectory)
-
-
-sim = MonteCarloSimulator(100)
-results = sim.run(500)
+def run_simulation(seed: int = 42, n_steps: int = 100) -> list[torch.Tensor]:
+    """Run simulation with explicit seed control."""
+    gen = torch.Generator().manual_seed(seed)
+    sim = DeterministicSimulator(50, gen)
+    return [sim.step() for _ in range(n_steps)]

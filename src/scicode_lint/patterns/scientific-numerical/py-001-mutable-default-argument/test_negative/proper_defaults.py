@@ -1,36 +1,34 @@
 import numpy as np
+from dataclasses import dataclass, field
 
 
-def add_measurement(value, history=None):
-    if history is None:
-        history = []
-    history.append(value)
-    return history
+@dataclass
+class ExperimentConfig:
+    learning_rates: list = field(default_factory=list)
+    metrics: dict = field(default_factory=dict)
+    tags: set = field(default_factory=set)
 
 
-def configure_model(params, settings=None):
-    if settings is None:
-        settings = {}
-    settings["configured"] = True
-    return settings
+def create_pipeline(steps=None):
+    if steps is None:
+        steps = [("scaler", "standard"), ("model", "linear")]
+    return steps
 
 
-def collect_results(result, accumulator=None):
-    if accumulator is None:
-        accumulator = []
-    accumulator.append(result)
-    mean = np.mean(accumulator)
-    return mean
+def bootstrap_sample(data, rng=None):
+    if rng is None:
+        rng = np.random.default_rng(42)
+    indices = rng.integers(0, len(data), size=len(data))
+    return data[indices]
 
 
-def track_gradients(grad, gradient_history=None):
-    if gradient_history is None:
-        gradient_history = []
-    gradient_history.append(grad)
-    if len(gradient_history) > 10:
-        gradient_history.pop(0)
-    return gradient_history
+def cross_validate(model, folds=5, seed=0):
+    rng = np.random.default_rng(seed)
+    indices = rng.permutation(100)
+    fold_size = len(indices) // folds
+    return [indices[i * fold_size:(i + 1) * fold_size] for i in range(folds)]
 
 
-measurements1 = add_measurement(1.0)
-measurements2 = add_measurement(2.0)
+def compute_stats(values, *, axis=0, ddof=1):
+    arr = np.asarray(values)
+    return {"mean": arr.mean(axis=axis), "std": arr.std(axis=axis, ddof=ddof)}

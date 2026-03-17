@@ -5,13 +5,19 @@ def compute_variance(data):
     return np.var(data, ddof=1)
 
 
-def quadratic_formula(a, b, c):
-    discriminant = b**2 - 4 * a * c
-    sqrt_disc = np.sqrt(discriminant)
-    if b >= 0:
-        x1 = (-b - sqrt_disc) / (2 * a)
-        x2 = c / (a * x1)
-    else:
-        x1 = (-b + sqrt_disc) / (2 * a)
-        x2 = c / (a * x1)
-    return x1, x2
+def compute_covariance(x, y):
+    return np.cov(x, y)[0, 1]
+
+
+def compute_std(data):
+    return np.std(data)
+
+
+def normalize_distribution(data):
+    mean = np.mean(data)
+    std = np.std(data)
+    return (data - mean) / std
+
+
+samples = np.random.rand(1000)
+var = compute_variance(samples)

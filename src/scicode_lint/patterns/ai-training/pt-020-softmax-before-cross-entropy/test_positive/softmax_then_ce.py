@@ -3,29 +3,32 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class BadClassifier(nn.Module):
-    def __init__(self):
+class ConvClassifier(nn.Module):
+    def __init__(self, num_classes=10):
         super().__init__()
-        self.fc = nn.Linear(512, 10)
-        self.criterion = nn.CrossEntropyLoss()
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 32, 3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(32, 64, 3, padding=1),
+            nn.ReLU(),
+            nn.AdaptiveAvgPool2d(1),
+        )
+        self.head = nn.Linear(64, num_classes)
+        self.loss_fn = nn.CrossEntropyLoss()
 
-    def forward(self, x, target):
-        logits = self.fc(x)
+    def compute_loss(self, images, labels):
+        feats = self.features(images).flatten(1)
+        logits = self.head(feats)
         probs = F.softmax(logits, dim=1)
-        loss = self.criterion(probs, target)
-        return loss
+        return self.loss_fn(probs, labels)
 
 
-def compute_loss(model, x, target):
-    output = model(x)
-    probs = output.softmax(dim=-1)
-    loss = F.cross_entropy(probs, target)
-    return loss
-
-
-def train_step(model, batch, labels):
-    logits = model(batch)
-    softmax_output = torch.softmax(logits, dim=1)
-    criterion = nn.CrossEntropyLoss()
-    loss = criterion(softmax_output, labels)
-    return loss
+def evaluate_ensemble(models, x, target):
+    avg_probs = torch.zeros(x.size(0), 10)
+    for m in models:
+        logits = m(x)
+        avg_probs = avg_probs + logits.softmax(dim=-1)
+    avg_probs = avg_probs / len(models)
+    return F.cross_entropy(avg_probs, target)

@@ -11,19 +11,48 @@ from scicode_lint.config import Severity
 
 
 class Location(BaseModel):
-    """Location of a finding in code - line numbers with optional snippet."""
+    """Location of a finding in code - name-based with verified line numbers.
+
+    The detection flow produces verified location data:
+    1. LLM identifies the function/method name and approximate line (near_line)
+    2. AST resolution verifies the name exists and gets exact boundaries
+    3. Output includes both context (full function) and focus (specific line)
+
+    This approach eliminates line number variance across LLM runs while
+    providing users with specific, actionable line numbers.
+
+    Note: Each pattern produces at most ONE finding per file. If the same bug
+    pattern appears multiple times, only the most clear instance is reported.
+    Users should re-run the linter after fixing to catch additional instances.
+    """
 
     lines: list[int] = Field(
-        description="Line numbers where the issue occurs", examples=[[15, 16, 17], [42]]
+        description="Full line range of the function/method (for context)",
+        examples=[[15, 16, 17, 18, 19], [42, 43, 44]],
     )
-    snippet: str = Field(default="", description="Actual code snippet from those lines")
+    focus_line: int | None = Field(
+        default=None,
+        description="Specific line to look at (verified from LLM's near_line hint)",
+    )
+    snippet: str = Field(default="", description="Code snippet from the function/method")
+    name: str | None = Field(
+        default=None,
+        description="Function/class/method name where issue occurs",
+    )
+    location_type: str | None = Field(
+        default=None,
+        description="Type of code construct: 'function', 'method', 'class', or 'module'",
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
             "examples": [
                 {
-                    "lines": [15, 16, 17],
-                    "snippet": "all_data = torch.cat([...])\\nmean = all_data.mean()",
+                    "lines": [10, 11, 12, 13, 14],
+                    "focus_line": 12,
+                    "snippet": "def train_model(data):\\n    scaler = ...",
+                    "name": "train_model",
+                    "location_type": "function",
                 }
             ]
         }
@@ -71,11 +100,6 @@ class LintError(BaseModel):
         default=None, description="Structured error details (optional)"
     )
 
-    model_config = ConfigDict(
-        # Automatically serialize Path as string
-        json_encoders={Path: str}
-    )
-
 
 class PatternFailure(BaseModel):
     """Record of a pattern that failed to execute."""
@@ -118,7 +142,7 @@ class LintResult(BaseModel):
         default=None, description="Error that occurred during linting (if any)"
     )
 
-    model_config = ConfigDict(json_encoders={Path: str}, use_enum_values=True)
+    model_config = ConfigDict(use_enum_values=True)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -138,7 +162,7 @@ class LintResult(BaseModel):
 
 def format_findings(
     results: list[LintResult],
-    output_format: str = "text",
+    output_format: Literal["text", "json"] = "text",
 ) -> str:
     """
     Format linter results for output.
@@ -153,14 +177,19 @@ def format_findings(
     Returns:
         Formatted output string
 
+    Raises:
+        ValueError: If output_format is not 'text' or 'json'
+
     Example:
         >>> results = [LintResult(...)]
         >>> print(format_findings(results, "json"))
     """
     if output_format == "json":
         return _format_json(results)
-    else:
+    elif output_format == "text":
         return _format_text(results)
+    else:
+        raise ValueError(f"Unknown output format: {output_format!r}. Use 'text' or 'json'.")
 
 
 def _format_json(results: list[LintResult]) -> str:
@@ -218,9 +247,23 @@ def _format_text(results: list[LintResult]) -> str:
             else:
                 icon = severity_icon
 
-            # Location description - show line numbers
+            # Location description - show name, lines, and focus
             loc = finding.location
-            if loc.lines:
+            if loc.name and loc.name != "<module>":
+                # Show function/method name with line range and focus
+                if loc.lines:
+                    line_range = f"lines {loc.lines[0]}-{loc.lines[-1]}"
+                    if loc.focus_line and loc.focus_line != loc.lines[0]:
+                        location = f"in {loc.name} ({line_range}, focus: {loc.focus_line})"
+                    else:
+                        location = f"in {loc.name} ({line_range})"
+                else:
+                    location = f"in {loc.name}"
+            elif loc.focus_line:
+                # No name but have focus line
+                location = f"line {loc.focus_line}"
+            elif loc.lines:
+                # No name, just show lines
                 if len(loc.lines) == 1:
                     location = f"line {loc.lines[0]}"
                 else:

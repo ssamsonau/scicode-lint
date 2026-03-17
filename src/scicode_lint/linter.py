@@ -4,11 +4,12 @@ import asyncio
 import json
 import time
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 from loguru import logger
 
-from scicode_lint.config import LinterConfig, get_default_config
+from scicode_lint.ast_utils import resolve_name_with_fallback
+from scicode_lint.config import LinterConfig, get_default_config, get_strip_comments
 from scicode_lint.detectors.catalog import DetectionCatalog, DetectionPattern
 from scicode_lint.detectors.prompts import generate_detection_prompt, get_system_prompt
 from scicode_lint.llm.client import create_client
@@ -23,12 +24,11 @@ from scicode_lint.output.formatter import (
     PatternCheckResult,
     PatternFailure,
 )
+from scicode_lint.preprocessing.comments import strip_comments
 
 
 class NotebookParseError(Exception):
     """Raised when a Jupyter notebook cannot be parsed."""
-
-    pass
 
 
 def calculate_scaled_timeout(line_count: int, base_timeout: float) -> float:
@@ -94,7 +94,7 @@ class SciCodeLinter:
     """Main linter class for checking scientific Python code.
 
     Designed for both human users and GenAI coding agents.
-    Detects 64 common patterns of bugs in scientific code including
+    Detects common patterns of bugs in scientific code including
     data leakage, PyTorch training issues, numerical errors, and more.
 
     Example:
@@ -190,6 +190,14 @@ class SciCodeLinter:
             code = file_path.read_text()
             logger.debug(f"File size: {len(code)} bytes")
 
+        # Strip comments before LLM analysis (if enabled)
+        if get_strip_comments():
+            original_len = len(code)
+            code = strip_comments(code)
+            stripped_len = original_len - len(code)
+            if stripped_len > 0:
+                logger.debug(f"Stripped {stripped_len} bytes of comments")
+
         # Scale timeout based on line count (larger files need more time)
         if pattern_timeout is not None:
             line_count = len(code.splitlines())
@@ -242,15 +250,14 @@ class SciCodeLinter:
             max_tokens = self.llm.get_max_model_len()
             _, user_prompt = prompts[0]
             try:
-                # vLLM reserves max_new_tokens (4096 by default) for output
-                # Effective input limit = max_tokens - 4096
-                fits, estimated = check_context_length(
-                    code=code,
+                # vLLM reserves max_completion_tokens for output
+                output_buffer = self.config.llm_config.max_completion_tokens
+                _, estimated = check_context_length(
                     system_prompt=system_prompt,
                     user_prompt=user_prompt,
                     max_tokens=max_tokens,
                     file_path=str(file_path),
-                    output_buffer=4096,
+                    output_buffer=output_buffer,
                 )
                 logger.debug(
                     f"Context check passed: {estimated:,} tokens "
@@ -360,41 +367,9 @@ class SciCodeLinter:
             failed_patterns=failed_patterns,
         )
 
-    async def _check_pattern_async(
-        self, code: str, pattern: Any, file_path: Path
-    ) -> tuple[DetectionResult, float]:
-        """
-        Check a single pattern asynchronously.
-
-        Args:
-            code: Source code to check
-            pattern: Detection pattern
-            file_path: File being analyzed
-
-        Returns:
-            Tuple of (detection result, elapsed time)
-
-        Raises:
-            Exception: If pattern check fails
-        """
-        pattern_start = time.time()
-        logger.debug(f"Starting async check for pattern {pattern.id}")
-
-        # Generate code-first prompt
-        user_prompt = generate_detection_prompt(code, pattern)
-        system_prompt = get_system_prompt()
-
-        # Query LLM with structured output asynchronously
-        detection = await self.llm.async_complete_structured(
-            system_prompt, user_prompt, DetectionResult
-        )
-
-        pattern_elapsed = time.time() - pattern_start
-        return detection, pattern_elapsed
-
     async def _check_pattern_async_with_prompt(
         self,
-        pattern: Any,
+        pattern: DetectionPattern,
         system_prompt: str,
         user_prompt: str,
         file_path: Path,
@@ -438,13 +413,20 @@ class SciCodeLinter:
 
     def _create_findings(
         self,
-        pattern: Any,
+        pattern: DetectionPattern,
         detection: DetectionResult,
         file_path: Path,
         code: str,
     ) -> list[Finding]:
         """
         Create Finding objects from detection result.
+
+        Uses AST resolution to convert name-based locations from LLM to actual
+        line numbers and code snippets. The result includes:
+        - lines: Full function/method range (for context)
+        - focus_line: Specific line to look at (verified from near_line)
+        - snippet: Code snippet for the function/method
+        - name: Verified function/class/method name
 
         Args:
             pattern: Detection pattern
@@ -455,19 +437,70 @@ class SciCodeLinter:
         Returns:
             List of findings
         """
-        # Extract code snippet from line numbers
+        # Resolve name-based location to actual lines using AST
+        lines: list[int] = []
+        focus_line: int | None = None
         snippet = ""
-        if detection.lines:
-            code_lines = code.splitlines()
-            # Convert to 0-based indexing and extract lines
-            snippet_lines = []
-            for line_num in detection.lines:
-                if 1 <= line_num <= len(code_lines):
-                    snippet_lines.append(code_lines[line_num - 1])
-            snippet = "\n".join(snippet_lines)
+        name: str | None = None
+        location_type: str | None = None
 
-        # Create a single finding with line numbers and snippet
-        location = Location(lines=detection.lines, snippet=snippet)
+        if detection.location:
+            name = detection.location.name
+            location_type = detection.location.location_type
+            near_line = detection.location.near_line
+
+            # Resolve using AST
+            resolved = resolve_name_with_fallback(
+                code=code,
+                name=name,
+                location_type=detection.location.location_type,
+                near_line=near_line,
+            )
+
+            if resolved:
+                lines = resolved.lines
+                snippet = resolved.snippet
+
+                # Verify and set focus_line from near_line hint
+                if near_line:
+                    if resolved.start_line <= near_line <= resolved.end_line:
+                        # near_line is within the resolved function - verified
+                        focus_line = near_line
+                        logger.debug(
+                            f"Resolved '{name}' lines {resolved.start_line}-"
+                            f"{resolved.end_line}, focus: {focus_line}"
+                        )
+                    else:
+                        # near_line outside resolved range - use start
+                        focus_line = resolved.start_line
+                        logger.debug(f"near_line {near_line} outside '{name}', using start")
+                else:
+                    # No near_line hint - use start of function
+                    focus_line = resolved.start_line
+                    logger.debug(
+                        f"Resolved '{name}' lines {resolved.start_line}-{resolved.end_line}"
+                    )
+            else:
+                # Fallback: use near_line if resolution fails
+                if near_line:
+                    code_lines = code.splitlines()
+                    start = max(1, near_line - 2)
+                    end = min(len(code_lines), near_line + 2)
+                    lines = list(range(start, end + 1))
+                    focus_line = near_line
+                    snippet = "\n".join(code_lines[start - 1 : end])
+                    logger.warning(f"AST resolution failed for '{name}', using near_line fallback")
+                else:
+                    logger.warning(f"AST resolution failed for '{name}' with no fallback")
+
+        # Create location with resolved and verified data
+        location = Location(
+            lines=lines,
+            focus_line=focus_line,
+            snippet=snippet,
+            name=name,
+            location_type=location_type,
+        )
 
         # detection.detected is filtered to be "yes" or "context-dependent" by caller
         assert detection.detected in ["yes", "context-dependent"]

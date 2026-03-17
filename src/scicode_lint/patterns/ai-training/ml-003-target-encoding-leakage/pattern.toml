@@ -61,9 +61,10 @@ expected_issue = "Data leakage: target-derived features encode test set informat
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
-name = "create_target_mean_encoding"
-snippet = "df.groupby(\"category\").agg({target_col: \"mean\"})"
+type = "class"
+name = "FeatureBuilder"
+snippet = "df.groupby(col)[self.target_col].mean()"
+lines = [24, 32]
 
 [[tests.negative]]
 file = "test_negative/target_encoding_after_split.py"
@@ -76,6 +77,12 @@ context_notes = "Context-dependent: legitimate if truly external/historical data
 allow_detection = true
 allow_skip = true
 
+[tests.context_dependent.expected_location]
+type = "function"
+name = "use_historical_averages"
+snippet = "category_default_rates = df.groupby(\"category\")[target_col].mean()"
+lines = [5]
+
 
 [[tests.positive]]
 file = "test_positive/category_encoder.py"
@@ -87,6 +94,7 @@ min_confidence = 0.85
 type = "function"
 name = "encode_categories"
 snippet = "means = df.groupby(col)[target_col].mean()"
+lines = [6, 13]
 
 [[tests.positive]]
 file = "test_positive/category_target_encode.py"
@@ -98,6 +106,7 @@ min_confidence = 0.85
 type = "function"
 name = "encode_categories"
 snippet = "means = df.groupby(col)[target_col].mean()"
+lines = [4]
 
 [[tests.negative]]
 file = "test_negative/category_encoder_fixed.py"

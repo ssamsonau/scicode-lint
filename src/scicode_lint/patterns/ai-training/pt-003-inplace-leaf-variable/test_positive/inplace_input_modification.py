@@ -10,8 +10,8 @@ class NormalizationLayer(nn.Module):
     def forward(self, x):
         mean_val = x.mean()
         std_val = x.std() + 1e-8
-        x -= mean_val  # In-place subtraction
-        x /= std_val  # In-place division
+        x -= mean_val
+        x /= std_val
         return x * self.scale
 
 

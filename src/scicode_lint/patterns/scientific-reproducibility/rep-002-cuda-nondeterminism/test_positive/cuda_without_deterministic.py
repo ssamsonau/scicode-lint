@@ -20,6 +20,21 @@ class ConvNet(nn.Module):
         return x
 
 
+def train_model(model, dataloader, epochs=10):
+    model.train()
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    criterion = nn.CrossEntropyLoss()
+
+    for epoch in range(epochs):
+        for inputs, targets in dataloader:
+            inputs = inputs.to(device)
+            targets = targets.to(device)
+
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            loss = criterion(outputs, targets)
+            loss.backward()
+            optimizer.step()
+
+
 model = ConvNet().to(device)
-data = torch.randn(16, 3, 32, 32).to(device)
-output = model(data)

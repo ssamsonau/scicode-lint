@@ -1,31 +1,35 @@
-import numpy as np
-import torch
+"""Data generation using sklearn's make_* utilities with random_state."""
 
-RANDOM_SEED = 2024
-
-np.random.seed(RANDOM_SEED)
-torch.manual_seed(RANDOM_SEED)
+from sklearn.datasets import make_classification, make_regression
+from sklearn.model_selection import train_test_split
 
 
-def generate_synthetic_data(n_samples):
-    features = np.random.randn(n_samples, 50)
-    noise = np.random.uniform(-0.5, 0.5, n_samples)
-    targets = features.sum(axis=1) + noise
-    return features, targets
+def create_classification_dataset(
+    n_samples: int = 1000,
+    n_features: int = 20,
+    random_state: int = 42,
+):
+    """Generate synthetic classification data with reproducible randomness."""
+    X, y = make_classification(
+        n_samples=n_samples,
+        n_features=n_features,
+        n_informative=10,
+        random_state=random_state,
+    )
+    return train_test_split(X, y, test_size=0.2, random_state=random_state)
 
 
-def split_dataset(X, y, test_ratio):
-    n = len(X)
-    indices = np.random.permutation(n)
-    split_point = int(n * (1 - test_ratio))
-
-    train_idx = indices[:split_point]
-    test_idx = indices[split_point:]
-
-    return X[train_idx], y[train_idx], X[test_idx], y[test_idx]
-
-
-X, y = generate_synthetic_data(1000)
-X_train, y_train, X_test, y_test = split_dataset(X, y, 0.2)
-
-model = torch.nn.Linear(50, 1)
+def create_regression_dataset(
+    n_samples: int = 1000,
+    n_features: int = 20,
+    random_state: int = 42,
+):
+    """Generate synthetic regression data with reproducible randomness."""
+    X, y = make_regression(
+        n_samples=n_samples,
+        n_features=n_features,
+        n_informative=10,
+        noise=0.1,
+        random_state=random_state,
+    )
+    return X, y

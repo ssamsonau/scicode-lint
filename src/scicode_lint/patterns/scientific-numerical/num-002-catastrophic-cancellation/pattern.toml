@@ -40,6 +40,7 @@ Look for:
 - Naive variance: mean_sq - mean**2 or mean(x**2) - mean(x)**2
 - Exponential differences: exp(a) - exp(b) where a ≈ b
 - Adding then subtracting large values: (large + small) - large
+- Numerical derivatives f(x+h)-f(x-h) with very small h
 
 Safe patterns (ignore): np.var(), np.std(), sklearn scalers, distance calculations
 
@@ -55,14 +56,14 @@ min_confidence = 0.85
 false_positive_risks = [
     "General subtraction is NOT catastrophic cancellation",
     "sklearn scalers use stable algorithms internally",
-    "Distance calculations (point1 - point2) are safe"
+    "Element-wise vector difference (point1 - point2) is safe; subtracting two scalar magnitudes or norms (norm1 - norm2) can cancel"
 ]
 
 [tests]
 
 [[tests.positive]]
 file = "test_positive/cancellation.py"
-description = "Variance computed as mean(x^2) - mean(x)^2 with large values, or subtraction of nearly equal large numbers (1.0000001 - 1.0000000) losing precision"
+description = "Variance computed as mean(x^2) - mean(x)^2 with large values, and subtraction of nearly equal large numbers (1.0000001 - 1.0000000) losing precision"
 expected_issue = "Catastrophic cancellation from subtracting nearly equal numbers"
 min_confidence = 0.85
 
@@ -70,10 +71,11 @@ min_confidence = 0.85
 type = "function"
 name = "compute_variance_naive"
 snippet = "variance = mean_sq - mean_val**2"
+lines = [7]
 
 [[tests.positive]]
 file = "test_positive/nearly_equal_subtraction.py"
-description = "Exponential differences, distance calculations, or (large_val + small_delta) - large_val where subtraction loses significant digits"
+description = "Exponential differences, subtraction of clearly nearly-equal scalar values, and (large_val + small_delta) - large_val where subtraction loses significant digits"
 expected_issue = "Subtraction of large nearly-equal values causes precision loss"
 min_confidence = 0.85
 
@@ -81,6 +83,7 @@ min_confidence = 0.85
 type = "function"
 name = "exponential_difference"
 snippet = "diff = val1 - val2"
+lines = [7]
 
 [[tests.negative]]
 file = "test_negative/stable_computation.py"
@@ -91,18 +94,18 @@ file = "test_negative/safe_operations.py"
 description = "Operations using ratios, gradients, or differences of values with sufficient separation to avoid precision loss"
 
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/variance_naive.py"
-description = "Variance computed using naive formula (sum_sq - sum_x^2/n)/(n-1) with large data values, causing catastrophic cancellation."
-expected_issue = "Naive variance formula loses precision with large values; use np.var() instead"
+description = "exp(a)-exp(b) where a≈b, numerical derivative with tiny h, and covariance formula all showing different forms of catastrophic cancellation"
+expected_issue = "Cancellation from nearly equal values in different computational contexts"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "compute_variance"
-snippet = "(sum_sq - sum_x**2 / n) / (n - 1)"
+name = "derivative_centered_diff"
+snippet = "return (f(x + h) - f(x - h)) / (2 * h)"
+lines = [18]
 
 [[tests.negative]]
 file = "test_negative/variance_stable.py"
-description = "Uses np.var() for variance and numerically stable quadratic formula using the trick x2 = c/(a*x1) to avoid catastrophic cancellation."
+description = "Uses stable numpy functions (np.var, np.std, np.cov) that internally avoid catastrophic cancellation."

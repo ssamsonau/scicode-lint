@@ -1,40 +1,32 @@
-from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import KFold, TimeSeriesSplit, cross_val_score
+import numpy as np
+from sklearn.ensemble import RandomForestRegressor
 
 
-def cross_validate_timeseries_split(df):
-    df = df.sort_values("date")
-    X = df[["feature1", "feature2", "feature3"]]
-    y = df["target"]
-    model = LinearRegression()
-    cv = TimeSeriesSplit(n_splits=5)
-    scores = cross_val_score(model, X, y, cv=cv, scoring="r2")
-    print(f"Time-series CV scores: {scores}")
-    print(f"Mean R²: {scores.mean():.3f}")
-    return scores
+class PurgedTimeSeriesCV:
+    def __init__(self, n_splits=5, embargo_pct=0.01):
+        self.n_splits = n_splits
+        self.embargo_pct = embargo_pct
+
+    def split(self, X, y=None):
+        n = len(X)
+        embargo = int(n * self.embargo_pct)
+        fold_size = n // (self.n_splits + 1)
+
+        for i in range(self.n_splits):
+            test_start = (i + 1) * fold_size
+            test_end = test_start + fold_size
+            train_end = test_start - embargo
+
+            train_idx = np.arange(0, max(0, train_end))
+            test_idx = np.arange(test_start, min(test_end, n))
+            yield train_idx, test_idx
 
 
-def manual_time_based_split(df):
-    df = df.sort_values("date")
-    split_date = df["date"].quantile(0.8)
-    train = df[df["date"] <= split_date]
-    test = df[df["date"] > split_date]
-    X_train = train[["feature1", "feature2", "feature3"]]
-    y_train = train["target"]
-    X_test = test[["feature1", "feature2", "feature3"]]
-    y_test = test["target"]
-    model = LinearRegression()
-    model.fit(X_train, y_train)
-    score = model.score(X_test, y_test)
-    print(f"Test R²: {score:.3f}")
-    return score
-
-
-def kfold_without_shuffle_on_timeseries(df):
-    df = df.sort_values("date")
-    X = df[["feature1", "feature2", "feature3"]]
-    y = df["target"]
-    model = LinearRegression()
-    cv = KFold(n_splits=5, shuffle=False)
-    scores = cross_val_score(model, X, y, cv=cv, scoring="r2")
-    return scores
+def evaluate_with_purged_cv(X, y, n_splits=5):
+    cv = PurgedTimeSeriesCV(n_splits=n_splits)
+    scores = []
+    for train_idx, test_idx in cv.split(X, y):
+        model = RandomForestRegressor(n_estimators=50, random_state=0)
+        model.fit(X[train_idx], y[train_idx])
+        scores.append(model.score(X[test_idx], y[test_idx]))
+    return np.array(scores)

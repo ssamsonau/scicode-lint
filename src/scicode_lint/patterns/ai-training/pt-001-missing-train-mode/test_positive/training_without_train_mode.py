@@ -22,7 +22,6 @@ def train_model(model, train_loader, val_loader, epochs=10):
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     for epoch in range(epochs):
-        # Training phase
         for batch_data, batch_labels in train_loader:
             optimizer.zero_grad()
             outputs = model(batch_data)
@@ -30,13 +29,11 @@ def train_model(model, train_loader, val_loader, epochs=10):
             loss.backward()
             optimizer.step()
 
-        # Validation phase - sets model to eval mode
         model.eval()
         with torch.no_grad():
             for val_data, val_labels in val_loader:
                 _ = model(val_data)
 
-        # Continue training
         for batch_data, batch_labels in train_loader:
             optimizer.zero_grad()
             outputs = model(batch_data)

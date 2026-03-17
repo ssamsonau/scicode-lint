@@ -1,34 +1,40 @@
-import math
-
 import numpy as np
+from scipy.optimize import minimize_scalar
 
 
-def check_convergence(current, target):
-    if np.isclose(current, target):
-        return True
-    return False
+def bisection_root(func, a, b, tol=1e-8, max_iter=200):
+    for _ in range(max_iter):
+        mid = (a + b) / 2.0
+        if abs(func(mid)) < tol or (b - a) / 2.0 < tol:
+            return mid
+        if np.sign(func(mid)) == np.sign(func(a)):
+            a = mid
+        else:
+            b = mid
+    return (a + b) / 2.0
 
 
-def validate_result(computed, expected):
-    if not np.allclose(computed, expected, rtol=1e-5):
-        raise ValueError("Result mismatch")
-    return True
+def gradient_descent(grad_func, x0, lr=0.01, tol=1e-6, max_iter=1000):
+    x = np.array(x0, dtype=float)
+    for _ in range(max_iter):
+        grad = grad_func(x)
+        step = lr * grad
+        x = x - step
+        if np.linalg.norm(step) < tol:
+            break
+    return x
 
 
-def find_root(func, x0, tolerance):
-    x = x0
-    for _ in range(100):
-        fx = func(x)
-        if abs(fx) < tolerance:
-            return x
-        x = x - fx / 2.0
-    return None
+def running_mean(values):
+    total = 0.0
+    results = []
+    for i, v in enumerate(values):
+        total += v
+        results.append(total / (i + 1))
+    return results
 
 
-a = 0.1 + 0.2
-if math.isclose(a, 0.3):
-    print("Close enough")
+data = np.random.randn(50)
+means = running_mean(data)
 
-values = np.array([1.0, 2.0, 3.0])
-if np.isclose(values[0], 1.0):
-    result = values * 2
+result = bisection_root(lambda x: x**3 - x - 2, 1.0, 2.0)

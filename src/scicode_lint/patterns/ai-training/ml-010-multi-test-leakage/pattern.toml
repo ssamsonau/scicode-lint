@@ -29,36 +29,31 @@ references = [
 
 [detection]
 question = """
-Analyze this code for MULTI-TEST LEAKAGE where there is NO held-out test set - only validation data is used.
+Analyze this code for MULTI-TEST LEAKAGE where CV/validation scores are RETURNED as final results.
 
-WHY THIS MATTERS: The validation set is used for model selection and hyperparameter tuning. If you report final performance on this same validation set, you're reporting optimistic metrics that don't reflect true generalization.
+KEY QUESTION: Does this function RETURN a CV score or validation accuracy as its final output?
 
-MULTI-TEST LEAKAGE EXISTS when:
+MULTI-TEST LEAKAGE EXISTS (answer YES) when:
+1. Function RETURNS best_score_, cv_scores.mean(), or val_acc as the result
+2. The returned value is a score/metric, not a model object
+3. No separate test set evaluation happens after CV/validation
 
-1. NO TEST SET - ONLY TRAIN/VAL SPLIT:
-   - train_test_split() creates X_train, X_val but no X_test
-   - Only two splits exist: training and validation
-   - Final accuracy reported on validation set
+Look for these return patterns:
+- return best_score_ → YES
+- return np.mean(cv_scores) → YES
+- return val_acc → YES
+- return grid_search.best_score_ → YES
 
-2. VALIDATION USED AS FINAL EVALUATION:
-   - Model selection done on val_loss/val_acc
-   - Same val_loss/val_acc reported as final performance
-   - No separate test set for unbiased final evaluation
+NOT A BUG (answer NO) when:
+1. Function RETURNS a model object (best_estimator_, trained model)
+2. Function evaluates final performance on X_test (separate test set)
+3. Inference script (no training)
+4. Three-way split: train/val/test with final eval on test
 
-3. CROSS-VALIDATION WITHOUT HOLDOUT:
-   - GridSearchCV or cross_val_score used for selection
-   - Best CV score reported as final performance
-   - No separate test set held out from CV
+Printing scores during tuning is OK if model is returned for later test evaluation.
 
-CORRECT PATTERNS (no leakage):
-- Three-way split: train/val/test - final eval on test only
-- CV for selection + separate held-out test for final eval
-- train_test_split twice to create train, val, AND test sets
-
-Does this code lack a held-out test set (only validation data for final evaluation)?
-
-YES = Bug found: no test set, validation used for final evaluation
-NO = Correct: separate held-out test set exists for final evaluation
+YES = RETURNS CV/validation score as the function output
+NO = RETURNS model, or evaluates on held-out test set
 """
 
 warning_message = """
@@ -80,6 +75,7 @@ min_confidence = 0.70
 type = "function"
 name = "train_and_evaluate"
 snippet = "X_train, X_val, y_train, y_val = train_test_split"
+lines = [10]
 
 [[tests.positive]]
 file = "test_positive/cv_as_final_score.py"
@@ -91,6 +87,7 @@ min_confidence = 0.70
 type = "function"
 name = "evaluate_model"
 snippet = "return np.mean(cv_scores)"
+lines = [17]
 
 [[tests.positive]]
 file = "test_positive/gridsearch_no_holdout.py"
@@ -102,6 +99,7 @@ min_confidence = 0.70
 type = "function"
 name = "tune_and_report"
 snippet = "return grid_search.best_score_"
+lines = [22]
 
 [[tests.positive]]
 file = "test_positive/nested_cv_no_holdout.py"
@@ -112,7 +110,8 @@ min_confidence = 0.70
 [tests.positive.expected_location]
 type = "function"
 name = "nested_cv_evaluation"
-snippet = "return np.mean(outer_scores)"
+snippet = "outer_scores = cross_val_score(inner_cv, X, y, cv=5)"
+lines = [14]
 
 [[tests.negative]]
 file = "test_negative/proper_three_way_split.py"
@@ -126,9 +125,23 @@ description = "Correct: CV for tuning + separate test set for final evaluation"
 file = "test_negative/single_final_evaluation.py"
 description = "Correct: Simple train/test split with single final evaluation on test set"
 
+[[tests.negative]]
+file = "test_negative/hyperparameter_tuning.py"
+description = "Hyperparameter tuning script - correctly uses only train/val, test comes later"
+
+[[tests.negative]]
+file = "test_negative/inference_script.py"
+description = "Inference script - loads model and makes predictions, no training"
+
 [[tests.context_dependent]]
 file = "test_context_dependent/implicit_test_from_file.py"
 description = "Test data might be loaded from external file not visible in code"
 context_notes = "If test data is loaded from an external source (e.g., Kaggle competition), the code may be correct even if no test split is visible."
 allow_detection = true
 allow_skip = true
+
+[tests.context_dependent.expected_location]
+type = "function"
+name = "train_for_competition"
+snippet = "X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)"
+lines = [14]

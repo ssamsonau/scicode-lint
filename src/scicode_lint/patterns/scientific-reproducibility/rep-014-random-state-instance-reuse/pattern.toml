@@ -36,7 +36,8 @@ Does this code reuse a RandomState instance across multiple estimators?
 Look for:
 - RandomState instance assigned to variable
 - Same variable passed to multiple random_state parameters
-- Shared RNG state across estimators
+- Same variable used for direct calls (rng.randn(), rng.choice()) AND random_state= parameters
+- Shared RNG state across estimators or operations
 
 YES = Bug found: same RandomState instance passed to multiple estimators
 NO = Correct: integer seeds used, or separate RandomState per estimator
@@ -61,6 +62,7 @@ min_confidence = 0.85
 type = "function"
 name = "train_ensemble"
 snippet = "random_state=rng"
+lines = [10, 11, 22, 24]
 
 [[tests.negative]]
 file = "test_negative/numpy_default_rng.py"
@@ -77,22 +79,24 @@ description = "Using integer seeds instead of RandomState instances"
 # === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/shared_rng.py"
-description = "RandomState instance shared across multiple estimators (RandomForestClassifier and GradientBoostingClassifier)"
-expected_issue = "Same RandomState passed to train_models; also demonstrates reuse in cross_validate_ensemble loop"
+description = "Data preprocessing pipeline reusing RandomState across train_test_split, QuantileTransformer, and noise injection."
+expected_issue = "Same RandomState passed to train_test_split, QuantileTransformer, and used for noise generation"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "train_models"
-snippet = "rng = np.random.RandomState(42)"
+name = "preprocess_pipeline"
+snippet = "random_state=rng"
+lines = [12, 16, 24]
 
 [[tests.positive]]
 file = "test_positive/shared_rng_bootstrap.py"
-description = "RandomState reused in bootstrap loop and across estimator creation; different estimators receive advancing state"
-expected_issue = "Same RandomState used across multiple resample and DecisionTreeClassifier calls, advancing state on each use"
+description = "Bagging ensemble sharing RandomState across rng.choice() and DecisionTreeClassifier random_state parameter"
+expected_issue = "Same RandomState used for bootstrap sampling (rng.choice) and tree classifiers (random_state=rng)"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "bootstrap_samples"
-snippet = "rng = np.random.RandomState(42)"
+name = "create_bagging_ensemble"
+snippet = "random_state=rng"
+lines = [11, 12]

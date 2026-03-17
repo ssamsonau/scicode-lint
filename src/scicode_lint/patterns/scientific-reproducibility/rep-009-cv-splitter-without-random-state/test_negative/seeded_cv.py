@@ -1,26 +1,38 @@
-from sklearn.model_selection import KFold, ShuffleSplit, StratifiedKFold
+"""Cross-validation using sklearn's cross_val_score with consistent seeding."""
+
+import numpy as np
+from sklearn.model_selection import LeaveOneOut, cross_val_score, cross_validate
 
 
-def get_reproducible_cv(n_splits=5, shuffle=True, random_state=42):
-    """KFold with random_state for reproducible folds."""
-    return KFold(n_splits=n_splits, shuffle=shuffle, random_state=random_state)
+def evaluate_model_cv(
+    estimator,
+    X: np.ndarray,
+    y: np.ndarray,
+    cv: int = 5,
+) -> dict:
+    """Evaluate using cross_validate with default LeaveOneOut (no randomness)."""
+    return cross_validate(
+        estimator,
+        X,
+        y,
+        cv=LeaveOneOut(),
+        return_train_score=True,
+    )
 
 
-def stratified_cv_seeded(n_splits=5, random_state=42):
-    """StratifiedKFold with fixed random state."""
-    return StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
+def compare_models_cv(
+    models: dict,
+    X: np.ndarray,
+    y: np.ndarray,
+    cv: int = 5,
+) -> dict[str, np.ndarray]:
+    """Compare multiple models using cross_val_score with deterministic CV."""
+    return {name: cross_val_score(model, X, y, cv=cv) for name, model in models.items()}
 
 
-def create_shuffle_split(n_splits=10, test_size=0.2, random_state=42):
-    """ShuffleSplit with reproducible random state."""
-    return ShuffleSplit(n_splits=n_splits, test_size=test_size, random_state=random_state)
+def time_series_cv(X: np.ndarray, y: np.ndarray, n_splits: int = 5):
+    """Time series CV using TimeSeriesSplit (inherently deterministic)."""
+    from sklearn.model_selection import TimeSeriesSplit
 
-
-def cross_validate_reproducibly(model, X, y, n_splits=5, seed=42):
-    """Cross-validation with seeded CV splitter."""
-    cv = KFold(n_splits=n_splits, shuffle=True, random_state=seed)
-    scores = []
-    for train_idx, val_idx in cv.split(X):
-        model.fit(X[train_idx], y[train_idx])
-        scores.append(model.score(X[val_idx], y[val_idx]))
-    return scores
+    tscv = TimeSeriesSplit(n_splits=n_splits)
+    return list(tscv.split(X))

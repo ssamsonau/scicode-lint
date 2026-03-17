@@ -2,29 +2,34 @@
 
 ## Overview
 
-The scicode-lint linter includes all 64 detection patterns from the catalog.
+The scicode-lint linter includes all 66 detection patterns from the catalog.
 
 ### Package Structure
 
 ```
-src/scicode_lint/
-├── __init__.py           # Package exports
-├── __main__.py           # CLI entry point
-├── cli.py                # Command-line interface (argparse)
-├── config.py             # Configuration classes (LinterConfig, LLMConfig)
-├── linter.py             # Main SciCodeLinter orchestration
+src/scicode_lint/           # Installed package (runtime — uses vLLM only)
+├── __init__.py
+├── __main__.py
+├── cli.py
+├── config.py              # Configuration classes (LinterConfig, LLMConfig)
+├── linter.py
 ├── detectors/
-│   ├── __init__.py
-│   ├── catalog.py        # Load detection patterns from YAML
-│   └── prompts.py        # Generate code-first prompts
+│   ├── catalog.py         # Load detection patterns
+│   └── prompts.py         # Generate code-first prompts
 ├── llm/
-│   ├── __init__.py
-│   ├── client.py         # vLLM client with structured output
-│   └── models.py         # Pydantic models for structured LLM responses
+│   ├── client.py          # vLLM client with structured output
+│   └── models.py          # Pydantic response models
 └── output/
-    ├── __init__.py
-    └── formatter.py      # Format findings as JSON/text
+    └── formatter.py       # Format findings as JSON/text
+
+dev_lib/                    # Dev-only utilities (NOT installed — uses Claude CLI)
+├── __init__.py
+├── claude_cli.py          # Unified async Claude CLI wrapper (ClaudeCLI class)
+├── config.py              # Shared config.toml loading for dev tools
+└── run_output.py          # Shared RunOutput + write_worker for disk streaming
 ```
+
+**Key separation:** `src/scicode_lint/` uses vLLM for runtime detection. `dev_lib/` uses Claude CLI for pattern verification, evaluation, and real-world validation. These are independent — the installed package never imports `dev_lib`.
 
 ### Core Components
 
@@ -50,14 +55,20 @@ src/scicode_lint/
 
 #### 4. Structured Response Models (`llm/models.py`)
 - **DetectionResult**: Main response schema with validation
-  - `detected: bool` - Whether bug was found
+  - `detected: Literal["yes", "no", "context-dependent"]` - Detection result
+  - `location: NamedLocation | None` - Name-based location of the issue
   - `confidence: float` - Confidence level (0.0-1.0)
-  - `locations: list[LocationDict]` - Where bugs were found
-- **LocationDict**: Location information schema
-  - `type: str` - Location type (function/class/method/module)
-  - `name: str` - Actual name from code
-  - `snippet: str` - Exact code line showing bug
-- Guaranteed valid responses - no JSON parsing failures
+  - `reasoning: str` - Brief explanation of the decision
+  - `thinking: str | None` - Extracted from `<think>` tags (Qwen3)
+- **NamedLocation**: Name-based location schema
+  - `name: str` - Function/class/method name where issue occurs
+  - `location_type: Literal["function", "class", "method", "module"]` - Type of code construct
+  - `near_line: int | None` - Approximate line number (disambiguation hint)
+- **Validation rules**:
+  - `location` is required when `detected="yes"` or `"context-dependent"`
+  - `detected="yes"` without location raises `ValueError` (triggers retry)
+  - `detected="no"` with `location=None` is valid
+- Guaranteed valid responses via vLLM's `guided_json` constraint
 
 #### 5. Output Formatting (`output/formatter.py`)
 - **Text format**: Human-readable with icons and color-coded severity
@@ -68,7 +79,7 @@ src/scicode_lint/
 #### 6. CLI Interface (`cli.py`)
 - Severity filtering (`--severity critical,high,medium`)
 - Output format selection (`--format text|json`)
-- Server URL configuration (`--url`)
+- Server URL configuration (`--vllm-url`)
 - Confidence threshold (`--min-confidence 0.7`)
 - Recursive directory scanning
 
@@ -97,7 +108,7 @@ async def _check_file_async(self, file_path: Path) -> LintResult:
 
     # Create async tasks for ALL patterns
     tasks = [
-        self._check_pattern_async(code, pattern, file_path)
+        self._check_pattern_async_with_prompt(pattern, system_prompt, user_prompt, file_path)
         for pattern in patterns_to_check
     ]
 
@@ -132,7 +143,7 @@ async def _check_file_async(self, file_path: Path) -> LintResult:
 - Multi-file analysis - each file analyzed independently
 
 ### 2. Function/Class Level Locations
-From `specifications.md`:
+From `ARCHITECTURE.md`:
 - **No line numbers** - LLMs hallucinate them
 - **Use names** - function/class/method names are reliable
 - **Snippet** - Show actual code line with the bug
@@ -185,11 +196,11 @@ All code passes:
 # Install package
 pip install -e .
 
-# Test CLI
-python -m scicode_lint check test_example.py
+# Test CLI on any Python file
+scicode-lint lint myfile.py
 
 # Test with JSON output
-python -m scicode_lint check test_example.py --format json
+scicode-lint lint myfile.py --format json
 ```
 
 ### Evaluation Framework Integration
@@ -203,8 +214,6 @@ python evals/run_eval.py
 # Run specific pattern
 python evals/run_eval.py --pattern ml-001-scaler-leakage
 
-# Run as pytest
-pytest evals/test_all_patterns.py -v
 ```
 
 ## Detection Coverage
@@ -213,8 +222,8 @@ All 66 patterns implemented across 5 categories:
 
 | Category | Patterns |
 |----------|----------|
-| ai-training | 16 |
-| ai-inference | 13 |
+| ai-training | 19 |
+| ai-inference | 12 |
 | scientific-numerical | 10 |
 | scientific-performance | 11 |
 | scientific-reproducibility | 14 |
@@ -225,16 +234,16 @@ See `patterns/` directory for complete list.
 
 ### Basic Usage
 ```bash
-scicode-lint check myfile.py
+scicode-lint lint myfile.py
 ```
 
 ### Advanced Usage
 ```bash
 # Only critical issues, JSON format
-scicode-lint check src/ --severity critical --format json
+scicode-lint lint src/ --severity critical --format json
 
 # vLLM backend with custom URL
-scicode-lint check myfile.py --backend vllm --url http://localhost:8000
+scicode-lint lint myfile.py --vllm-url http://localhost:8000
 ```
 
 ## Testing Requirements
@@ -245,8 +254,8 @@ Prerequisites:
 
 Test commands:
 ```bash
-# End-to-end test
-scicode-lint check test_example.py
+# End-to-end test on any file
+scicode-lint lint myfile.py
 
 # Evaluation framework
 python evals/run_eval.py
@@ -257,14 +266,16 @@ Performance benchmarking available via evaluation framework metrics.
 ## Dependencies
 
 Runtime:
-- `pyyaml>=6.0` - Load detection catalog
-- `langchain-openai>=0.1.0` - Structured output support (includes HTTP client)
+- `openai>=1.0.0` - OpenAI-compatible API client (for vLLM)
+- `httpx>=0.24.0` - HTTP client
 - `pydantic>=2.0.0` - Response schema validation
+- `pydantic-settings>=2.0.0` - Configuration management
+- `loguru>=0.7.0` - Logging
 
 Development:
-- `ruff>=0.15.0` - Linting and formatting
-- `mypy>=1.19.0` - Type checking
-- `pytest>=7.0` - Testing (eval framework)
+- `ruff` - Linting and formatting
+- `mypy` - Type checking
+- `pytest` - Testing
 
 ## Key Files
 
@@ -274,13 +285,11 @@ Source code:
 
 Documentation:
 - `README.md` - User documentation
-- `USAGE.md` - User guide
+- `docs_use_human/USAGE.md` - User guide
 - `IMPLEMENTATION.md` - This file
-- `STRUCTURED_OUTPUT_MIGRATION.md` - Structured output details
 - `CLAUDE.md` - AI agent instructions
 
 Testing:
-- `test_example.py` - Example buggy code
 - `evals/` - Evaluation framework
 
 ## Architecture Compliance

@@ -16,7 +16,7 @@ explanation = """
 Use timezone-aware datetimes: datetime.now(timezone.utc) instead of datetime.now() or datetime.utcnow().
 """
 
-tags = []
+tags = ["datetime", "timezone", "reproducibility"]
 related_patterns = []
 references = [
     "https://docs.python.org/3/library/datetime.html",
@@ -25,21 +25,29 @@ references = [
 
 [detection]
 question = """
-Analyze datetime handling for timezone issues.
+Analyze datetime handling for REPRODUCIBILITY-CRITICAL timezone issues.
 
-datetime.now() returns a naive datetime in local timezone. datetime.utcnow() returns a naive datetime without timezone info (deprecated in Python 3.12). Both produce results that vary based on system configuration.
+CRITICAL DISTINCTION - This pattern ONLY applies to datetimes that affect SCIENTIFIC REPRODUCIBILITY:
+- Timestamps stored IN scientific data (experiment results, measurements, data files)
+- Timestamps used for data filtering or selection (time-based splits, date ranges)
+- Timestamps that must match across machines or runs for reproducibility
 
-Correct approach: Use datetime.now(timezone.utc) for timezone-aware UTC timestamps.
+NOT a reproducibility issue (answer NO immediately):
+- Directory/file naming for organizing outputs (e.g., results_2024_01_15/)
+- Logging or display timestamps (human-readable output)
+- User-facing metadata that can be overridden via arguments
+- Progress reporting or console output
+- Non-scientific organizational metadata
 
-Does this code create naive datetimes without timezone?
+WHY THIS MATTERS: datetime.now() returns local timezone, datetime.utcnow() has no timezone info. Scientific data with naive timestamps varies between machines/timezones, breaking reproducibility.
 
-Look for these specific calls (report the exact line containing the call, not the function definition):
-- datetime.now() without tz parameter
-- datetime.utcnow() (deprecated)
-- datetime.fromtimestamp() without tz parameter
+For REPRODUCIBILITY-CRITICAL timestamps only, look for:
+- datetime.now() without tz parameter stored in data
+- datetime.utcnow() (deprecated) in scientific records
+- datetime.fromtimestamp() without tz parameter in data processing
 
-YES = Bug found: naive datetime creation without timezone (report line with datetime.now/utcnow/fromtimestamp call)
-NO = Correct: timezone-aware datetime with tz parameter
+YES = Bug found: naive datetime in SCIENTIFIC DATA affecting reproducibility
+NO = Organizational/logging use, OR timezone-aware datetime used
 """
 
 warning_message = """
@@ -53,14 +61,15 @@ false_positive_risks = []
 
 [[tests.positive]]
 file = "test_positive/naive_datetime.py"
-description = "Creating naive datetimes without timezone"
-expected_issue = "datetime.now() without timezone"
+description = "Creating naive datetimes without timezone in scientific data"
+expected_issue = "datetime.now(), datetime.utcnow(), datetime.fromtimestamp() without timezone in data records"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
-name = "log_experiment"
+type = "module"
+name = ""
 snippet = "datetime.now()"
+lines = [6, 11, 17, 18, 27]
 
 [[tests.negative]]
 file = "test_negative/unix_timestamp.py"
@@ -74,25 +83,32 @@ description = "No datetime operations"
 file = "test_negative/timezone_aware.py"
 description = "Using timezone-aware datetime.now(timezone.utc)"
 
+[[tests.negative]]
+file = "test_negative/directory_naming.py"
+description = "Datetime for directory naming and logging - organizational metadata, not scientific data"
+
 # === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/datetime_naive.py"
-description = "Simple datetime.now() call without timezone"
-expected_issue = "datetime.now() without timezone parameter"
+description = "Naive datetime stored in scientific measurement data"
+expected_issue = "datetime.now() without timezone in measurement records"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "module"
 name = ""
-snippet = "timestamp = datetime.now()"
+snippet = "datetime.now()"
+lines = [10, 21]
 
 [[tests.positive]]
-file = "test_positive/naive_datetime_now.py"
-description = "Mixed naive datetime patterns: datetime.now() and deprecated datetime.utcnow()"
-expected_issue = "datetime.now() and datetime.utcnow() without timezone"
+file = "test_positive/experiment_timestamps.py"
+description = "Experiment tracking class using naive datetimes"
+expected_issue = "datetime.now() and datetime.utcnow() in tracker class"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
-name = "log_experiment_start"
-snippet = "start_time = datetime.now()"
+type = "module"
+name = ""
+snippet = "datetime.now()"
+lines = [11, 18, 25, 30]
+

@@ -45,7 +45,7 @@ linter = SciCodeLinter(config)
 
 ## Installation
 
-**Isolated Environment Recommended:** See [installation guide](../../INSTALLATION.md) for setup options.
+**Isolated Environment Recommended:** See [installation guide](../INSTALLATION.md) for setup options.
 
 **Safety Note:** scicode-lint only reads code files as text - it never executes or imports your code.
 
@@ -117,9 +117,11 @@ finding.category: str         # "ai-training", "ai-inference", etc.
 finding.severity: str         # "critical", "high", "medium"
 finding.explanation: str      # What's wrong and how to fix ← WHAT it means
 finding.confidence: float     # 0.0 to 1.0
-finding.location.type: str    # "function", "class", "method", "module"
-finding.location.name: str    # Function/class/method name ← WHERE
-finding.location.snippet: str # Exact line of code ← EXACT CODE
+finding.location.location_type: str  # "function", "class", "method", "module"
+finding.location.name: str           # Function/class/method name ← WHERE
+finding.location.lines: list[int]    # Full line range of function/method
+finding.location.focus_line: int     # Specific line to look at ← EXACT LINE
+finding.location.snippet: str        # Code snippet ← EXACT CODE
 ```
 
 ### Reading Pattern Descriptions
@@ -174,25 +176,25 @@ print(f"Found {len(critical)} critical patterns")
 
 ```bash
 # Basic check
-scicode-lint check myfile.py
+scicode-lint lint myfile.py
 
 # JSON output (for parsing)
-scicode-lint check myfile.py --format json
+scicode-lint lint myfile.py --format json
 
 # Filter by severity
-scicode-lint check myfile.py --severity critical,high
+scicode-lint lint myfile.py --severity critical,high
 
 # Filter by category
-scicode-lint check myfile.py --category ai-training,ai-inference
+scicode-lint lint myfile.py --category ai-training,ai-inference
 
 # Filter by pattern
-scicode-lint check myfile.py --pattern ml-001,ml-002
+scicode-lint lint myfile.py --pattern ml-001,ml-002
 
 # Check directory
-scicode-lint check src/
+scicode-lint lint src/
 
 # Multiple files
-scicode-lint check file1.py file2.py
+scicode-lint lint file1.py file2.py
 ```
 
 ### JSON Output Format
@@ -243,7 +245,7 @@ def fix_ml_pipeline(file_path: str):
 
     # Step 1: Check ONLY ML correctness issues (not all 66 patterns)
     config = LinterConfig(
-        enabled_categories={"ai-training"},  # 16 patterns
+        enabled_categories={"ai-training"},  # 19 patterns
     )
     linter = SciCodeLinter(config)
     result = linter.check_file(Path(file_path))
@@ -283,7 +285,7 @@ def fix_pytorch_training(file_path: str):
 
     # Check ONLY PyTorch patterns
     config = LinterConfig(
-        enabled_categories={"ai-training"},  # 16 patterns
+        enabled_categories={"ai-training"},  # 19 patterns
     )
     linter = SciCodeLinter(config)
     result = linter.check_file(Path(file_path))
@@ -360,7 +362,7 @@ result = linter.check_file(Path("train.py"))  # ~55 seconds
 
 # Example 3: Check specific category while working on ML pipeline
 config = LinterConfig(
-    enabled_categories={"ai-training"},  # 16 patterns
+    enabled_categories={"ai-training"},  # 19 patterns
 )
 linter = SciCodeLinter(config)
 result = linter.check_file(Path("ml_pipeline.py"))  # ~60 seconds
@@ -369,13 +371,13 @@ result = linter.check_file(Path("ml_pipeline.py"))  # ~60 seconds
 **CLI equivalent:**
 ```bash
 # Check only ml-001 while fixing data leakage
-scicode-lint check pipeline.py --pattern ml-001
+scicode-lint lint pipeline.py --pattern ml-001
 
 # Check multiple specific patterns
-scicode-lint check train.py --pattern pt-001,pt-002,pt-003
+scicode-lint lint train.py --pattern pt-001,pt-002,pt-003
 
 # Check category
-scicode-lint check ml_pipeline.py --category ai-training
+scicode-lint lint ml_pipeline.py --category ai-training
 ```
 
 **Best Practice:** During development, check only the patterns you're actively fixing. Run full scan before final commit.
@@ -443,8 +445,8 @@ All information needed to fix the issue is in the `Finding` object.
 
 | Category | Patterns | Examples |
 |----------|----------|----------|
-| **ai-training** | 16 | Data leakage, missing zero_grad, gradient issues |
-| **ai-inference** | 13 | Missing eval mode, no_grad, device mismatches |
+| **ai-training** | 19 | Data leakage, missing zero_grad, gradient issues |
+| **ai-inference** | 12 | Missing eval mode, no_grad, device mismatches |
 | **scientific-numerical** | 10 | Float comparison, overflow, division by zero |
 | **scientific-performance** | 11 | Loops vs vectorization, memory inefficiency |
 | **scientific-reproducibility** | 14 | Missing seeds, CUDA non-determinism |
@@ -580,7 +582,9 @@ enabled_severities = ["critical", "high"]
 ## Limitations
 
 1. **Single-file analysis**: Cross-file issues not detected
-2. **No line numbers**: Uses function/class names (LLMs hallucinate line numbers)
+2. **Name-based detection**: LLM identifies function/class names, AST resolves to line numbers
+   - More reliable than direct LLM line predictions (eliminates ±1-2 variance)
+   - Use `location.name` for identification, `location.focus_line` for specific line
 3. **False positives possible**: Always review findings
 4. **Requires LLM**: Needs vLLM server running
 5. **Speed**: Full scan takes ~90 seconds per file

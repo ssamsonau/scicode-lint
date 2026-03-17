@@ -1,34 +1,33 @@
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+import numpy as np
 
 
-def preprocess_correctly(X, y):
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-    return X_train_scaled, X_test_scaled, y_train, y_test
+class ZScoreNormalizer:
+    def __init__(self):
+        self.mean_ = None
+        self.scale_ = None
+
+    def fit(self, X):
+        self.mean_ = np.mean(X, axis=0)
+        self.scale_ = np.std(X, axis=0) + 1e-8
+        return self
+
+    def transform(self, X):
+        return (X - self.mean_) / self.scale_
 
 
-def preprocess_with_pipeline(X, y):
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.pipeline import Pipeline
-
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    pipeline = Pipeline([("scaler", StandardScaler()), ("classifier", LogisticRegression())])
-    pipeline.fit(X_train, y_train)
-    predictions = pipeline.predict(X_test)
-    return predictions
+def normalize_train_test(train_features, test_features):
+    normalizer = ZScoreNormalizer()
+    normalizer.fit(train_features)
+    train_normed = normalizer.transform(train_features)
+    test_normed = normalizer.transform(test_features)
+    return train_normed, test_normed
 
 
-def multiple_preprocessing_steps(X, y):
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-    from sklearn.decomposition import PCA
-
-    pca = PCA(n_components=10)
-    X_train_pca = pca.fit_transform(X_train_scaled)
-    X_test_pca = pca.transform(X_test_scaled)
-    return X_train_pca, X_test_pca, y_train, y_test
+def clip_outliers_from_train_stats(train_data, test_data, n_sigma=3):
+    mu = np.mean(train_data, axis=0)
+    sigma = np.std(train_data, axis=0) + 1e-8
+    lower = mu - n_sigma * sigma
+    upper = mu + n_sigma * sigma
+    train_clipped = np.clip(train_data, lower, upper)
+    test_clipped = np.clip(test_data, lower, upper)
+    return train_clipped, test_clipped

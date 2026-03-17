@@ -1,16 +1,27 @@
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.model_selection import cross_val_score
 
 
-def evaluate_model(model, X_test, y_test):
-    # Class distribution: ~3% positive (rare disease detection)
-    predictions = model.predict(X_test)
-    return accuracy_score(y_test, predictions)
+class FraudClassifier:
+    """Fraud detection classifier using cross-validation."""
+
+    def __init__(self):
+        self.model = GradientBoostingClassifier(n_estimators=100, random_state=42)
+        self.accuracy = None
+
+    def cross_validate(self, X, y):
+        scores = cross_val_score(self.model, X, y, cv=5, scoring="accuracy")
+        self.accuracy = scores.mean()
+        return self.accuracy
 
 
-def train_and_score(X_train, y_train, X_test, y_test):
-    # Imbalanced data: less than 5% positive cases
-    model = LogisticRegression()
-    model.fit(X_train, y_train)
-    acc = accuracy_score(y_test, model.predict(X_test))
-    return model, acc
+class AnomalyClassifier:
+    """Anomaly detection using gradient boosting with accuracy metric."""
+
+    def __init__(self):
+        self.model = GradientBoostingClassifier()
+        self.accuracy = None
+
+    def evaluate(self, X, y):
+        self.accuracy = cross_val_score(self.model, X, y, cv=3, scoring="accuracy").mean()
+        return self.accuracy

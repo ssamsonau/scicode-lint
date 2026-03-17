@@ -26,21 +26,21 @@ references = ["https://scikit-learn.org/stable/modules/model_evaluation.html#cla
 
 [detection]
 question = """
-Does this code use accuracy_score() on data that is described as IMBALANCED or for RARE EVENT detection (fraud, anomaly, disease)?
+Does this code use accuracy as the evaluation metric for FRAUD, ANOMALY, or DISEASE detection?
 
-WHY THIS MATTERS: On imbalanced data (e.g., 1% fraud), a model predicting "no fraud" always gets 99% accuracy while catching zero fraud cases.
+WHY THIS MATTERS: These are inherently imbalanced problems (e.g., 1% fraud). A model predicting "no fraud" always gets 99% accuracy while catching zero fraud cases.
 
-PROBLEMATIC patterns:
-- accuracy_score() with comments mentioning imbalance, rare events, or low percentages
-- Fraud/anomaly/disease detection using accuracy_score()
-- Code noting class distribution like "1% positive" or "rare cases"
+PROBLEMATIC patterns (look for class/function names containing fraud, anomaly, disease, etc.):
+- Class names like "FraudClassifier", "AnomalyDetector", "DiseasePredictor" using accuracy
+- accuracy_score() or scoring="accuracy" in fraud/anomaly/disease detection code
+- IsolationForest, OneClassSVM used with accuracy metric
 
 ACCEPTABLE patterns:
 - Using f1_score, roc_auc_score, precision_score, recall_score, balanced_accuracy_score
-- accuracy_score() with no evidence of imbalance in the code
+- Accuracy used in non-fraud/anomaly/disease contexts
 
-YES = accuracy_score() used on explicitly imbalanced or rare-event data
-NO = Appropriate metrics used, or no evidence of imbalance in code
+YES = accuracy metric used in fraud/anomaly/disease detection code (look at class/function names)
+NO = Appropriate metrics used, or not a fraud/anomaly/disease detection context
 """
 
 warning_message = """
@@ -56,14 +56,15 @@ false_positive_risks = []
 
 [[tests.positive]]
 file = "test_positive/accuracy_on_imbalanced.py"
-description = "Using accuracy metric on imbalanced classes"
+description = "Anomaly detection and rare disease classification using accuracy metric"
 expected_issue = "Wrong metric: accuracy on imbalanced classes is misleading"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
-name = "evaluate_with_accuracy_imbalanced"
-snippet = "accuracy_score(y_test, y_pred)"
+type = "class"
+name = "AnomalyDetector"
+snippet = "self.accuracy = accuracy_score(y_test, y_pred)"
+lines = [19, 34, 35]
 
 [[tests.negative]]
 file = "test_negative/appropriate_metrics_imbalanced.py"
@@ -71,33 +72,41 @@ description = "Using appropriate metrics on imbalanced data"
 
 [[tests.context_dependent]]
 file = "test_context_dependent/accuracy_moderate_imbalance.py"
-description = "Accuracy on moderately imbalanced data"
-context_notes = "Moderate imbalance (70/30): some accept accuracy, others prefer F1/AUC for consistency"
+description = "Customer churn prediction with moderate imbalance"
+context_notes = "Moderate imbalance (churn ~20-30%): some accept accuracy, others prefer F1/AUC for consistency"
 allow_detection = true
 allow_skip = true
+
+[tests.context_dependent.expected_location]
+type = "class"
+name = "ChurnPredictor"
+snippet = "accuracy = accuracy_score(y_test, y_pred)"
+lines = [18]
 
 
 [[tests.positive]]
 file = "test_positive/binary_accuracy.py"
-description = "Using accuracy_score() for rare disease detection with ~3% positive class - highly imbalanced"
+description = "Fraud and anomaly classifiers using cross_val_score with accuracy scoring"
 expected_issue = "Wrong metric: accuracy on imbalanced classes is misleading"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
-name = "evaluate_model"
-snippet = "return accuracy_score(y_test, predictions)"
+type = "class"
+name = "FraudClassifier"
+snippet = "cross_val_score(self.model, X, y, cv=5, scoring=\"accuracy\")"
+lines = [13, 26]
 
 [[tests.positive]]
 file = "test_positive/fraud_accuracy.py"
-description = "Fraud detection classifier evaluated with accuracy_score() instead of appropriate metrics for highly imbalanced fraud data"
+description = "Fraud detection classifier evaluated with accuracy_score() instead of appropriate metrics"
 expected_issue = "Wrong metric: accuracy on imbalanced classes is misleading"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
-name = "train_fraud_detector"
-snippet = "score = accuracy_score(y_test, predictions)"
+type = "class"
+name = "FraudDetectionPipeline"
+snippet = "self.accuracy = accuracy_score(y_test, predictions)"
+lines = [24, 34]
 
 [[tests.negative]]
 file = "test_negative/balanced_metrics.py"

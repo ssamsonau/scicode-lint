@@ -22,7 +22,10 @@ num_workers too high: each worker duplicates the dataset in memory. Too many wor
 
 tags = []
 related_patterns = []
-references = []
+references = [
+    "https://pytorch.org/docs/stable/data.html#single-and-multi-process-data-loading",
+    "https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html",
+]
 
 [detection]
 question = """
@@ -63,6 +66,7 @@ min_confidence = 0.85
 type = "module"
 name = "DataLoader"
 snippet = "num_workers=32"
+lines = [18]
 
 [[tests.positive]]
 file = "test_positive/high_workers_count.py"
@@ -74,27 +78,28 @@ min_confidence = 0.85
 type = "function"
 name = "create_dataloader"
 snippet = "num_workers=num_cores * 2"
+lines = [10]
 
 [[tests.negative]]
 file = "test_negative/reasonable_workers.py"
-description = "DataLoader with num_workers=4 - reasonable value that balances parallelism and memory"
+description = "Molecular graph dataset with custom collate function and num_workers=4 - reasonable value"
 
 [[tests.negative]]
 file = "test_negative/adaptive_workers.py"
-description = "DataLoader with adaptive num_workers capped at safe value - properly manages memory usage"
+description = "Image augmentation pipeline with adaptive num_workers capped at min(8, cpu_count//2)"
 
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/many_workers.py"
-description = "DataLoader with num_workers=64 - excessive worker count"
-expected_issue = "num_workers set to 64, far exceeding safe threshold"
+description = "Streaming spectral analysis pipeline with DataLoader num_workers=48 - excessive worker count for IterableDataset"
+expected_issue = "num_workers set to 48, far exceeding safe threshold"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "create_loader"
-snippet = "num_workers=64"
+name = "train_spectral_model"
+snippet = "num_workers=48"
+lines = [36]
 
 [[tests.negative]]
 file = "test_negative/cpu_adaptive.py"

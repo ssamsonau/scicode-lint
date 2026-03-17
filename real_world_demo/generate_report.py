@@ -15,7 +15,16 @@ from typing import Any
 from loguru import logger
 
 from .config import REPORTS_DIR
-from .database import get_db_path, get_run_stats, get_verification_stats, init_db, list_runs
+from .database import (
+    get_db_path,
+    get_prefilter_summary,
+    get_run_stats,
+    get_scan_stats,
+    get_verification_stats,
+    init_db,
+    list_runs,
+)
+from .sources.leakage_paper.compare_ground_truth import compare as compare_ground_truth
 
 
 class DistributionStats:
@@ -240,6 +249,9 @@ def get_example_findings(
                 fn.suggestion,
                 fn.snippet,
                 fn.lines,
+                fn.location_name,
+                fn.location_type,
+                fn.focus_line,
                 f.file_path,
                 f.original_path,
                 r.repo_name,
@@ -271,14 +283,17 @@ def get_example_findings(
                 "suggestion": row[6],
                 "snippet": row[7],
                 "lines": row[8],
-                "file_path": row[9],
-                "original_path": row[10],
-                "repo_name": row[11],
-                "repo_url": row[12],
-                "domain": row[13],
-                "paper_title": row[14],
-                "arxiv_id": row[15],
-                "paper_authors": row[16],
+                "location_name": row[9],
+                "location_type": row[10],
+                "focus_line": row[11],
+                "file_path": row[12],
+                "original_path": row[13],
+                "repo_name": row[14],
+                "repo_url": row[15],
+                "domain": row[16],
+                "paper_title": row[17],
+                "arxiv_id": row[18],
+                "paper_authors": row[19],
             }
             for row in cursor.fetchall()
         ]
@@ -363,6 +378,8 @@ def generate_markdown_report(
     verification_by_severity = get_verification_by_severity(conn, run_id)
     verification_stats = get_verification_stats(conn, run_id)
     findings_distribution = get_findings_distribution(conn, run_id, verified_only=verified_only)
+    scan_stats = get_scan_stats(conn)
+    prefilter_summary = get_prefilter_summary(conn, run_id)
 
     lines = []
 
@@ -413,7 +430,156 @@ def generate_markdown_report(
     finding_pct = stats.finding_rate
     lines.append(f"- **Files with Findings:** {stats.files_with_findings:,} ({finding_pct:.1f}%)")
     lines.append(f"- **Total Findings:** {stats.total_findings:,}")
+
+    # Ground truth comparison (leakage_paper only)
+    gt_results: list[Any] | None = None
+    gt_excluded = 0
+    if stats.data_source == "leakage_paper":
+        gt_results, gt_excluded = compare_ground_truth(run_id)
+        if gt_results:
+            # Aggregate headline stats across all labels
+            total_tp = sum(r.true_positives for r in gt_results)
+            total_fp = sum(r.false_positives for r in gt_results)
+            total_fn = sum(r.false_negatives for r in gt_results)
+            total_tn = sum(r.true_negatives for r in gt_results)
+            agg_prec = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0.0
+            agg_rec = total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 0.0
+            agg_f1 = (
+                2 * agg_prec * agg_rec / (agg_prec + agg_rec) if (agg_prec + agg_rec) > 0 else 0.0
+            )
+            total_evaluated = total_tp + total_fp + total_fn + total_tn
+            agg_acc = (total_tp + total_tn) / total_evaluated if total_evaluated > 0 else 0.0
+            lines.append(
+                f"- **Ground Truth (aggregate):** "
+                f"Precision {agg_prec:.0%}, Recall {agg_rec:.0%}, "
+                f"F1 {agg_f1:.0%}, Accuracy {agg_acc:.0%}"
+            )
+            if gt_excluded > 0:
+                lines.append(f"- **Excluded:** {gt_excluded} notebooks (pattern timeouts)")
     lines.append("")
+
+    if gt_results:
+        lines.append("## Ground Truth Comparison")
+        lines.append("")
+        lines.append(
+            "Comparison against Yang et al. ASE'22 manual labels "
+            "(notebooks with pattern timeouts are excluded)."
+        )
+        if gt_excluded > 0:
+            lines.append(f" Excluded: {gt_excluded} notebooks due to timeouts.")
+        lines.append("")
+
+        lines.append("| Label | TP | FP | FN | TN | Precision | Recall | F1 |")
+        lines.append("|-------|---:|---:|---:|---:|----------:|-------:|---:|")
+        for r in gt_results:
+            lines.append(
+                f"| {r.label} | {r.true_positives} | {r.false_positives} | "
+                f"{r.false_negatives} | {r.true_negatives} | "
+                f"{r.precision:.1%} | {r.recall:.1%} | {r.f1:.1%} |"
+            )
+        lines.append("")
+
+        lines.append("| Label | Correct | Total | Accuracy |")
+        lines.append("|-------|--------:|------:|---------:|")
+        for r in gt_results:
+            total = r.true_positives + r.false_positives + r.false_negatives + r.true_negatives
+            if total > 0:
+                correct = r.true_positives + r.true_negatives
+                lines.append(f"| {r.label} | {correct} | {total} | {correct / total:.1%} |")
+        lines.append("")
+
+    # File filtering pipeline stats (if scans were performed)
+    if scan_stats.total_scans > 0:
+        lines.append("## File Filtering Pipeline")
+        lines.append("")
+        lines.append("Two stages: ML import presence check → LLM classification:")
+        lines.append("")
+        has_ml_imports = scan_stats.total_self_contained + scan_stats.total_fragments
+        no_ml_imports = scan_stats.total_skipped
+        lines.append("```")
+        lines.append(f"Total Python files:       {scan_stats.total_files_scanned:,}")
+        lines.append("  │")
+        lines.append(f"  ├─ Has ML imports:      {has_ml_imports:,}  (sent to LLM)")
+        lines.append("  │    │")
+        lines.append(f"  │    ├─ Self-contained: {scan_stats.total_self_contained:,}  ← analyzed")
+        lines.append(f"  │    └─ Fragments:      {scan_stats.total_fragments:,}  ← skipped")
+        lines.append("  │")
+        lines.append(f"  └─ No ML imports:       {no_ml_imports:,}  ← skipped")
+        lines.append("```")
+        lines.append("")
+        if scan_stats.total_files_scanned > 0:
+            filter_rate = 100 * scan_stats.total_self_contained / scan_stats.total_files_scanned
+            lines.append(
+                f"*{filter_rate:.1f}% of files passed both filters and were analyzed. "
+                f"Avg {scan_stats.avg_self_contained_per_repo:.1f} self-contained files per repo.*"
+            )
+            lines.append("")
+
+    # Prefilter summary (if prefilter was used)
+    if prefilter_summary:
+        lines.append("## Prefilter Summary")
+        lines.append("")
+        lines.append(
+            "Files were classified by LLM as self-contained ML pipelines vs code fragments. "
+            "Only self-contained files (complete training/inference workflows) were analyzed."
+        )
+        lines.append("")
+
+        # File classification breakdown
+        total = prefilter_summary["total_files"]
+        self_contained = prefilter_summary["self_contained"]
+        fragments = prefilter_summary["fragments"]
+        uncertain = prefilter_summary["uncertain"]
+        errors = prefilter_summary["errors"]
+
+        lines.append("| Classification | Files | % |")
+        lines.append("|----------------|-------|---|")
+        lines.append(
+            f"| Self-contained (analyzed) | {self_contained:,} | "
+            f"{100 * self_contained / total:.1f}% |"
+        )
+        lines.append(f"| Fragment (skipped) | {fragments:,} | {100 * fragments / total:.1f}% |")
+        if uncertain > 0:
+            lines.append(f"| Uncertain | {uncertain:,} | {100 * uncertain / total:.1f}% |")
+        if errors > 0:
+            lines.append(f"| Error | {errors:,} | {100 * errors / total:.1f}% |")
+        lines.append(f"| **Total** | **{total:,}** | |")
+        lines.append("")
+
+        # Paper/repo impact
+        orig_papers = prefilter_summary["original_papers"]
+        filt_papers = prefilter_summary["filtered_papers"]
+        orig_repos = prefilter_summary["original_repos"]
+        filt_repos = prefilter_summary["filtered_repos"]
+        dropped_repos = prefilter_summary["dropped_repos"]
+
+        if orig_papers > filt_papers:
+            lines.append("### Papers/Repos Filtered")
+            lines.append("")
+            lines.append(
+                f"- **Papers:** {filt_papers} analyzed / {orig_papers} original "
+                f"({orig_papers - filt_papers} dropped)"
+            )
+            lines.append(
+                f"- **Repos:** {filt_repos} analyzed / {orig_repos} original "
+                f"({orig_repos - filt_repos} dropped)"
+            )
+            lines.append("")
+
+            if dropped_repos:
+                lines.append(
+                    f"**{len(dropped_repos)} repos dropped** (all files classified as fragments):"
+                )
+                lines.append("")
+                for repo in dropped_repos[:10]:  # Limit to 10
+                    lines.append(f"- `{repo}`")
+                if len(dropped_repos) > 10:
+                    lines.append(f"- ... and {len(dropped_repos) - 10} more")
+                lines.append("")
+
+        if prefilter_summary["model_name"]:
+            lines.append(f"*Prefilter model: {prefilter_summary['model_name']}*")
+            lines.append("")
 
     # Papers by severity (skip for leakage_paper - single source)
     show_papers_by_severity = (
@@ -667,6 +833,14 @@ def generate_markdown_report(
                 else:
                     lines.append(f"- **Repo:** {f['repo_name']} ({f['domain']})")
 
+                # Add function/class location if available
+                if f.get("location_name"):
+                    loc_type = f.get("location_type") or "function"
+                    loc_info = f"- **Location:** {loc_type} `{f['location_name']}`"
+                    if f.get("focus_line"):
+                        loc_info += f" (line {f['focus_line']})"
+                    lines.append(loc_info)
+
                 if f["paper_title"]:
                     paper_ref = f["paper_title"]
                     if f["arxiv_id"]:
@@ -710,21 +884,27 @@ def generate_markdown_report(
     return "\n".join(lines)
 
 
-def save_report(content: str, analysis_date: datetime, output_path: Path | None = None) -> Path:
+def save_report(
+    content: str,
+    analysis_date: datetime,
+    output_path: Path | None = None,
+    data_source: str | None = None,
+) -> Path:
     """Save report to file.
 
     Args:
         content: Markdown content.
         analysis_date: Date when analysis was conducted.
         output_path: Output path, or None for default (includes date).
+        data_source: Data source name for subdirectory (e.g., 'leakage_paper').
 
     Returns:
         Path to saved file.
     """
     if output_path is None:
-        # Include time to avoid overwriting same-day reports
         date_str = analysis_date.strftime("%Y-%m-%d_%H%M")
-        output_path = REPORTS_DIR / f"FINDINGS_REPORT_{date_str}.md"
+        base_dir = REPORTS_DIR / data_source if data_source else REPORTS_DIR
+        output_path = base_dir / f"FINDINGS_REPORT_{date_str}.md"
 
     output_path.parent.mkdir(exist_ok=True, parents=True)
     output_path.write_text(content)
@@ -756,6 +936,9 @@ def _query_valid_findings(
             fn.suggestion,
             fn.snippet,
             fn.lines,
+            fn.location_name,
+            fn.location_type,
+            fn.focus_line,
             f.file_path,
             f.original_path,
             r.repo_name,
@@ -793,16 +976,19 @@ def _query_valid_findings(
             "suggestion": row[6],
             "snippet": row[7],
             "lines": row[8],
-            "file_path": row[9],
-            "original_path": row[10],
-            "repo_name": row[11],
-            "repo_url": row[12],
-            "domain": row[13],
-            "paper_id": row[14],
-            "paper_title": row[15],
-            "arxiv_id": row[16],
-            "paper_authors": row[17],
-            "verification_reasoning": row[18],
+            "location_name": row[9],
+            "location_type": row[10],
+            "focus_line": row[11],
+            "file_path": row[12],
+            "original_path": row[13],
+            "repo_name": row[14],
+            "repo_url": row[15],
+            "domain": row[16],
+            "paper_id": row[17],
+            "paper_title": row[18],
+            "arxiv_id": row[19],
+            "paper_authors": row[20],
+            "verification_reasoning": row[21],
         }
         for row in cursor.fetchall()
     ]
@@ -916,6 +1102,14 @@ def generate_valid_critical_report(conn: sqlite3.Connection, run_id: int) -> str
 
         lines.append(f"**Repo:** [{f['repo_name']}]({repo_url})")
 
+        # Add function/class location if available
+        if f.get("location_name"):
+            loc_type = f.get("location_type") or "function"
+            loc_info = f"**Location:** {loc_type} `{f['location_name']}`"
+            if f.get("focus_line"):
+                loc_info += f" (line {f['focus_line']})"
+            lines.append(loc_info)
+
         if f["paper_title"]:
             paper_ref = f["paper_title"]
             if f["arxiv_id"]:
@@ -1020,15 +1214,17 @@ def main() -> None:
 
     report = generate_markdown_report(conn, args.run_id, verified_only=args.verified_only)
 
-    # Save with analysis date in filename
-    output_path = save_report(report, stats.run_date, args.output)
+    # Save with analysis date in filename, organized by data source
+    data_source = stats.data_source
+    output_path = save_report(report, stats.run_date, args.output, data_source=data_source)
     logger.info(f"Report saved to {output_path}")
 
     # Generate valid critical findings sample when using --verified-only
     if args.verified_only:
         critical_report = generate_valid_critical_report(conn, stats.run_id)
         date_str = stats.run_date.strftime("%Y-%m-%d_%H%M")
-        critical_path = REPORTS_DIR / f"VALID_FINDINGS_SAMPLE_{date_str}.md"
+        base_dir = REPORTS_DIR / data_source if data_source else REPORTS_DIR
+        critical_path = base_dir / f"VALID_FINDINGS_SAMPLE_{date_str}.md"
         critical_path.write_text(critical_report)
         logger.info(f"Valid findings sample saved to {critical_path}")
 

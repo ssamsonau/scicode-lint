@@ -1,40 +1,37 @@
-from datetime import datetime, timezone
+"""Sensor data pipeline with timezone-aware timestamps throughout."""
+
+from datetime import UTC, datetime, timedelta
+
+import numpy as np
 
 
-def log_experiment(experiment_name, results):
-    timestamp = datetime.now(timezone.utc)
-    return {"name": experiment_name, "timestamp": timestamp.isoformat(), "results": results}
+class SensorRecorder:
+    """Record sensor measurements with proper timezone handling."""
+
+    def __init__(self, sensor_id: str):
+        self.sensor_id = sensor_id
+        self.readings = []
+
+    def record(self, value: float) -> dict:
+        """Store reading with UTC timestamp."""
+        entry = {
+            "sensor": self.sensor_id,
+            "value": value,
+            "timestamp": datetime.now(UTC),
+        }
+        self.readings.append(entry)
+        return entry
+
+    def get_readings_since(self, hours: int) -> list[dict]:
+        """Filter readings from last N hours."""
+        cutoff = datetime.now(UTC) - timedelta(hours=hours)
+        return [r for r in self.readings if r["timestamp"] >= cutoff]
 
 
-def get_current_time():
-    return datetime.now(tz=timezone.utc)
-
-
-def record_event(event_type):
-    event = {
-        "type": event_type,
-        "time": datetime.now(timezone.utc),
-    }
-    return event
-
-
-def create_run_id():
-    return f"run_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
-
-
-class ExperimentTracker:
-    def __init__(self, name):
-        self.name = name
-        self.start_time = datetime.now(timezone.utc)
-        self.events = []
-
-    def log_event(self, event_name):
-        self.events.append(
-            {
-                "event": event_name,
-                "timestamp": datetime.now(timezone.utc),
-            }
-        )
-
-    def get_duration(self):
-        return datetime.now(timezone.utc) - self.start_time
+def aggregate_daily(readings: list[dict]) -> dict[str, float]:
+    """Aggregate readings by UTC date."""
+    daily = {}
+    for r in readings:
+        day = r["timestamp"].strftime("%Y-%m-%d")
+        daily.setdefault(day, []).append(r["value"])
+    return {day: np.mean(vals) for day, vals in daily.items()}

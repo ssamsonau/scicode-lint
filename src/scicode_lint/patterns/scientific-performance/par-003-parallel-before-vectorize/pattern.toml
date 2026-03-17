@@ -22,7 +22,10 @@ Parallelizing before vectorizing: the code is slow because of Python loops, not 
 
 tags = []
 related_patterns = []
-references = []
+references = [
+    "https://numpy.org/doc/stable/user/basics.broadcasting.html",
+    "https://numpy.org/doc/stable/reference/ufuncs.html",
+]
 
 [detection]
 question = """
@@ -69,17 +72,19 @@ min_confidence = 0.85
 type = "function"
 name = "parallel_transform"
 snippet = "result = pool.map(process_element, arr.tolist())"
+lines = [15]
 
 [[tests.positive]]
 file = "test_positive/threading_loop_over_array.py"
-description = "ThreadPoolExecutor used to parallelize loop over array elements - should vectorize with np.where instead"
-expected_issue = "Threading applied to element-wise conditional on NumPy array"
+description = "ThreadPoolExecutor used to process array elements one at a time - should vectorize with np.sin/np.cos instead"
+expected_issue = "Thread parallelism applied to element-wise NumPy operations"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "parallel_conditional_square"
-snippet = "futures = [executor.submit(square_if_positive, x) for x in array]"
+name = "parallel_element_transform"
+snippet = "results = list(executor.map(transform_element, array.tolist()))"
+lines = [12]
 
 [[tests.negative]]
 file = "test_negative/vectorized_transform.py"
@@ -90,17 +95,17 @@ file = "test_negative/parallel_vectorized_chunks.py"
 description = "Correctly parallelizes already-vectorized chunk processing - good use of both vectorization and parallelism"
 
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/element_wise_parallel.py"
-description = "Multiprocessing applied to element-wise array operations via tolist() - simple operations like squaring are much faster with vectorized NumPy than with parallelization overhead"
-expected_issue = "Parallelizing element-wise array operations instead of using vectorized NumPy"
+description = "ProcessPoolExecutor clipping array elements one at a time via tolist() - np.clip is vectorized and faster"
+expected_issue = "Parallelizing element-wise clip operation instead of using vectorized np.clip"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "parallel_square"
-snippet = "result = pool.map(square, arr.tolist())"
+name = "parallel_clip"
+snippet = "results = list(executor.map(clip_value, flat))"
+lines = [17]
 
 [[tests.negative]]
 file = "test_negative/element_wise_vectorized.py"

@@ -8,10 +8,14 @@ def exponential_difference(x):
     return diff
 
 
-def compute_delta(measurements):
-    baseline = measurements[0]
-    delta = measurements[1] - baseline
-    return delta
+def compute_nearly_equal_diff(a, b):
+    """Subtracting two nearly equal large scalars loses significant digits.
+
+    When a ≈ b (e.g., a=1000000.001, b=1000000.000), the subtraction
+    cancels all the significant digits held in the large integer part.
+    """
+    result = a - b
+    return result
 
 
 def distance_from_origin(point1, point2):

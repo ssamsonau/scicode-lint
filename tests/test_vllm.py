@@ -4,8 +4,8 @@ import subprocess
 import warnings
 from unittest.mock import Mock, patch
 
+import httpx
 import pytest
-import requests
 
 from scicode_lint.vllm import (
     GPUInfo,
@@ -29,7 +29,7 @@ class TestIsRunning:
 
     def test_is_running_when_server_responds(self) -> None:
         """Should return True when server health endpoint returns 200."""
-        with patch("requests.get") as mock_get:
+        with patch("httpx.get") as mock_get:
             mock_response = Mock()
             mock_response.status_code = 200
             mock_get.return_value = mock_response
@@ -39,14 +39,14 @@ class TestIsRunning:
 
     def test_is_running_when_server_down(self) -> None:
         """Should return False when server is not responding."""
-        with patch("requests.get") as mock_get:
-            mock_get.side_effect = requests.RequestException("Connection refused")
+        with patch("httpx.get") as mock_get:
+            mock_get.side_effect = httpx.HTTPError("Connection refused")
 
             assert is_running("http://localhost:5001") is False
 
     def test_is_running_with_non_200_status(self) -> None:
         """Should return False when server returns non-200 status."""
-        with patch("requests.get") as mock_get:
+        with patch("httpx.get") as mock_get:
             mock_response = Mock()
             mock_response.status_code = 503
             mock_get.return_value = mock_response
@@ -195,7 +195,7 @@ class TestVLLMServerContextManager:
     def test_local_server_already_running_reuses(self) -> None:
         """Should reuse local server if already running, not stop on exit."""
         with patch("scicode_lint.vllm.is_running", return_value=True):
-            with patch("scicode_lint.vllm.requests.get") as mock_get:
+            with patch("scicode_lint.vllm.httpx.get") as mock_get:
                 # Mock models endpoint
                 mock_get.return_value.status_code = 200
                 mock_get.return_value.json.return_value = {"data": [{"id": DEFAULT_MODEL}]}
@@ -211,7 +211,7 @@ class TestVLLMServerContextManager:
     def test_local_server_wrong_model_warns(self) -> None:
         """Should warn if local server running with different model."""
         with patch("scicode_lint.vllm.is_running", return_value=True):
-            with patch("scicode_lint.vllm.requests.get") as mock_get:
+            with patch("scicode_lint.vllm.httpx.get") as mock_get:
                 # Mock models endpoint with different model
                 mock_get.return_value.status_code = 200
                 mock_get.return_value.json.return_value = {"data": [{"id": "different-model"}]}
@@ -304,7 +304,7 @@ class TestGetServerInfo:
     def test_get_server_info_running(self) -> None:
         """Should return server info when running."""
         with patch("scicode_lint.vllm.is_running", return_value=True):
-            with patch("requests.get") as mock_get:
+            with patch("httpx.get") as mock_get:
                 mock_response = Mock()
                 mock_response.status_code = 200
                 model_id = "RedHatAI/Qwen3-8B-FP8-dynamic"
@@ -328,7 +328,7 @@ class TestGetServerInfo:
     def test_get_server_info_model_fetch_fails(self) -> None:
         """Should handle model fetch failure gracefully."""
         with patch("scicode_lint.vllm.is_running", return_value=True):
-            with patch("requests.get", side_effect=requests.RequestException):
+            with patch("httpx.get", side_effect=httpx.HTTPError("Connection refused")):
                 info = get_server_info()
 
                 assert info.is_running is True
@@ -446,8 +446,6 @@ class TestVRAMAutoDetection:
 
     def test_12gb_vram_settings(self) -> None:
         """Should raise RuntimeError for 12GB VRAM (below minimum)."""
-        import pytest
-
         from scicode_lint.vllm import _auto_detect_vram_settings
 
         # Simulate 12GB VRAM - should fail (below any reasonable minimum)
@@ -456,8 +454,6 @@ class TestVRAMAutoDetection:
 
     def test_8gb_vram_settings(self) -> None:
         """Should raise RuntimeError for 8GB VRAM (below minimum)."""
-        import pytest
-
         from scicode_lint.vllm import _auto_detect_vram_settings
 
         # Simulate 8GB VRAM - should fail (below any reasonable minimum)
@@ -466,8 +462,6 @@ class TestVRAMAutoDetection:
 
     def test_vram_boundary_16gb(self) -> None:
         """Should correctly handle VRAM at boundary defined in config."""
-        import pytest
-
         from scicode_lint.vllm import _auto_detect_vram_settings, _get_min_vram_mb
 
         # Get actual minimum from config
@@ -500,8 +494,6 @@ class TestVRAMAutoDetection:
 
     def test_no_gpu_fallback(self) -> None:
         """Should raise RuntimeError when GPU cannot be detected."""
-        import pytest
-
         from scicode_lint.vllm import _auto_detect_vram_settings
 
         with patch("scicode_lint.vllm.get_gpu_info", return_value=None):

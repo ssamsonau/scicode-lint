@@ -1,21 +1,36 @@
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
 
-class TextDataset(Dataset):
-    def __init__(self, size):
-        self.data = torch.randint(0, 1000, (size, 128))
-        self.labels = torch.randint(0, 2, (size,))
+class MolecularGraphDataset(Dataset):
+    def __init__(self, graph_files):
+        self.graph_files = graph_files
 
     def __len__(self):
-        return len(self.data)
+        return len(self.graph_files)
 
     def __getitem__(self, idx):
-        return self.data[idx], self.labels[idx]
+        graph = torch.load(self.graph_files[idx])
+        return graph["nodes"], graph["edges"], graph["label"]
 
 
-dataset = TextDataset(20000)
-loader = DataLoader(dataset, batch_size=32, num_workers=4, pin_memory=True)
+def collate_graphs(batch):
+    nodes_list, edges_list, labels = zip(*batch)
+    max_nodes = max(n.size(0) for n in nodes_list)
+    padded_nodes = torch.zeros(len(batch), max_nodes, nodes_list[0].size(1))
+    for i, nodes in enumerate(nodes_list):
+        padded_nodes[i, : nodes.size(0)] = nodes
+    return padded_nodes, labels
 
-for batch_data, batch_labels in loader:
-    pass
+
+def build_training_pipeline(graph_files, batch_size=64):
+    dataset = MolecularGraphDataset(graph_files)
+    loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        num_workers=4,
+        collate_fn=collate_graphs,
+        pin_memory=True,
+    )
+    return loader

@@ -22,19 +22,31 @@ Full N×N distance matrix in memory: N=50,000 uses ~20 GB. Use spatial indexing 
 
 tags = []
 related_patterns = []
-references = []
+references = [
+    "https://scikit-learn.org/stable/modules/generated/sklearn.neighbors.KDTree.html",
+    "https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.cdist.html",
+]
 
 [detection]
 question = """
-Does this code compute a full pairwise distance/similarity matrix when only partial results are needed?
+Does this code compute a full pairwise distance matrix for LARGE N where partial results would suffice?
+
+The issue is O(N²) memory for large N (N>10,000). For small N, full pairwise is fine.
 
 Check for:
-- cdist(X, X) or pdist(X) computing all self-pairwise distances
-- cdist(X, Y) computing all query-to-database distances (e.g., for k-nearest neighbor search)
-- Nested loops computing all pairs
+- cdist(X, X) or pdist(X) on LARGE datasets (many thousands of points)
+- Computing all distances when only k-nearest are needed
 
-YES = Found: full pairwise/distance matrix computed (cdist, pdist, or nested loops)
-NO = Clean: uses KDTree/BallTree, or only computes needed distances
+NOT a bug (answer NO) - small N makes O(N²) acceptable:
+- Molecular structures: typically 10-1000 atoms
+- Monte Carlo ensembles: typically 10-1000 samples
+- Small graphs: hundreds of vertices
+- Explicit small dimensions like (100, 3) or n_samples < 1000
+- Gram matrices for kernel methods (needed for exact computation)
+- Covariance/correlation matrices (needed for statistics)
+
+YES = Bug: cdist/pdist on LARGE dataset (thousands of points) when k-NN would work
+NO = Clean: Small N (molecular, ensemble, small graph), or KDTree used, or full matrix needed
 """
 
 warning_message = """
@@ -57,6 +69,7 @@ min_confidence = 0.85
 type = "function"
 name = "compute_all_distances"
 snippet = "distance_matrix = cdist(points, points, metric=\"euclidean\")"
+lines = [7]
 
 [[tests.positive]]
 file = "test_positive/pairwise_matrix_storage.py"
@@ -67,7 +80,8 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "calculate_similarity_matrix"
-snippet = "similarity = np.zeros((num_samples, num_samples))"
+snippet = "for i in range(num_samples):"
+lines = [8]
 
 [[tests.negative]]
 file = "test_negative/kdtree_approach.py"
@@ -80,15 +94,20 @@ description = "Uses KD-tree for k-nearest neighbor distances - O(N log N) instea
 
 [[tests.positive]]
 file = "test_positive/all_pairs.py"
-description = "Computes full distance matrix with cdist when only k nearest neighbors are needed; allocates unnecessary memory for unused distances."
-expected_issue = "Full distance matrix computed for k-nearest neighbor search"
+description = "Computes full MxN distance matrix with cdist for k-nearest neighbor search - wastes memory when only k neighbors needed"
+expected_issue = "Full query-to-database distance matrix computed for k-nearest neighbor search"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "find_nearest"
-snippet = "distances = cdist(query_points, database_points)"
+name = "find_nearest_neighbors"
+snippet = "full_distances = cdist(query_embeddings, database_embeddings)"
+lines = [6]
 
 [[tests.negative]]
 file = "test_negative/efficient_knn.py"
 description = "Uses NearestNeighbors with ball_tree algorithm to efficiently find k neighbors without computing full distance matrix."
+
+[[tests.negative]]
+file = "test_negative/small_n_pairwise.py"
+description = "Small N cases where full pairwise is acceptable: molecular distances, ensemble RMSD, small graphs, kernel matrices"

@@ -2,41 +2,31 @@ import torch
 import torch.nn as nn
 
 
-class ImageClassifier(nn.Module):
-    def __init__(self, num_classes):
-        super().__init__()
-        self.backbone = nn.Sequential(
-            nn.Conv2d(3, 64, 3, padding=1),
-            nn.ReLU(),
-            nn.AdaptiveAvgPool2d(1),
-        )
-        self.classifier = nn.Linear(64, num_classes)
-
-    def forward(self, x):
-        features = self.backbone(x)
-        features = features.view(features.size(0), -1)
-        return self.classifier(features)
-
-
-class InferenceService:
-    def __init__(self, model_path, device="cuda"):
-        self.device = torch.device(device)
-        self.model = ImageClassifier(num_classes=1000)
-        self.model.load_state_dict(torch.load(model_path))
+class SentimentAnalyzer:
+    def __init__(self, model_path, vocab_size, embed_dim, hidden_dim, num_classes):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = self._build_model(vocab_size, embed_dim, hidden_dim, num_classes)
+        self.model.load_state_dict(torch.load(model_path, map_location=self.device))
         self.model.to(self.device)
         self.model.eval()
 
-    @torch.inference_mode()
-    def predict(self, image_tensor):
-        image_tensor = image_tensor.to(self.device)
-        logits = self.model(image_tensor)
-        return logits.argmax(dim=1)
+    def _build_model(self, vocab_size, embed_dim, hidden_dim, num_classes):
+        return nn.Sequential(
+            nn.Embedding(vocab_size, embed_dim),
+            nn.LSTM(embed_dim, hidden_dim, batch_first=True),
+        )
 
-    def batch_predict(self, images):
-        results = []
-        with torch.inference_mode():
-            for img in images:
-                img = img.to(self.device)
-                pred = self.model(img)
-                results.append(pred.argmax(dim=1))
-        return torch.cat(results)
+    @torch.inference_mode()
+    def analyze(self, token_ids):
+        tokens = torch.tensor(token_ids, dtype=torch.long).unsqueeze(0).to(self.device)
+        output = self.model(tokens)
+        return torch.softmax(output, dim=-1).squeeze(0).cpu().numpy()
+
+    @torch.inference_mode()
+    def analyze_batch(self, token_id_lists):
+        padded = torch.nn.utils.rnn.pad_sequence(
+            [torch.tensor(t, dtype=torch.long) for t in token_id_lists],
+            batch_first=True,
+        ).to(self.device)
+        outputs = self.model(padded)
+        return torch.softmax(outputs, dim=-1).cpu().numpy()

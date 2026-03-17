@@ -1,9 +1,9 @@
 # Pattern Registry - Auto-generated
-# Generated: 2026-03-08T18:30:09.889154
-# Total patterns: 64
+# Generated: 2026-03-15T18:23:42.780259
+# Total patterns: 66
 
 version = "1.0"
-total_patterns = 64
+total_patterns = 66
 
 [patterns."ml-001"]
 path = "ai-training/ml-001-scaler-leakage"
@@ -60,6 +60,20 @@ name = "unstratified-split"
 category = "ai-training"
 severity = "high"
 version = "1.0.0"
+
+[patterns."ml-009"]
+path = "ai-training/ml-009-overlap-leakage"
+name = "overlap-leakage"
+category = "ai-training"
+severity = "critical"
+version = "2.0.0"
+
+[patterns."ml-010"]
+path = "ai-training/ml-010-multi-test-leakage"
+name = "multi-test-leakage"
+category = "ai-training"
+severity = "critical"
+version = "2.0.0"
 
 [patterns."np-001"]
 path = "scientific-numerical/np-001-slice-view-mutation"
@@ -321,9 +335,9 @@ severity = "medium"
 version = "1.0.0"
 
 [patterns."pt-020"]
-path = "ai-inference/pt-020-softmax-before-cross-entropy"
+path = "ai-training/pt-020-softmax-before-cross-entropy"
 name = "softmax-before-cross-entropy"
-category = "ai-inference"
+category = "ai-training"
 severity = "high"
 version = "1.0.0"
 

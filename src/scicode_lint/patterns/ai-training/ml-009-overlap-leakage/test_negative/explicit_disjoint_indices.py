@@ -7,7 +7,6 @@ def split_with_explicit_indices(X, y):
     n_samples = len(X)
     split_idx = int(0.8 * n_samples)
 
-    # Indices are explicitly disjoint
     train_idx = np.arange(0, split_idx)
     test_idx = np.arange(split_idx, n_samples)
 
@@ -21,7 +20,6 @@ def train_model():
     X = np.random.randn(1000, 20)
     y = np.random.randint(0, 2, 1000)
 
-    # Explicit disjoint indices - no overlap possible
     X_train, X_test, y_train, y_test = split_with_explicit_indices(X, y)
 
     model = SVC()

@@ -1,32 +1,28 @@
 import numpy as np
 
 
-def memoized_computation(x, cache={}):
-    if x in cache:
-        return cache[x]
-    result = np.exp(x)
-    cache[x] = result
-    return result
+def make_layer(input_dim, output_dim, weight_cache={}):
+    key = (input_dim, output_dim)
+    if key not in weight_cache:
+        weight_cache[key] = np.random.randn(input_dim, output_dim) * 0.01
+    return weight_cache[key]
 
 
-def build_features(data, feature_list=[]):
-    for i in range(len(data)):
-        feature_list.append(data[i] * 2)
-    return feature_list
+def log_metric(epoch, loss, log_entries=[]):
+    log_entries.append({"epoch": epoch, "loss": loss})
+    if len(log_entries) % 10 == 0:
+        avg = np.mean([e["loss"] for e in log_entries[-10:]])
+        return avg
+    return loss
 
 
-def register_callback(func, callbacks=[]):
-    callbacks.append(func)
-    return len(callbacks)
+class FeatureSelector:
+    def __init__(self, selected_features=set()):
+        self.features = selected_features
 
+    def add(self, name, importance):
+        if importance > 0.5:
+            self.features.add(name)
 
-def store_activations(layer_output, activation_store={}):
-    layer_id = len(activation_store)
-    activation_store[layer_id] = layer_output
-    return activation_store
-
-
-val1 = memoized_computation(1.0)
-val2 = memoized_computation(2.0)
-
-features = build_features(np.array([1, 2, 3]))
+    def get_mask(self, all_features):
+        return [f in self.features for f in all_features]

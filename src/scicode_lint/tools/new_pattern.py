@@ -45,9 +45,9 @@ class PatternCreator:
             raise FileExistsError(f"Pattern directory already exists: {pattern_dir}")
 
         pattern_dir.mkdir(parents=True, exist_ok=True)
-        (pattern_dir / "positive").mkdir(exist_ok=True)
-        (pattern_dir / "negative").mkdir(exist_ok=True)
-        (pattern_dir / "context_dependent").mkdir(exist_ok=True)
+        (pattern_dir / "test_positive").mkdir(exist_ok=True)
+        (pattern_dir / "test_negative").mkdir(exist_ok=True)
+        (pattern_dir / "test_context_dependent").mkdir(exist_ok=True)
 
         # Generate pattern.toml
         today = datetime.date.today().isoformat()
@@ -125,7 +125,7 @@ false_positive_risks = []  # Optional: Known sources of false positives
 # See existing patterns for examples
 
 [[tests.positive]]
-file = "positive/example_positive.py"
+file = "test_positive/example_positive.py"
 description = "TODO: Describe what this test case shows"
 expected_issue = "TODO: Expected issue description"
 min_confidence = 0.85
@@ -136,7 +136,7 @@ name = "example_function"
 snippet = "# Code snippet that triggers the issue"
 
 [[tests.negative]]
-file = "negative/example_negative.py"
+file = "test_negative/example_negative.py"
 description = "TODO: Describe correct code that should NOT trigger detection"
 
 [ai_science]
@@ -158,12 +158,12 @@ TODO: Notes for teaching/learning about this pattern.
 
         print(f"✓ Created pattern: {pattern_dir}")
         print("  - pattern.toml")
-        print("  - positive/")
-        print("  - negative/")
-        print("  - context_dependent/")
+        print("  - test_positive/")
+        print("  - test_negative/")
+        print("  - test_context_dependent/")
         print("\nNext steps:")
         print(f"1. Edit {toml_file}")
-        print("2. Add test files to positive/ and negative/")
+        print("2. Add test files to test_positive/ and test_negative/")
         print(f"3. Validate: python -m scicode_lint.tools.validate_pattern {pattern_dir}")
         print("4. Rebuild registry: python -m scicode_lint.tools.rebuild_registry")
 
@@ -171,7 +171,7 @@ TODO: Notes for teaching/learning about this pattern.
         """Create example test files with comments."""
 
         # Positive test example
-        positive_example = pattern_dir / "positive" / "example_positive.py"
+        positive_example = pattern_dir / "test_positive" / "example_positive.py"
         positive_example.write_text(
             '''"""
 Example positive test case.
@@ -189,7 +189,7 @@ This is a True Positive case - the bug is definitely present.
         )
 
         # Negative test example
-        negative_example = pattern_dir / "negative" / "example_negative.py"
+        negative_example = pattern_dir / "test_negative" / "example_negative.py"
         negative_example.write_text(
             '''"""
 Example negative test case.
@@ -207,7 +207,7 @@ This is a True Negative case - no bug is present.
         )
 
         # Context-dependent example
-        context_example = pattern_dir / "context_dependent" / "example_context.py"
+        context_example = pattern_dir / "test_context_dependent" / "example_context.py"
         context_example.write_text(
             '''"""
 Example context-dependent test case.
@@ -249,7 +249,6 @@ Examples:
 Available categories:
   - ai-training
   - ai-inference
-  - ai-data
   - scientific-numerical
   - scientific-reproducibility
   - scientific-performance
@@ -266,7 +265,6 @@ Available categories:
         choices=[
             "ai-training",
             "ai-inference",
-            "ai-data",
             "scientific-numerical",
             "scientific-reproducibility",
             "scientific-performance",

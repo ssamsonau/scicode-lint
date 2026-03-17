@@ -22,25 +22,34 @@ Python loop over NumPy array: 100-1000x slower than vectorized operation. Use br
 
 tags = []
 related_patterns = []
-references = []
+references = [
+    "https://numpy.org/doc/stable/user/basics.broadcasting.html",
+    "https://numpy.org/doc/stable/reference/generated/numpy.vectorize.html",
+]
 
 [detection]
 question = """
-Analyze array processing for vectorization opportunities.
+Analyze NUMPY ARRAY processing for vectorization opportunities.
 
-Python for loops over NumPy array elements (for i in range(len(arr))) are 100-1000x slower than vectorized operations. NumPy's power comes from compiled C operations on entire arrays.
+Python loops over NumPy ndarray elements are 100-1000x slower than vectorized operations.
 
-Correct approach: Use broadcasting, np.where(), or fancy indexing instead of element-wise loops.
+IMPORTANT: Only flag loops over NUMPY ARRAYS, not strings or lists.
 
-Does this code use Python loops over array elements?
+Does this code use Python loops over NumPy ARRAY elements?
 
 Look for:
-- for i in range(len(arr)) with arr[i] access
-- Nested loops computing pairwise operations
-- Element-wise conditionals that could use np.where()
+- for i in range(len(arr)) with arr[i] access WHERE arr is np.ndarray
+- Nested loops computing pairwise operations on arrays
+- Element-wise conditionals on arrays that could use np.where()
 
-YES = Bug found: Python loop over array elements instead of vectorization
-NO = Correct: uses vectorized NumPy operations
+NOT a bug (answer NO):
+- Loops over Python strings (character iteration) - can't be vectorized
+- Loops over Python lists (unless building NumPy operations)
+- Loops over DataFrame rows (use .apply() or vectorized ops instead)
+- Loops that perform I/O, network calls, or other inherently sequential operations
+
+YES = Bug: Python loop over NumPy ndarray elements (could use vectorized ops)
+NO = Clean: Vectorized ops, or loop over string/list, or inherently sequential
 """
 
 warning_message = """
@@ -63,6 +72,7 @@ min_confidence = 0.85
 type = "function"
 name = "normalize_array"
 snippet = "for i in range(len(arr)):"
+lines = [6]
 
 [[tests.positive]]
 file = "test_positive/element_iteration.py"
@@ -74,10 +84,11 @@ min_confidence = 0.85
 type = "function"
 name = "compute_distances"
 snippet = "for i in range(n):"
+lines = [7]
 
 [[tests.negative]]
 file = "test_negative/vectorized_operation.py"
-description = "Properly uses np.where for conditional vectorized operation - no Python loops"
+description = "Sigmoid activation and binary cross-entropy loss using vectorized NumPy operations - no Python loops"
 
 [[tests.negative]]
 file = "test_negative/broadcasting.py"
@@ -92,10 +103,15 @@ expected_issue = "Python loops over array rows appending to list instead of vect
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
-name = "compute_distances"
+type = "module"
+name = "row_iteration"
 snippet = "for point in points:"
+lines = [6, 14, 16, 17]
 
 [[tests.negative]]
 file = "test_negative/vectorized_operations.py"
-description = "Uses fully vectorized NumPy operations (broadcasting and axis reduction) for distance and normalization computations without any Python loops"
+description = "Z-score outlier detection, moving average convolution, and spectral energy computation using vectorized NumPy operations"
+
+[[tests.negative]]
+file = "test_negative/string_list_iteration.py"
+description = "Loops over Python strings and lists - cannot be vectorized with NumPy, inherently sequential operations"

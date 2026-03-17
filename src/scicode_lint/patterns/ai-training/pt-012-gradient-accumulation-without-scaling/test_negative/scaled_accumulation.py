@@ -1,34 +1,59 @@
+import torch
 import torch.nn as nn
 
 
-def train_with_scaled_accumulation(model, dataloader, optimizer, accumulation_steps=4):
+class GradientAccumulator:
+    """Handles gradient accumulation with proper loss scaling."""
+
+    def __init__(self, model: nn.Module, optimizer, accumulation_steps: int = 4):
+        self.model = model
+        self.optimizer = optimizer
+        self.accumulation_steps = accumulation_steps
+        self.step_count = 0
+
+    def accumulate(self, loss: torch.Tensor) -> bool:
+        """Accumulate scaled gradients. Returns True when optimizer stepped."""
+        scaled_loss = loss / self.accumulation_steps
+        scaled_loss.backward()
+
+        self.step_count += 1
+        if self.step_count % self.accumulation_steps == 0:
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+            return True
+        return False
+
+
+def train_with_mixed_precision_accumulation(model, loader, optimizer, scaler, accum_steps=8):
+    """Gradient accumulation with AMP scaler - loss properly divided."""
     model.train()
     criterion = nn.CrossEntropyLoss()
 
-    for batch_idx, (data, target) in enumerate(dataloader):
-        outputs = model(data)
-        loss = criterion(outputs, target)
+    for i, (inputs, targets) in enumerate(loader):
+        with torch.cuda.amp.autocast():
+            outputs = model(inputs)
+            loss = criterion(outputs, targets) / accum_steps
+        scaler.scale(loss).backward()
 
-        loss = loss / accumulation_steps
-        loss.backward()
-
-        if (batch_idx + 1) % accumulation_steps == 0:
-            optimizer.step()
+        if (i + 1) % accum_steps == 0:
+            scaler.step(optimizer)
+            scaler.update()
             optimizer.zero_grad()
 
 
-def proper_gradient_accumulation(model, loader, optimizer, num_accumulation=8):
-    model.train()
-    loss_fn = nn.MSELoss()
+def effective_batch_training(model, dataset, base_batch=16, effective_batch=128):
+    """Achieve large effective batch size through properly scaled accumulation."""
+    from torch.utils.data import DataLoader
 
-    optimizer.zero_grad()
-    for i, (x, y) in enumerate(loader):
-        pred = model(x)
-        loss = loss_fn(pred, y)
+    accumulation = effective_batch // base_batch
+    loader = DataLoader(dataset, batch_size=base_batch, shuffle=True)
+    optimizer = torch.optim.AdamW(model.parameters())
+    criterion = nn.MSELoss()
 
-        scaled_loss = loss / num_accumulation
-        scaled_loss.backward()
+    for step, (x, y) in enumerate(loader):
+        loss = criterion(model(x), y)
+        (loss / accumulation).backward()
 
-        if (i + 1) % num_accumulation == 0:
+        if (step + 1) % accumulation == 0:
             optimizer.step()
             optimizer.zero_grad()

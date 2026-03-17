@@ -1,4 +1,4 @@
-"""Verify findings using Claude CLI (Opus model).
+"""Verify findings using Claude CLI (Sonnet model).
 
 Evaluates whether scicode-lint findings are real issues by having Claude
 review the actual code in context.
@@ -24,20 +24,20 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from loguru import logger
+
+from dev_lib.claude_cli import DISALLOWED_TOOLS_ALL, ClaudeCLI, ClaudeCLIError
 
 from .config import COLLECTED_DIR, LEAKAGE_PAPER_COLLECTED_DIR, REPORTS_DIR
 from .database import get_db_path, get_run_stats, init_db, save_verification
 from .utils import extract_code_from_notebook
 
-if TYPE_CHECKING:
-    from asyncio.subprocess import Process
-
 # Defaults
-DEFAULT_PARALLEL = 3
-DEFAULT_MODEL = "opus"
+
+
+DEFAULT_MODEL = "sonnet"
 DEFAULT_TIMEOUT = 120
 
 
@@ -54,6 +54,9 @@ class Finding:
     explanation: str
     snippet: str
     lines: str  # JSON array
+    location_name: str | None  # Function/class/method name
+    location_type: str | None  # function, method, class, module
+    focus_line: int | None  # Specific line with the issue
     file_path: str
     original_path: str
     repo_name: str
@@ -133,7 +136,7 @@ VERIFICATION_PROMPT = """You are reviewing a potential code issue detected by an
 
 **Repository:** {repo_name} (domain: {domain})
 **File:** {original_path}
-
+{location_info}
 **Code snippet flagged:**
 ```python
 {snippet}
@@ -199,6 +202,9 @@ def load_findings_to_verify(
             fn.explanation,
             fn.snippet,
             fn.lines,
+            fn.location_name,
+            fn.location_type,
+            fn.focus_line,
             f.file_path,
             f.original_path,
             r.repo_name,
@@ -239,11 +245,14 @@ def load_findings_to_verify(
                 explanation=row[6],
                 snippet=row[7] or "",
                 lines=row[8] or "[]",
-                file_path=row[9],
-                original_path=row[10] or "",
-                repo_name=row[11],
-                repo_url=row[12] or "",
-                domain=row[13],
+                location_name=row[9],
+                location_type=row[10],
+                focus_line=row[11],
+                file_path=row[12],
+                original_path=row[13] or "",
+                repo_name=row[14],
+                repo_url=row[15] or "",
+                domain=row[16],
             )
         )
     return findings
@@ -309,101 +318,80 @@ def get_code_context(finding: Finding, context_lines: int = 30) -> str:
 async def verify_finding(
     finding: Finding,
     timeout: int,
-    semaphore: asyncio.Semaphore,
-    model: str,
+    cli: ClaudeCLI,
 ) -> VerificationResult:
     """Verify a single finding using Claude CLI.
+
+    Rate limiting is handled globally by ClaudeCLI.
 
     Args:
         finding: Finding to verify.
         timeout: Timeout in seconds.
-        semaphore: Semaphore for concurrency control.
-        model: Claude model to use.
+        cli: Claude CLI wrapper instance.
 
     Returns:
         VerificationResult with verdict.
     """
     result = VerificationResult(finding=finding)
+    result.status = "running"
 
-    async with semaphore:
-        result.status = "running"
+    # Get code context
+    context = get_code_context(finding)
 
-        # Get code context
-        context = get_code_context(finding)
+    # Build location info string
+    location_info = ""
+    if finding.location_name:
+        loc_type = finding.location_type or "function"
+        location_info = f"**Location:** {loc_type} `{finding.location_name}`"
+        if finding.focus_line:
+            location_info += f" (line {finding.focus_line})"
+        location_info += "\n"
 
-        # Build prompt
-        prompt = VERIFICATION_PROMPT.format(
-            pattern_id=finding.pattern_id,
-            category=finding.category,
-            severity=finding.severity,
-            confidence=finding.confidence,
-            issue=finding.issue,
-            explanation=finding.explanation,
-            repo_name=finding.repo_name,
-            domain=finding.domain,
-            original_path=finding.original_path,
-            snippet=finding.snippet,
-            context=context,
+    # Build prompt
+    prompt = VERIFICATION_PROMPT.format(
+        pattern_id=finding.pattern_id,
+        category=finding.category,
+        severity=finding.severity,
+        confidence=finding.confidence,
+        issue=finding.issue,
+        explanation=finding.explanation,
+        repo_name=finding.repo_name,
+        domain=finding.domain,
+        original_path=finding.original_path,
+        location_info=location_info,
+        snippet=finding.snippet,
+        context=context,
+    )
+
+    try:
+        cli_result = await cli.arun(
+            prompt,
+            disallowed_tools=DISALLOWED_TOOLS_ALL,
+            timeout=timeout,
         )
+        output = cli_result.stdout.strip()
+        result.reasoning = output
 
-        try:
-            proc: Process = await asyncio.create_subprocess_exec(
-                "claude",
-                "--model",
-                model,
-                "--print",
-                "--disallowed-tools",
-                "Task,WebSearch,WebFetch,Bash,Write,Edit,NotebookEdit,Read,Glob,Grep",
-                "--",
-                prompt,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
+        # Parse verdict from first line
+        first_line = output.split("\n")[0].upper() if output else ""
+        if "VALID" in first_line and "INVALID" not in first_line:
+            result.status = "valid"
+        elif "INVALID" in first_line:
+            result.status = "invalid"
+        elif "UNCERTAIN" in first_line:
+            result.status = "uncertain"
+        else:
+            result.status = "uncertain"
 
-            try:
-                stdout, stderr = await asyncio.wait_for(
-                    proc.communicate(),
-                    timeout=timeout,
-                )
-            except TimeoutError:
-                proc.kill()
-                await proc.wait()
-                result.status = "error"
-                result.error = f"Timeout after {timeout}s"
-                return result
-
-            if proc.returncode != 0:
-                result.status = "error"
-                result.error = stderr.decode() if stderr else f"Exit code {proc.returncode}"
-                return result
-
-            output = stdout.decode().strip() if stdout else ""
-            result.reasoning = output
-
-            # Parse verdict from first line
-            first_line = output.split("\n")[0].upper() if output else ""
-            if "VALID" in first_line and "INVALID" not in first_line:
-                result.status = "valid"
-            elif "INVALID" in first_line:
-                result.status = "invalid"
-            elif "UNCERTAIN" in first_line:
-                result.status = "uncertain"
-            else:
-                result.status = "uncertain"
-
-        except FileNotFoundError:
-            result.status = "error"
-            result.error = "Claude CLI not found. Run: claude login"
-        except Exception as e:
-            result.status = "error"
-            result.error = str(e)
+    except ClaudeCLIError as e:
+        result.status = "error"
+        result.error = str(e)
 
     return result
 
 
 async def verify_all_findings(
     findings: list[Finding],
-    parallel: int,
     timeout: int,
     model: str,
     quiet: bool = False,
@@ -411,9 +399,10 @@ async def verify_all_findings(
 ) -> list[VerificationResult]:
     """Verify multiple findings in parallel.
 
+    Rate limiting is handled globally by ClaudeCLI (semaphore + RPM limiter).
+
     Args:
         findings: List of findings to verify.
-        parallel: Max concurrent verifications.
         timeout: Timeout per finding.
         model: Claude model to use.
         quiet: Suppress progress output.
@@ -423,11 +412,11 @@ async def verify_all_findings(
     Returns:
         List of VerificationResult.
     """
-    semaphore = asyncio.Semaphore(parallel)
+    cli = ClaudeCLI(model=model, effort="high")
 
     tasks = []
     for finding in findings:
-        task = asyncio.create_task(verify_finding(finding, timeout, semaphore, model))
+        task = asyncio.create_task(verify_finding(finding, timeout, cli))
         tasks.append(task)
 
     results = []
@@ -505,7 +494,7 @@ def update_findings_report(
     verification_date = datetime.now().strftime("%Y-%m-%d %H:%M")
     banner = [
         "",
-        f"> **Verification (Claude Opus, {verification_date}):** "
+        f"> **Verification (Claude Sonnet, {verification_date}):** "
         f"{valid}/{total} findings confirmed as real issues ({precision:.0f}% precision)",
         "",
     ]
@@ -598,7 +587,7 @@ def generate_verification_report(
     # Header
     lines.append("# Findings Verification Report")
     lines.append("")
-    lines.append("Claude (Opus) evaluation of whether detected issues are real problems.")
+    lines.append("Claude (Sonnet) evaluation of whether detected issues are real problems.")
     lines.append("")
 
     # Dates
@@ -734,7 +723,7 @@ def generate_verification_report(
     lines.append("---")
     lines.append("")
     lines.append(
-        f"*Verification conducted: {datetime.now().strftime('%Y-%m-%d %H:%M')} using Claude Opus*"
+        f"*Verification conducted: {datetime.now().strftime('%Y-%m-%d %H:%M')} using Claude Sonnet*"
     )
     lines.append("")
 
@@ -757,13 +746,6 @@ def main() -> None:
         "--limit",
         type=int,
         help="Max findings to verify",
-    )
-    parser.add_argument(
-        "--parallel",
-        "-p",
-        type=int,
-        default=DEFAULT_PARALLEL,
-        help=f"Max concurrent verifications (default: {DEFAULT_PARALLEL})",
     )
     parser.add_argument(
         "--timeout",
@@ -830,13 +812,12 @@ def main() -> None:
         raise SystemExit(0 if args.skip_verified else 1)
 
     logger.info(f"Verifying {len(findings)} findings with Claude {args.model}")
-    logger.info(f"Parallel: {args.parallel}, Timeout: {args.timeout}s")
+    logger.info(f"Timeout: {args.timeout}s")
 
     # Run verification (saves results incrementally to database)
     results = asyncio.run(
         verify_all_findings(
             findings,
-            parallel=args.parallel,
             timeout=args.timeout,
             model=args.model,
             quiet=args.quiet,

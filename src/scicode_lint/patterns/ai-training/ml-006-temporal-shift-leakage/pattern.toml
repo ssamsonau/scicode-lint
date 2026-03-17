@@ -56,7 +56,7 @@ false_positive_risks = []
 
 [[tests.positive]]
 file = "test_positive/shift_negative_leakage.py"
-description = "Using shift(-1) that pulls future data"
+description = "Future leakage using array slicing (values[1:]) and centered rolling windows"
 expected_issue = "Temporal leakage: shift or rolling uses future data as features"
 min_confidence = 0.85
 
@@ -64,6 +64,7 @@ min_confidence = 0.85
 type = "function"
 name = "create_features_with_future_shift"
 snippet = "df[\"price\"].values[1:]"
+lines = [6]
 
 [[tests.negative]]
 file = "test_negative/shift_positive_correct.py"
@@ -76,6 +77,12 @@ context_notes = "Edge case behavior with min_periods can be confusing but not ne
 allow_detection = true
 allow_skip = true
 
+[tests.context_dependent.expected_location]
+type = "function"
+name = "rolling_with_min_periods"
+snippet = "df[\"price_rolling\"] = df[\"price\"].rolling(window=7, min_periods=3).mean()"
+lines = [2]
+
 
 [[tests.positive]]
 file = "test_positive/lag_feature_leak.py"
@@ -87,6 +94,7 @@ min_confidence = 0.85
 type = "function"
 name = "create_lag_features"
 snippet = "df[target_col].shift(-i)"
+lines = [3]
 
 [[tests.positive]]
 file = "test_positive/shift_future.py"
@@ -98,6 +106,7 @@ min_confidence = 0.85
 type = "function"
 name = "create_lag_features"
 snippet = "df[\"next_price\"] = df[\"price\"].shift(-1)"
+lines = [2]
 
 [[tests.negative]]
 file = "test_negative/lag_feature_proper.py"

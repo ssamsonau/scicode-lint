@@ -22,10 +22,11 @@ Background execution with real-time monitoring:
     tail -f pattern_verification/semantic/reports/*/patterns/*.log  # Individual pattern logs
 
 Options:
-    --parallel N     Run N concurrent Claude processes (default from config.toml)
-    --model MODEL    Claude model: haiku, sonnet, opus (default from config.toml)
+    --model MODEL    Claude model: sonnet, opus (default from config.toml)
     --timeout SECS   Timeout per pattern in seconds (default: 300)
     --quiet          Suppress stdout progress
+
+Rate limiting: Controlled globally via [claude_cli] in config.toml.
 
 Architecture:
     Uses async write queue to serialize disk I/O. Multiple Claude processes run in
@@ -47,51 +48,35 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
-import tomllib
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-import aiofiles
+# Add project root to sys.path so dev_lib can be imported
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-if TYPE_CHECKING:
-    from asyncio.subprocess import Process
-
-# Default parallel count (used if config.toml cannot be loaded)
-DEFAULT_SEMANTIC_PARALLEL = 4
-DEFAULT_SEMANTIC_MODEL = "haiku"
-
-
-def _load_config() -> dict[str, object]:
-    """Load config.toml from project root."""
-    config_path = Path(__file__).parent.parent.parent / "config.toml"
-    if config_path.exists():
-        with open(config_path, "rb") as f:
-            return tomllib.load(f)
-    return {}
-
-
-def get_default_semantic_parallel() -> int:
-    """Get default parallel count from config.toml."""
-    config = _load_config()
-    pv_config = config.get("pattern_verification", {})
-    if isinstance(pv_config, dict):
-        value = pv_config.get("semantic_parallel", DEFAULT_SEMANTIC_PARALLEL)
-        if isinstance(value, int):
-            return value
-    return DEFAULT_SEMANTIC_PARALLEL
+from dev_lib.claude_cli import DEFAULT_DISALLOWED_TOOLS, ClaudeCLI, ClaudeCLIError  # noqa: E402
+from dev_lib.config import load_project_config  # noqa: E402
+from dev_lib.run_output import RunOutput, write_worker  # noqa: E402
 
 
 def get_default_semantic_model() -> str:
-    """Get default model from config.toml (haiku, sonnet, or opus)."""
-    config = _load_config()
-    pv_config = config.get("pattern_verification", {})
-    if isinstance(pv_config, dict):
-        value = pv_config.get("semantic_model", DEFAULT_SEMANTIC_MODEL)
-        if isinstance(value, str) and value in ("haiku", "sonnet", "opus"):
-            return value
-    return DEFAULT_SEMANTIC_MODEL
+    """Get default model from config.toml (sonnet or opus).
+
+    Raises:
+        RuntimeError: If semantic_model is missing or invalid.
+    """
+    config = load_project_config()
+    pv_config = config["pattern_verification"]
+    if not isinstance(pv_config, dict):
+        raise RuntimeError("Invalid [pattern_verification] section in config.toml")
+
+    value = pv_config.get("semantic_model")
+    if value is None:
+        raise RuntimeError("Missing semantic_model in [pattern_verification] config")
+    if not isinstance(value, str) or value not in ("sonnet", "opus"):
+        raise RuntimeError(f"semantic_model must be 'sonnet' or 'opus', got: {value!r}")
+    return value
 
 
 # Categories in the patterns directory
@@ -105,45 +90,6 @@ CATEGORIES = [
 
 # Default reports directory (relative to script location)
 REPORTS_DIR = Path(__file__).parent / "reports"
-
-
-@dataclass
-class RunOutput:
-    """Output paths for a validation run."""
-
-    run_dir: Path
-    summary: Path
-    log: Path
-    patterns_dir: Path
-
-    @classmethod
-    def create(cls, scope: str) -> RunOutput:
-        """Create a new run output directory structure.
-
-        Args:
-            scope: What's being validated (e.g., "all", "ai-training", "pt-001")
-
-        Returns:
-            RunOutput with all paths created
-        """
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        run_dir = REPORTS_DIR / f"{timestamp}_{scope}"
-        patterns_dir = run_dir / "patterns"
-
-        # Create directories
-        run_dir.mkdir(parents=True, exist_ok=True)
-        patterns_dir.mkdir(exist_ok=True)
-
-        return cls(
-            run_dir=run_dir,
-            summary=run_dir / "summary.md",
-            log=run_dir / "progress.log",
-            patterns_dir=patterns_dir,
-        )
-
-    def pattern_file(self, pattern_id: str) -> Path:
-        """Get path for individual pattern log (raw Claude output)."""
-        return self.patterns_dir / f"{pattern_id}.log"
 
 
 @dataclass
@@ -221,117 +167,62 @@ async def run_semantic_check(
     pattern_id: str,
     category: str,
     timeout: int,
-    semaphore: asyncio.Semaphore,
-    model: str,
+    cli: ClaudeCLI,
 ) -> SemanticResult:
     """Run semantic validation for a single pattern using Claude CLI.
+
+    Rate limiting is handled globally by ClaudeCLI.
 
     Args:
         pattern_id: Pattern ID to validate
         category: Category of the pattern
         timeout: Timeout in seconds
-        semaphore: Semaphore for concurrency control
-        model: Claude model to use (haiku, sonnet, opus)
+        cli: Claude CLI wrapper instance
 
     Returns:
         SemanticResult with validation results
     """
     result = SemanticResult(pattern_id=pattern_id, category=category)
+    result.status = "running"
+    prompt = f"Review {pattern_id}"
 
-    async with semaphore:
-        result.status = "running"
+    try:
+        cli_result = await cli.arun(
+            prompt,
+            agent="pattern-reviewer",
+            disallowed_tools=DEFAULT_DISALLOWED_TOOLS,
+            timeout=timeout,
+        )
+        output = cli_result.stdout
+        result.output = output
 
-        # Build the prompt for the pattern-reviewer agent
-        prompt = f"Review {pattern_id}"
+        # Parse output to determine if there are issues
+        output_lower = output.lower()
+        if any(
+            term in output_lower
+            for term in ["issue found", "inconsisten", "mismatch", "incorrect", "missing"]
+        ):
+            result.status = "issues"
+            # Extract issue lines (simple heuristic)
+            for line in output.split("\n"):
+                line_lower = line.lower()
+                if any(
+                    term in line_lower
+                    for term in ["issue", "error", "mismatch", "incorrect", "missing"]
+                ):
+                    result.issues.append(line.strip())
+        else:
+            result.status = "ok"
 
-        try:
-            # Run claude CLI with pattern-reviewer agent
-            # Explicitly restrict tools to prevent Task spawning (memory explosion)
-            # Use "--" to separate options from prompt (--disallowed-tools is variadic)
-            proc: Process = await asyncio.create_subprocess_exec(
-                "claude",
-                "--agent",
-                "pattern-reviewer",
-                "--model",
-                model,
-                "--print",
-                "--disallowed-tools",
-                "Task,WebSearch,WebFetch,Bash,Write,Edit,NotebookEdit",
-                "--",  # End of options
-                prompt,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-
-            try:
-                stdout, stderr = await asyncio.wait_for(
-                    proc.communicate(),
-                    timeout=timeout,
-                )
-            except TimeoutError:
-                proc.kill()
-                await proc.wait()
-                result.status = "error"
-                result.error = f"Timeout after {timeout}s"
-                return result
-
-            if proc.returncode != 0:
-                result.status = "error"
-                result.error = stderr.decode() if stderr else f"Exit code {proc.returncode}"
-                return result
-
-            output = stdout.decode() if stdout else ""
-            result.output = output
-
-            # Parse output to determine if there are issues
-            output_lower = output.lower()
-            if any(
-                term in output_lower
-                for term in ["issue found", "inconsisten", "mismatch", "incorrect", "missing"]
-            ):
-                result.status = "issues"
-                # Extract issue lines (simple heuristic)
-                for line in output.split("\n"):
-                    line_lower = line.lower()
-                    if any(
-                        term in line_lower
-                        for term in ["issue", "error", "mismatch", "incorrect", "missing"]
-                    ):
-                        result.issues.append(line.strip())
-            else:
-                result.status = "ok"
-
-        except FileNotFoundError:
-            result.status = "error"
-            result.error = "Claude CLI not found. Install: npm install -g @anthropic-ai/claude-code"
-        except Exception as e:
-            result.status = "error"
-            result.error = str(e)
+    except ClaudeCLIError as e:
+        result.status = "error"
+        result.error = str(e)
 
     return result
 
 
-async def _write_worker(
-    queue: asyncio.Queue[tuple[Path, str] | None],
-) -> None:
-    """Worker that writes pattern logs sequentially from a queue.
-
-    Serializes disk writes to avoid I/O contention. Stops when None is received.
-    """
-    while True:
-        item = await queue.get()
-        if item is None:
-            queue.task_done()
-            break
-        path, content = item
-        async with aiofiles.open(path, "w") as f:
-            await f.write(content)
-        queue.task_done()
-
-
 async def run_all_checks(
     patterns: list[tuple[str, str]],
-    parallel: int,
     timeout: int,
     model: str,
     run_output: RunOutput | None = None,
@@ -339,34 +230,32 @@ async def run_all_checks(
 ) -> list[SemanticResult]:
     """Run semantic validation on multiple patterns.
 
+    Rate limiting is handled globally by ClaudeCLI (semaphore + RPM limiter).
     Pattern logs are written incrementally as results come in, using an async
     queue to serialize disk writes and avoid I/O contention.
 
     Args:
         patterns: List of (pattern_id, category) tuples
-        parallel: Max concurrent validations
         timeout: Timeout per pattern in seconds
-        model: Claude model to use (haiku, sonnet, opus)
+        model: Claude model to use (sonnet, opus)
         run_output: Optional output directory for writing logs
         quiet: If True, suppress stdout progress
 
     Returns:
         List of SemanticResult
     """
-    semaphore = asyncio.Semaphore(parallel)
+    cli = ClaudeCLI(model=model, effort="medium")
     write_queue: asyncio.Queue[tuple[Path, str] | None] = asyncio.Queue()
 
     # Start the write worker
-    writer_task = asyncio.create_task(_write_worker(write_queue))
+    writer_task = asyncio.create_task(write_worker(write_queue))
 
     # Open progress log file
     progress_file = run_output.log.open("a") if run_output else None
 
     tasks = []
     for pattern_id, category in patterns:
-        task = asyncio.create_task(
-            run_semantic_check(pattern_id, category, timeout, semaphore, model)
-        )
+        task = asyncio.create_task(run_semantic_check(pattern_id, category, timeout, cli))
         tasks.append(task)
 
     results = []
@@ -390,7 +279,7 @@ async def run_all_checks(
 
         # Queue pattern log write (non-blocking, serialized by worker)
         if run_output and result.output:
-            pattern_file = run_output.pattern_file(result.pattern_id)
+            pattern_file = run_output.item_file(result.pattern_id)
             content = format_pattern_log(result)
             await write_queue.put((pattern_file, content))
             result.output = ""  # Free memory after queuing
@@ -519,16 +408,13 @@ def main() -> int:
         "--all",
         action="store_true",
         dest="all_patterns",
-        help="Validate all 64 patterns",
+        help="Validate all patterns",
     )
-    default_parallel = get_default_semantic_parallel()
-    parser.add_argument(
-        "--parallel",
-        "-p",
-        type=int,
-        default=default_parallel,
-        help=f"Max concurrent validations (default: {default_parallel}, from config.toml)",
-    )
+    try:
+        default_model = get_default_semantic_model()
+    except (FileNotFoundError, RuntimeError) as e:
+        print(f"Error loading config: {e}", file=sys.stderr)
+        return 1
     parser.add_argument(
         "--timeout",
         "-t",
@@ -542,11 +428,10 @@ def main() -> int:
         action="store_true",
         help="Suppress progress output",
     )
-    default_model = get_default_semantic_model()
     parser.add_argument(
         "--model",
         "-m",
-        choices=["haiku", "sonnet", "opus"],
+        choices=["sonnet", "opus"],
         default=default_model,
         help=f"Claude model to use (default: {default_model}, from config.toml)",
     )
@@ -569,10 +454,15 @@ def main() -> int:
     # Determine scope and build pattern list
     scope = ""
     if args.pattern:
-        found = find_pattern(patterns_dir, args.pattern)
-        if not found:
+        from pattern_verification.utils import resolve_pattern
+
+        resolved = resolve_pattern(patterns_dir, args.pattern)
+        if not resolved:
             print(f"Error: Pattern '{args.pattern}' not found", file=sys.stderr)
             return 1
+        # Convert Path to (pattern_id, category) tuple
+        p = resolved[0]
+        found = (p.name, p.parent.name)
         patterns = [found]
         scope = found[0]  # pattern_id
 
@@ -590,26 +480,25 @@ def main() -> int:
     # Create run output directory for batch runs
     run_output: RunOutput | None = None
     if len(patterns) > 1:
-        run_output = RunOutput.create(scope)
+        run_output = RunOutput.create(REPORTS_DIR, scope, items_dirname="patterns")
         print(f"Output directory: {run_output.run_dir}")
         print(f"  Summary:  {run_output.summary}")
         print(f"  Log:      {run_output.log}")
-        print(f"  Patterns: {run_output.patterns_dir}/")
-        run_output.log.write_text("")  # Initialize log file
+        print(f"  Patterns: {run_output.items_dir}/")
+        run_output.init_log()
 
-    print(f"Validating {len(patterns)} pattern(s) with {args.parallel} concurrent processes...")
+    print(f"Validating {len(patterns)} pattern(s)...")
     print(f"Model: {args.model}")
     print(f"Timeout: {args.timeout}s per pattern")
     if run_output:
         print(f"Monitor progress: tail -f {run_output.log}")
-        print(f"Pattern logs appear in: {run_output.patterns_dir}/")
+        print(f"Pattern logs appear in: {run_output.items_dir}/")
     print()
 
     # Run validation (pattern logs written incrementally via async queue)
     results = asyncio.run(
         run_all_checks(
             patterns,
-            parallel=args.parallel,
             timeout=args.timeout,
             model=args.model,
             run_output=run_output,

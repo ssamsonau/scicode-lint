@@ -1,0 +1,285 @@
+[
+  {
+    "paper_url": "https://paperswithcode.com/paper/astroclip-cross-modal-pre-training-for",
+    "title": "AstroCLIP: A Cross-Modal Foundation Model for Galaxies",
+    "matched_domain": "astronomy",
+    "repo_urls": [
+      "https://github.com/PolymathicAI/AstroCLIP"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/mantis-shrimp-exploring-photometric-band",
+    "title": "Mantis Shrimp: Exploring Photometric Band Utilization in Computer Vision Networks for Photometric Redshift Estimation",
+    "matched_domain": "astronomy",
+    "repo_urls": [
+      "https://github.com/pnnl/mantisshrimp"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/generative-diffusion-model-with-inverse",
+    "title": "Generative diffusion model with inverse renormalization group flows",
+    "matched_domain": "biology",
+    "repo_urls": [
+      "https://github.com/kantamasuki/rgdm"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/all-atom-diffusion-transformers-unified",
+    "title": "All-atom Diffusion Transformers: Unified generative modelling of molecules and materials",
+    "matched_domain": "chemistry",
+    "repo_urls": [
+      "https://github.com/facebookresearch/all-atom-diffusion-transformer"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/inverse-molecular-design-with-multi",
+    "title": "Graph Diffusion Transformers for Multi-Conditional Molecular Generation",
+    "matched_domain": "chemistry",
+    "repo_urls": [
+      "https://github.com/liugangcode/MCD"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/a-case-study-of-spatiotemporal-forecasting",
+    "title": "A case study of spatiotemporal forecasting techniques for weather forecasting",
+    "matched_domain": "earth_science",
+    "repo_urls": [
+      "https://github.com/shakirsofi/tensorizingdmd"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/building-machine-learning-limited-area-models",
+    "title": "Building Machine Learning Limited Area Models: Kilometer-Scale Weather Forecasting in Realistic Settings",
+    "matched_domain": "earth_science",
+    "repo_urls": [
+      "https://github.com/joeloskarsson/neural-lam-dev"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/fuxi-da-a-generalized-deep-learning-data",
+    "title": "Fuxi-DA: A Generalized Deep Learning Data Assimilation Framework for Assimilating Satellite Observations",
+    "matched_domain": "earth_science",
+    "repo_urls": [
+      "https://github.com/wuxinwang1997/dabench"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/increasing-the-robustness-of-model",
+    "title": "Increasing the Robustness of Model Predictions to Missing Sensors in Earth Observation",
+    "matched_domain": "earth_science",
+    "repo_urls": [
+      "https://github.com/fmenat/mvlearning",
+      "https://github.com/fmenat/com-views"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/robust-and-conjugate-spatio-temporal-gaussian",
+    "title": "Robust and Conjugate Spatio-Temporal Gaussian Processes",
+    "matched_domain": "earth_science",
+    "repo_urls": [
+      "https://github.com/williamlaplante/st-rcgp"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/st-rap-a-spatio-temporal-framework-for-real",
+    "title": "ST-RAP: A Spatio-Temporal Framework for Real Estate Appraisal",
+    "matched_domain": "economics",
+    "repo_urls": [
+      "https://github.com/dojeon-ai/strap"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/a-hybrid-sparse-dense-monocular-slam-system",
+    "title": "A Hybrid Sparse-Dense Monocular SLAM System for Autonomous Driving",
+    "matched_domain": "engineering",
+    "repo_urls": [
+      "https://github.com/robotvisionmu/densemonoslam"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/a-semi-decoupled-approach-to-fast-and-optimal",
+    "title": "A Semi-Decoupled Approach to Fast and Optimal Hardware-Software Co-Design of Neural Accelerators",
+    "matched_domain": "engineering",
+    "repo_urls": [
+      "https://github.com/ren-research/codesign"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/one-shot-feature-preserving-point-cloud",
+    "title": "GP-PCS: One-shot Feature-Preserving Point Cloud Simplification with Gaussian Processes on Riemannian Manifolds",
+    "matched_domain": "engineering",
+    "repo_urls": [
+      "https://github.com/stutipathak5/gps-for-point-clouds"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/graph-neural-network-for-large-scale-network",
+    "title": "Graph Neural Network for Large-Scale Network Localization",
+    "matched_domain": "engineering",
+    "repo_urls": [
+      "https://github.com/Yanzongzi/GNN-For-localization"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/unsupervised-optimal-power-flow-using-graph",
+    "title": "Unsupervised Optimal Power Flow Using Graph Neural Networks",
+    "matched_domain": "engineering",
+    "repo_urls": [
+      "https://github.com/tomyvazquez/doraa-uy"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/atomai-a-deep-learning-framework-for-analysis",
+    "title": "AtomAI: A Deep Learning Framework for Analysis of Image and Spectroscopy Data in (Scanning) Transmission Electron Microscopy and Beyond",
+    "matched_domain": "materials",
+    "repo_urls": [
+      "https://github.com/pycroscopy/atomai"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/an-improved-deep-convolutional-neural-network-1",
+    "title": "An Improved Deep Convolutional Neural Network by Using Hybrid Optimization Algorithms to Detect and Classify Brain Tumor Using Augmented MRI Images",
+    "matched_domain": "medicine",
+    "repo_urls": [
+      "https://github.com/bryarahassan/dcnn-g-hho"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/large-ai-models-in-health-informatics",
+    "title": "Large AI Models in Health Informatics: Applications, Challenges, and the Future",
+    "matched_domain": "medicine",
+    "repo_urls": [
+      "https://github.com/Jianing-Qiu/Awesome-Healthcare-Foundation-Models"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/precision-anti-cancer-drug-selection-via",
+    "title": "Precision Anti-Cancer Drug Selection via Neural Ranking",
+    "matched_domain": "medicine",
+    "repo_urls": [
+      "https://github.com/ninglab/drugranker"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/selective-information-passing-for-mr-ct-image",
+    "title": "Selective Information Passing for MR/CT Image Segmentation",
+    "matched_domain": "medicine",
+    "repo_urls": [
+      "https://github.com/ahukui/SIPNet"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/voltex-food-volume-estimation-using-text",
+    "title": "VolTex: Food Volume Estimation using Text-Guided Segmentation and Neural Surface Reconstruction",
+    "matched_domain": "medicine",
+    "repo_urls": [
+      "https://github.com/gcvcg/voltex"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/hyper-diffusion-estimating-epistemic-and",
+    "title": "Estimating Epistemic and Aleatoric Uncertainty with a Single Model",
+    "matched_domain": "medicine, earth_science",
+    "repo_urls": [
+      "https://github.com/matthewachan/hyperdm"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/regression-conformal-prediction-under-bias",
+    "title": "Regression Conformal Prediction under Bias",
+    "matched_domain": "medicine, earth_science",
+    "repo_urls": [
+      "https://github.com/matthewyccheung/conformal-metric"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/gouhfi-a-novel-contrast-and-resolution",
+    "title": "GOUHFI: a novel contrast- and resolution-agnostic segmentation tool for Ultra-High Field MRI",
+    "matched_domain": "neuroscience",
+    "repo_urls": [
+      "https://zenodo.org/record/15255556",
+      "https://github.com/mafortin/GOUHFI"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/unsupervised-learning-of-spatio-temporal",
+    "title": "Unsupervised Learning of Spatio-Temporal Patterns in Spiking Neuronal Networks",
+    "matched_domain": "neuroscience",
+    "repo_urls": [
+      "https://github.com/ffeiler/unsupervised_sequence_learning_stp_snn"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/ai2-scholar-qa-organized-literature-synthesis",
+    "title": "Ai2 Scholar QA: Organized Literature Synthesis with Attribution",
+    "matched_domain": "none",
+    "repo_urls": [
+      "https://github.com/allenai/ai2-scholarqa-lib"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/cnn-fixations-an-unraveling-approach-to",
+    "title": "CNN Fixations: An unraveling approach to visualize the discriminative image regions",
+    "matched_domain": "none",
+    "repo_urls": [
+      "https://github.com/utsavgarg/cnn-fixations",
+      "https://github.com/val-iisc/cnn-fixations"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/lifelong-learning-in-evolving-graphs-with",
+    "title": "Lifelong Learning on Evolving Graphs Under the Constraints of Imbalanced Classes and New Classes",
+    "matched_domain": "none",
+    "repo_urls": [
+      "https://github.com/lgalke/lifelong-learning"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/upgpt-universal-diffusion-model-for-person",
+    "title": "UPGPT: Universal Diffusion Model for Person Image Generation, Editing and Pose Transfer",
+    "matched_domain": "none",
+    "repo_urls": [
+      "https://github.com/soon-yau/upgpt"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/what-to-remember-self-adaptive-continual",
+    "title": "What to Remember: Self-Adaptive Continual Learning for Audio Deepfake Detection",
+    "matched_domain": "none",
+    "repo_urls": [
+      "https://github.com/cecile-hi/regularized-adaptive-weight-modification"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/automating-quantum-feature-map-design-via",
+    "title": "Automating quantum feature map design via large language models",
+    "matched_domain": "physics",
+    "repo_urls": [
+      "https://github.com/Qyusu/astronaut"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/pde-dkl-pde-constrained-deep-kernel-learning",
+    "title": "PDE-DKL: PDE-constrained deep kernel learning in high dimensionality",
+    "matched_domain": "physics",
+    "repo_urls": [
+      "https://github.com/VhaoYan/PDE-constrained-DKL"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/quantum-adiabatic-machine-learning-with",
+    "title": "Quantum adiabatic machine learning with zooming",
+    "matched_domain": "physics",
+    "repo_urls": [
+      "https://github.com/quantummind/qaml-z"
+    ]
+  },
+  {
+    "paper_url": "https://paperswithcode.com/paper/reverse-map-projections-as-equivariant",
+    "title": "Reverse Map Projections as Equivariant Quantum Embeddings",
+    "matched_domain": "physics",
+    "repo_urls": [
+      "https://github.com/kezmcd1903/equivariant_qnns"
+    ]
+  }
+]

@@ -67,6 +67,7 @@ min_confidence = 0.85
 type = "function"
 name = "check_convergence"
 snippet = "if current == target:"
+lines = [5, 11]
 
 [[tests.positive]]
 file = "test_positive/array_comparison.py"
@@ -78,17 +79,16 @@ min_confidence = 0.85
 type = "function"
 name = "compare_arrays"
 snippet = "if (arr1 == arr2).all():"
+lines = [5, 11]
 
 [[tests.negative]]
 file = "test_negative/proper_tolerance.py"
-description = "Proper use of np.isclose(), np.allclose(), math.isclose(), or abs() with tolerance for float comparisons"
+description = "Numerical algorithms (bisection, gradient descent) that use abs() with tolerance for convergence, never comparing floats with =="
 
 [[tests.negative]]
 file = "test_negative/integer_comparison.py"
 description = "Exact equality comparison on integers, indices, counters, and flags where == is appropriate"
 
-
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/tolerance_check.py"
 description = "Exact equality checks on computed floating point results (norm, probability sum, matrix product) where tolerance is needed due to numerical precision limits"
@@ -98,8 +98,9 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "check_normalized"
-snippet = "norm = np.linalg.norm(vector)"
+snippet = "== 1.0"
+lines = [6, 11, 19]
 
 [[tests.negative]]
 file = "test_negative/tolerance_check_correct.py"
-description = "Correct approach using np.isclose() and np.allclose() with explicit tolerance parameters (atol/rtol) for comparing computed floating point results"
+description = "Linear algebra routines (softmax, Gram-Schmidt, power iteration) that use norm-based and abs() convergence checks, with no float equality comparisons"

@@ -16,7 +16,7 @@
 **Option A: Using remote vLLM server** (university/institutional)
 ```bash
 pip install scicode-lint
-scicode-lint check path/to/code.py --vllm-url https://vllm.your-institution.edu
+scicode-lint lint path/to/code.py --vllm-url https://vllm.your-institution.edu
 
 # Or configure once in ~/.config/scicode-lint/config.toml:
 # [llm]
@@ -34,7 +34,7 @@ vllm serve RedHatAI/Qwen3-8B-FP8-dynamic \
     --max-model-len 20000
 
 # 3. Run the linter (in another terminal)
-scicode-lint check path/to/code.py
+scicode-lint lint path/to/code.py
 ```
 
 ## Installation: Isolated Environment (Recommended)
@@ -167,10 +167,10 @@ Colab is not supported. Use cloud providers with L4/A10 GPUs instead.
 
 # 3. Wait for server to start (30-60 seconds)
 import time
-import requests
+import httpx
 for i in range(30):
     try:
-        response = requests.get("http://localhost:5001/health")
+        response = httpx.get("http://localhost:5001/health")
         if response.status_code == 200:
             print("✓ vLLM server ready!")
             break
@@ -180,7 +180,7 @@ for i in range(30):
     print(f"Waiting for server... ({i*2}s)")
 
 # 4. Check your code
-!scicode-lint check your_file.py
+!scicode-lint lint your_file.py
 
 # Or use Python API
 from pathlib import Path
@@ -231,11 +231,11 @@ for finding in result.findings:
 **Example: Using institutional vLLM server**
 ```bash
 # Option 1: CLI flag (per-command)
-scicode-lint check your_code.py --vllm-url https://vllm.your-hpc.edu
+scicode-lint lint your_code.py --vllm-url https://vllm.your-hpc.edu
 
 # Option 2: Environment variable (per-session)
 export OPENAI_BASE_URL="https://vllm.your-hpc.edu/v1"
-scicode-lint check your_code.py
+scicode-lint lint your_code.py
 
 # Option 3: Config file (persistent) - create ~/.config/scicode-lint/config.toml
 # [llm]
@@ -256,11 +256,11 @@ Connect to a remote vLLM server (institutional or self-hosted):
 pip install scicode-lint
 
 # Use remote vLLM server
-scicode-lint check path/to/code.py --vllm-url https://your-vllm-server.com
+scicode-lint lint path/to/code.py --vllm-url https://your-vllm-server.com
 
 # Or via environment variable
 export OPENAI_BASE_URL="https://your-vllm-server.com/v1"
-scicode-lint check path/to/code.py
+scicode-lint lint path/to/code.py
 ```
 
 **Python API usage:**
@@ -417,4 +417,4 @@ min_confidence = 0.7
 enabled_severities = ["critical", "high", "medium"]
 ```
 
-See [config.toml](config.toml) for all options.
+See [config.toml](src/scicode_lint/config.toml) for all options.

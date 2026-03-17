@@ -1,5 +1,6 @@
 """Configuration for scicode-lint with Pydantic validation."""
 
+import functools
 import tomllib
 from enum import StrEnum
 from pathlib import Path
@@ -31,6 +32,7 @@ def _load_bundled_config() -> dict[str, Any]:
 # Load defaults at module init - config.toml is single source of truth
 _BUNDLED = _load_bundled_config()
 _LLM_DEFAULTS = _BUNDLED.get("llm", {})
+_PREPROCESSING_DEFAULTS = _BUNDLED.get("preprocessing", {})
 
 
 class Severity(StrEnum):
@@ -182,9 +184,10 @@ def get_default_patterns_dir() -> Path:
     return pkg_patterns
 
 
+@functools.lru_cache(maxsize=1)
 def load_config_from_toml() -> dict[str, Any]:
     """
-    Load configuration from config.toml.
+    Load configuration from config.toml (cached after first call).
 
     Searches in order:
     1. $SCICODE_LINT_CONFIG (env var pointing to config file)
@@ -193,11 +196,8 @@ def load_config_from_toml() -> dict[str, Any]:
     4. Package default (built-in)
 
     Returns:
-        Parsed config dict (empty if no TOML support or file not found)
+        Parsed config dict (empty if file not found)
     """
-    if not tomllib:
-        return {}
-
     import os
 
     # Priority 1: Environment variable
@@ -207,6 +207,8 @@ def load_config_from_toml() -> dict[str, Any]:
         if config_path.exists():
             with open(config_path, "rb") as f:
                 return tomllib.load(f)
+        else:
+            raise FileNotFoundError(f"SCICODE_LINT_CONFIG={config_path_env} not found")
 
     # Priority 2: Current directory
     config_path = Path("config.toml")
@@ -260,5 +262,50 @@ def get_default_config() -> LinterConfig:
     return LinterConfig(
         patterns_dir=get_default_patterns_dir(),
         llm_config=load_llm_config(),
-        max_concurrent=performance.get("max_concurrent_evals", 150),
+        max_concurrent=performance.get("lint_concurrency", 150),
     )
+
+
+def get_ml_import_keywords() -> list[str]:
+    """Get ML import keywords for preprocessing filter.
+
+    Returns:
+        List of keywords that indicate ML-related code.
+    """
+    toml_config = load_config_from_toml()
+    preprocessing = toml_config.get("preprocessing", {})
+    keywords = preprocessing.get(
+        "ml_import_keywords",
+        _PREPROCESSING_DEFAULTS.get("ml_import_keywords", []),
+    )
+    return list(keywords) if keywords else []
+
+
+def get_filter_concurrency() -> int:
+    """Get max concurrent LLM requests for file filtering (--filter-concurrency).
+
+    Returns:
+        Maximum concurrent requests for file classification.
+    """
+    toml_config = load_config_from_toml()
+    preprocessing = toml_config.get("preprocessing", {})
+    value = preprocessing.get(
+        "filter_concurrency",
+        _PREPROCESSING_DEFAULTS.get("filter_concurrency", 50),
+    )
+    return int(value) if value else 50
+
+
+def get_strip_comments() -> bool:
+    """Get whether to strip comments before LLM analysis.
+
+    Returns:
+        True if comments should be stripped (default), False otherwise.
+    """
+    toml_config = load_config_from_toml()
+    preprocessing = toml_config.get("preprocessing", {})
+    value = preprocessing.get(
+        "strip_comments",
+        _PREPROCESSING_DEFAULTS.get("strip_comments", True),
+    )
+    return bool(value)

@@ -45,6 +45,7 @@ class TestLocation(BaseModel):
     type: Literal["function", "class", "method", "module"]
     name: str
     snippet: str
+    lines: list[int] = Field(default_factory=list)  # Expected line numbers for validation
 
 
 class PositiveTest(BaseModel):

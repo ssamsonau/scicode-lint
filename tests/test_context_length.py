@@ -31,7 +31,7 @@ def test_estimate_prompt_tokens() -> None:
     system = "You are a code analyzer"
     user = f"Code:\n{code}\n\nQuestion: Is this good?"
 
-    tokens = estimate_prompt_tokens(code, system, user)
+    tokens = estimate_prompt_tokens(system, user)
 
     # Should include:
     # - System prompt (~6 tokens)
@@ -50,7 +50,6 @@ def test_check_context_length_fits() -> None:
 
     # Should fit in 8000 tokens
     fits, estimated = check_context_length(
-        code=code,
         system_prompt=system,
         user_prompt=user,
         max_tokens=8000,
@@ -72,7 +71,6 @@ def test_check_context_length_exceeds() -> None:
     # Should exceed 1000 token limit
     with pytest.raises(ContextLengthError) as exc_info:
         check_context_length(
-            code=code,
             system_prompt=system,
             user_prompt=user,
             max_tokens=1000,

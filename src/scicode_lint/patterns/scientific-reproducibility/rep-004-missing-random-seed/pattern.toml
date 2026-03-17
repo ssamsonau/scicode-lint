@@ -71,6 +71,7 @@ min_confidence = 0.85
 type = "function"
 name = "generate_synthetic_data"
 snippet = "features = np.random.randn(n_samples, 50)"
+lines = [6]
 
 [[tests.positive]]
 file = "test_positive/unseeded_simulation.py"
@@ -82,6 +83,7 @@ min_confidence = 0.85
 type = "method"
 name = "__init__"
 snippet = "self.positions = torch.randn(n_agents, 2)"
+lines = [9]
 
 [[tests.negative]]
 file = "test_negative/seeded_data_generation.py"
@@ -103,6 +105,7 @@ min_confidence = 0.85
 type = "function"
 name = "generate_synthetic_data"
 snippet = "X = np.random.randn(n_samples, 10)"
+lines = [14]
 
 [[tests.negative]]
 file = "test_negative/with_seed.py"

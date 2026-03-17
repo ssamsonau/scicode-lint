@@ -16,8 +16,7 @@ Missing model.eval() during inference leaves dropout active and batchnorm updati
 """
 
 explanation = """
-Missing model.eval() disables dropout incorrectly and changes batchnorm behavior. Missing torch.no_grad() wastes memory storing activations. Both are needed during evaluation.
-
+Missing model.eval() leaves dropout active (randomly zeroing activations) and batchnorm using batch statistics instead of learned running statistics, producing incorrect and non-deterministic inference results.
 """
 
 tags = ["pytorch", "inference", "dropout", "batchnorm"]
@@ -34,19 +33,18 @@ Analyze inference/evaluation setup in this code.
 
 torch.no_grad() only disables gradient computation (saves memory). model.eval() sets the model to evaluation mode (disables dropout, uses running stats for batchnorm). Both are needed for correct inference.
 
-Does this code use no_grad() without model.eval()?
+Does this code use no_grad() or inference_mode() without model.eval()?
 
 Look for:
-- torch.no_grad() context without corresponding model.eval()
+- torch.no_grad() or torch.inference_mode() context without corresponding model.eval()
 - Inference code that disables gradients but leaves model in training mode
 
-YES = Bug found: no_grad() used but model.eval() is missing
-NO = Correct: model.eval() present (with or without no_grad()), or no no_grad() usage at all
+YES = Bug found: no_grad()/inference_mode() used but model.eval() is missing
+NO = Correct: model.eval() present (with or without no_grad()), or no no_grad()/inference_mode() usage at all
 """
 
 warning_message = """
-Missing model.eval() disables dropout incorrectly and changes batchnorm behavior. Missing torch.no_grad() wastes memory storing activations. Both are needed during evaluation.
-
+Missing model.eval() leaves dropout active and batchnorm using batch statistics instead of learned running statistics, producing incorrect inference results.
 """
 
 min_confidence = 0.85
@@ -64,6 +62,7 @@ min_confidence = 0.85
 type = "function"
 name = "validate_epoch"
 snippet = "with torch.no_grad():"
+lines = [31, 50]
 
 [[tests.negative]]
 file = "test_negative/proper_evaluation.py"
@@ -84,6 +83,7 @@ min_confidence = 0.85
 type = "function"
 name = "extract_features"
 snippet = "with torch.no_grad():"
+lines = [21]
 
 [[tests.positive]]
 file = "test_positive/model_server.py"
@@ -95,6 +95,7 @@ min_confidence = 0.85
 type = "class"
 name = "ModelServer"
 snippet = "class ModelServer"
+lines = [4]
 
 [[tests.negative]]
 file = "test_negative/eval_only_no_grad.py"

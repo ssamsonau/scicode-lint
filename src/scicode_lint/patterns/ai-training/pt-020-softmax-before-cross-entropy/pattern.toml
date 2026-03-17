@@ -50,14 +50,15 @@ false_positive_risks = []
 
 [[tests.positive]]
 file = "test_positive/softmax_then_ce.py"
-description = "Applying softmax before CrossEntropyLoss"
+description = "CNN classifier and ensemble evaluation both apply softmax before CrossEntropyLoss"
 expected_issue = "softmax() applied before CrossEntropyLoss"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "compute_loss"
+name = "evaluate_ensemble"
 snippet = "softmax"
+lines = [24, 32, 34]
 
 [[tests.negative]]
 file = "test_negative/regression_loss.py"
@@ -77,18 +78,19 @@ description = "Softmax used for inference probabilities, raw logits for CrossEnt
 
 [[tests.positive]]
 file = "test_positive/double_softmax.py"
-description = "Multiple instances of softmax applied before CrossEntropyLoss in training and inference code paths."
+description = "Distillation training step applies softmax to both student and teacher logits before cross_entropy"
 expected_issue = "softmax() applied before CrossEntropyLoss"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
 name = "train_step"
-snippet = "probs = F.softmax(logits, dim=1)"
+snippet = "F.softmax(logits, dim=-1)"
+lines = [12, 15]
 
 [[tests.positive]]
 file = "test_positive/redundant_softmax.py"
-description = "Softmax applied directly to logits before passing to F.cross_entropy, causing incorrect loss computation."
+description = "Deep residual classifier with softmax applied before F.cross_entropy in compute_loss"
 expected_issue = "softmax() applied before CrossEntropyLoss"
 min_confidence = 0.85
 
@@ -96,6 +98,7 @@ min_confidence = 0.85
 type = "function"
 name = "compute_loss"
 snippet = "probs = F.softmax(logits, dim=-1)"
+lines = [34]
 
 [[tests.positive]]
 file = "test_positive/log_softmax_then_ce.py"
@@ -107,3 +110,4 @@ min_confidence = 0.85
 type = "function"
 name = "compute_loss_with_log_softmax"
 snippet = "log_probs = output.log_softmax(dim=-1)"
+lines = [20]

@@ -95,7 +95,7 @@ bash src/scicode_lint/vllm/start_vllm.sh
 nvidia-smi
 
 # 3. Test linting
-scicode-lint check your_file.py
+scicode-lint lint your_file.py
 ```
 
 ## Alternative Models

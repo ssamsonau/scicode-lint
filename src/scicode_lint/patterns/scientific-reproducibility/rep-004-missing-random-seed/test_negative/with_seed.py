@@ -1,17 +1,34 @@
+"""Reproducible experiment setup using configuration object."""
+
+from dataclasses import dataclass
+
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
 
 
-def run_experiment(X, y, seed=42):
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=seed)
-    model = RandomForestClassifier(n_estimators=100, random_state=seed)
-    model.fit(X_train, y_train)
-    return model.score(X_test, y_test)
+@dataclass
+class ExperimentConfig:
+    """Configuration for reproducible experiments."""
+
+    seed: int = 42
+    n_samples: int = 1000
+    test_size: float = 0.2
+
+    def setup_rng(self) -> np.random.Generator:
+        """Create reproducible random generator."""
+        return np.random.default_rng(self.seed)
 
 
-def generate_synthetic_data(n_samples=1000, seed=42):
-    rng = np.random.RandomState(seed)
-    X = rng.randn(n_samples, 10)
-    y = (X[:, 0] + X[:, 1] > 0).astype(int)
+def run_reproducible_analysis(config: ExperimentConfig):
+    """Run analysis with reproducible random state from config."""
+    rng = config.setup_rng()
+
+    X = rng.standard_normal((config.n_samples, 10))
+    y = rng.integers(0, 2, config.n_samples)
+
     return X, y
+
+
+if __name__ == "__main__":
+    config = ExperimentConfig(seed=123)
+    X, y = run_reproducible_analysis(config)
+    print(f"Generated {len(X)} samples reproducibly")

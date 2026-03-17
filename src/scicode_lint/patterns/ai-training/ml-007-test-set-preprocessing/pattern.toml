@@ -38,6 +38,7 @@ Look for:
 - scaler.fit_transform(X_test) or scaler.fit(X_test)
 - Creating new scaler/encoder for test data
 - Any fit() call on data after train_test_split that uses test portion
+- fit_transform() on full data (X, y) BEFORE train_test_split
 
 YES = Bug found: fit() or fit_transform() called on test data
 NO = Correct: only transform() applied to test data
@@ -64,6 +65,7 @@ min_confidence = 0.85
 type = "function"
 name = "preprocess_test_with_fit_transform"
 snippet = "scaler.fit_transform(X_test)"
+lines = [18]
 
 [[tests.negative]]
 file = "test_negative/transform_only_on_test.py"
@@ -76,6 +78,12 @@ context_notes = "Debatable: less severe than test set but validation should idea
 allow_detection = true
 allow_skip = true
 
+[tests.context_dependent.expected_location]
+type = "function"
+name = "preprocess_validation_with_fit"
+snippet = "X_val_scaled = scaler.fit_transform(X_val)"
+lines = [11]
+
 
 [[tests.positive]]
 file = "test_positive/feature_selection_leak.py"
@@ -87,6 +95,7 @@ min_confidence = 0.85
 type = "function"
 name = "train_with_feature_selection"
 snippet = "selector.fit_transform(X, y)"
+lines = [8]
 
 [[tests.positive]]
 file = "test_positive/transform_test_first.py"
@@ -98,6 +107,7 @@ min_confidence = 0.85
 type = "function"
 name = "preprocess_data"
 snippet = "scaler.fit_transform(X_test)"
+lines = [6]
 
 [[tests.negative]]
 file = "test_negative/feature_selection_proper.py"

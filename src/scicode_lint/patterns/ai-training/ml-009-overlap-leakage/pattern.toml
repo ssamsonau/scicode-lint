@@ -43,18 +43,18 @@ OVERLAP LEAKAGE EXISTS when:
 2. SAME SOURCE, NO SPLIT FUNCTION:
    - Both train_data and test_data assigned from same DataFrame/array
    - Using iloc/loc indexing without verified disjoint indices
-   - Filtering same dataset with conditions that may overlap
+   - Filtering same dataset with conditions that overlap (e.g., score > 0.5 AND score > 0.3)
 
 3. DUPLICATE-PRONE OPERATIONS:
    - pd.concat() or np.vstack() combining data before any split
    - Merging datasets that may share rows
-   - Loading same file into both train and test variables
 
 NO OVERLAP (correct patterns):
 - sklearn.model_selection.train_test_split() - guarantees disjoint indices
 - Explicit index sets: train_idx, test_idx = indices[:800], indices[800:]
 - Separate data sources: train from file A, test from file B
 - Cross-validation with proper fold handling
+- Mutually exclusive filters: data[col == "train"] vs data[col == "test"]
 
 Does train and test data flow from the same source WITHOUT a guaranteed disjoint split?
 
@@ -81,6 +81,7 @@ min_confidence = 0.75
 type = "function"
 name = "split_with_sample"
 snippet = "train = data.sample(frac=0.8, random_state=42)"
+lines = [7]
 
 [[tests.positive]]
 file = "test_positive/overlapping_indices.py"
@@ -92,17 +93,19 @@ min_confidence = 0.75
 type = "function"
 name = "split_data_wrong"
 snippet = "train = data[:800]"
+lines = [6]
 
 [[tests.positive]]
 file = "test_positive/same_source_no_split.py"
-description = "Train and test both derived from same loaded data via filtering"
-expected_issue = "Overlap leakage: both datasets from same source without disjoint split"
+description = "Overlapping filter conditions: quality > 0.5 for train overlaps with quality > 0.3 for test"
+expected_issue = "Overlap leakage: filter conditions overlap, same rows appear in both sets"
 min_confidence = 0.75
 
 [tests.positive.expected_location]
 type = "function"
-name = "prepare_data"
-snippet = "train_data = data[data[\"split\"] == \"train\"]"
+name = "quality_based_split"
+snippet = "high_quality = df[df[quality_col] > 0.5]"
+lines = [5]
 
 [[tests.negative]]
 file = "test_negative/proper_split.py"
@@ -116,9 +119,19 @@ description = "Correct: train and test loaded from separate files"
 file = "test_negative/explicit_disjoint_indices.py"
 description = "Correct: explicit disjoint index assignment"
 
+[[tests.negative]]
+file = "test_negative/split_column_filter.py"
+description = "Correct: mutually exclusive filter on split column guarantees disjoint sets"
+
 [[tests.context_dependent]]
 file = "test_context_dependent/sample_with_seed.py"
 description = "Using .sample() with different random seeds - technically could still overlap"
 context_notes = "With different seeds, overlap is unlikely but not impossible. Some may consider this acceptable."
 allow_detection = true
 allow_skip = true
+
+[tests.context_dependent.expected_location]
+type = "function"
+name = "split_with_different_seeds"
+snippet = "train = data.sample(frac=0.8, random_state=42)"
+lines = [7]

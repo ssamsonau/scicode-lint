@@ -1,21 +1,16 @@
-import numpy as np
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
+import pandas as pd
+from sklearn.model_selection import GroupShuffleSplit
 
 
-def train_properly(X, y):
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-    model = LogisticRegression()
-    model.fit(X_train, y_train)
-
-    accuracy = model.score(X_test, y_test)
-    return model, accuracy
+def patient_level_split(imaging_df, patient_col="patient_id", test_size=0.2):
+    gss = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=42)
+    groups = imaging_df[patient_col]
+    train_idx, test_idx = next(gss.split(imaging_df, groups=groups))
+    return imaging_df.iloc[train_idx], imaging_df.iloc[test_idx]
 
 
-def main():
-    X = np.random.randn(1000, 10)
-    y = np.random.randint(0, 2, 1000)
-
-    model, acc = train_properly(X, y)
-    print(f"Test accuracy: {acc}")
+def temporal_holdout(df, date_col="acquisition_date", cutoff="2025-01-01"):
+    df[date_col] = pd.to_datetime(df[date_col])
+    train = df[df[date_col] < cutoff].copy()
+    test = df[df[date_col] >= cutoff].copy()
+    return train, test

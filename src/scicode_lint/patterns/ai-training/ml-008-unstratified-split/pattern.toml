@@ -28,24 +28,28 @@ references = ["https://scikit-learn.org/stable/modules/cross_validation.html#str
 question = """
 Analyze train/test splitting for classification tasks.
 
-FIRST: Determine if this is a CLASSIFICATION task (discrete classes/labels) or REGRESSION task (continuous values).
-- Classification indicators: categorical labels, class names, discrete categories, CrossEntropyLoss, accuracy metrics
-- Regression indicators: continuous target values, MSELoss, MAE, R² metrics, price/temperature/measurement prediction
+FIRST: Is this code CREATING splits or LOADING pre-defined splits?
+
+PRE-DEFINED SPLITS (answer NO immediately):
+- Loading splits from files: train.csv/test.csv, train_idx.npy, split_indices.json
+- Using dataset with built-in splits: dataset.get_split(), load_data(split='train')
+- Loading indices from external source: np.load('train_indices.npy')
+- Stratification should be checked at split creation, not loading time
+
+SECOND: For code CREATING splits, determine if CLASSIFICATION or REGRESSION:
+- Classification indicators: categorical labels, class names, discrete categories, CrossEntropyLoss, NLLLoss, accuracy/precision/recall/F1 metrics, num_classes, softmax output
+- Regression indicators: continuous target values, MSELoss, MAELoss, L1Loss, R² metrics, price/temperature/measurement prediction, single output neuron without activation
 
 This pattern ONLY applies to classification. Regression tasks do NOT need stratification.
 
-For classification: without stratification, random splits can produce skewed class distributions.
-Correct approach: Use stratify=y in train_test_split() or StratifiedKFold.
+THIRD: For classification tasks CREATING splits, check for stratification:
+- train_test_split() with stratify=y → NO (correct)
+- StratifiedKFold, StratifiedShuffleSplit → NO (correct)
+- train_test_split() WITHOUT stratify on classification → YES (bug)
+- KFold on classification → YES (bug)
 
-Does this code have unstratified classification splitting?
-
-Look for:
-- train_test_split() without stratify parameter on CLASSIFICATION (not regression)
-- KFold instead of StratifiedKFold for classification
-- Discrete class labels being split without stratification
-
-YES = Bug found: CLASSIFICATION task split without stratification
-NO = Correct: stratify used, StratifiedKFold used, OR this is a REGRESSION task
+YES = Bug found: CLASSIFICATION task CREATING splits without stratification
+NO = Loads pre-defined splits, OR regression task, OR stratification used
 """
 
 warning_message = """
@@ -61,14 +65,15 @@ false_positive_risks = []
 
 [[tests.positive]]
 file = "test_positive/unstratified_imbalanced_split.py"
-description = "Unstratified split on imbalanced data"
-expected_issue = "Unstratified split on imbalanced data produces skewed folds"
+description = "Unstratified split on imbalanced data using RepeatedKFold and bootstrap"
+expected_issue = "RepeatedKFold and bootstrap sampling without stratification"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
-name = "prepare_train_test"
-snippet = "train_test_split"
+type = "module"
+name = ""
+snippet = "RepeatedKFold"
+lines = [10]
 
 [[tests.negative]]
 file = "test_negative/stratified_split_correct.py"
@@ -81,6 +86,12 @@ context_notes = "Moderate imbalance with large samples: may be acceptable but st
 allow_detection = true
 allow_skip = true
 
+[tests.context_dependent.expected_location]
+type = "function"
+name = "split_moderate_imbalance_unstratified"
+snippet = "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)"
+lines = [6]
+
 
 [[tests.positive]]
 file = "test_positive/random_split.py"
@@ -92,6 +103,7 @@ min_confidence = 0.85
 type = "function"
 name = "split_data"
 snippet = "return train_test_split(X, y, test_size=0.2, random_state=42)"
+lines = [5]
 
 [[tests.positive]]
 file = "test_positive/rare_class_split.py"
@@ -103,6 +115,7 @@ min_confidence = 0.85
 type = "function"
 name = "train_rare_event_model"
 snippet = "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)"
+lines = [6]
 
 [[tests.negative]]
 file = "test_negative/rare_class_stratified.py"
@@ -111,3 +124,7 @@ description = "Correctly stratified splits on rare event classification using st
 [[tests.negative]]
 file = "test_negative/stratified_split.py"
 description = "Correct stratified splits using stratify parameter and StratifiedShuffleSplit"
+
+[[tests.negative]]
+file = "test_negative/predefined_splits.py"
+description = "Loading pre-defined splits from files - stratification checked at creation time"

@@ -1,30 +1,28 @@
-import threading
-
-import numpy as np
-
-
-def normalize_features(data, result_dict, idx):
-    mean = np.mean(data, axis=0)
-    std = np.std(data, axis=0)
-    normalized = (data - mean) / (std + 1e-8)
-    result_dict[idx] = normalized
+import math
+import random
+from concurrent.futures import ThreadPoolExecutor
 
 
-def batch_normalize(dataset_chunks):
-    threads = []
-    results = {}
+def compute_statistics(data_batch):
+    features = []
+    for series in data_batch:
+        n = len(series)
+        mean = sum(series) / n
+        variance = sum((x - mean) ** 2 for x in series) / n
+        std = math.sqrt(variance)
+        skewness = sum((x - mean) ** 3 for x in series) / (n * std**3) if std > 0 else 0.0
+        sorted_vals = sorted(series)
+        median = sorted_vals[n // 2]
+        features.append([mean, std, skewness, median])
+    return features
 
-    for i, chunk in enumerate(dataset_chunks):
-        t = threading.Thread(target=normalize_features, args=(chunk, results, i))
-        threads.append(t)
-        t.start()
 
-    for t in threads:
-        t.join()
-
-    return [results[i] for i in range(len(dataset_chunks))]
+def process_dataset(batches, max_threads=8):
+    with ThreadPoolExecutor(max_workers=max_threads) as executor:
+        futures = [executor.submit(compute_statistics, batch) for batch in batches]
+        results = [f.result() for f in futures]
+    return [item for sublist in results for item in sublist]
 
 
-data = np.random.randn(10000, 100)
-chunks = np.array_split(data, 4)
-normalized_data = batch_normalize(chunks)
+data_batches = [[[random.gauss(0, 1) for _ in range(500)] for _ in range(50)] for _ in range(8)]
+all_features = process_dataset(data_batches)

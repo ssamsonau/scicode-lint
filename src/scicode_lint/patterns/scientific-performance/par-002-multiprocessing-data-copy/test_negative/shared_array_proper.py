@@ -1,31 +1,32 @@
 import multiprocessing as mp
-from multiprocessing import shared_memory
+import tempfile
 
 import numpy as np
 
 
-def process_chunks(data, num_workers=4):
-    shm = shared_memory.SharedMemory(create=True, size=data.nbytes)
-    shared_arr = np.ndarray(data.shape, dtype=data.dtype, buffer=shm.buf)
-    shared_arr[:] = data[:]
+def worker_memmap(args):
+    filepath, shape, dtype, start, end = args
+    arr = np.memmap(filepath, dtype=dtype, mode="r", shape=shape)
+    result = arr[start:end].sum()
+    del arr
+    return result
 
-    def worker(args):
-        shm_name, shape, dtype, start, end = args
-        existing_shm = shared_memory.SharedMemory(name=shm_name)
-        arr = np.ndarray(shape, dtype=dtype, buffer=existing_shm.buf)
-        result = arr[start:end].sum()
-        existing_shm.close()
-        return result
+
+def parallel_compute_with_memmap(data, num_workers=4):
+    with tempfile.NamedTemporaryFile(delete=False) as f:
+        filepath = f.name
+        fp = np.memmap(filepath, dtype=data.dtype, mode="w+", shape=data.shape)
+        fp[:] = data[:]
+        fp.flush()
+        del fp
 
     chunk_size = len(data) // num_workers
     args = [
-        (shm.name, data.shape, data.dtype, i * chunk_size, (i + 1) * chunk_size)
+        (filepath, data.shape, data.dtype, i * chunk_size, (i + 1) * chunk_size)
         for i in range(num_workers)
     ]
 
     with mp.Pool(num_workers) as pool:
-        results = pool.map(worker, args)
+        results = pool.map(worker_memmap, args)
 
-    shm.close()
-    shm.unlink()
     return sum(results)

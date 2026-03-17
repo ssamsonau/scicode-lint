@@ -1,15 +1,6 @@
 import numpy as np
 
 
-def process_batches(data, batch_size):
-    n_batches = len(data) // batch_size
-    results = np.empty((n_batches, batch_size))
-    for i in range(n_batches):
-        batch = data[i * batch_size : (i + 1) * batch_size]
-        results[i] = batch * 2
-    return results
-
-
 def compute_rolling_stats(arr, window):
     n = len(arr) - window + 1
     means = np.empty(n)
@@ -19,3 +10,15 @@ def compute_rolling_stats(arr, window):
         means[i] = window_data.mean()
         stds[i] = window_data.std()
     return means, stds
+
+
+def aggregate_batch_results(batches):
+    results = []
+    for batch in batches:
+        mean_val = np.mean(batch)
+        results.append(mean_val)
+    return np.array(results)
+
+
+def vectorized_batch_process(data, batch_indices):
+    return np.array([np.sum(data[start:end]) for start, end in batch_indices])

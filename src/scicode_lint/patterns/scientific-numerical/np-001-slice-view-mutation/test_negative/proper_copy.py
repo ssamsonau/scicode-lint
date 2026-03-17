@@ -1,24 +1,33 @@
 import numpy as np
 
 
-def process_data(data):
+def process_subset_with_copy(data):
     subset = data[10:50].copy()
-    subset[:] = 0
+    subset += 5
     return subset
 
 
-def filter_outliers(measurements):
-    valid_range = measurements[5:95].copy()
-    valid_range *= 0.8
-    return valid_range
+def normalize_column(matrix, col_idx):
+    column = matrix[:, col_idx].copy()
+    column -= column.mean()
+    column /= column.std()
+    return column
 
 
-def apply_window(signal):
-    window_section = signal[100:200].copy()
-    for i in range(len(window_section)):
-        window_section[i] = window_section[i] * 0.5
-    return window_section
+def extract_region(image, x1, x2, y1, y2):
+    region = image[x1:x2, y1:y2].copy()
+    region *= 255
+    return region
 
 
-arr = np.ones(100)
-result = process_data(arr)
+def process_batch(data, batch_size):
+    results = []
+    for i in range(0, len(data), batch_size):
+        batch = data[i:i+batch_size].copy()
+        batch -= batch.min()
+        results.append(batch)
+    return results
+
+
+arr = np.random.rand(100)
+subset = process_subset_with_copy(arr)

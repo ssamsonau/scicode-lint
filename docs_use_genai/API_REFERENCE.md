@@ -23,7 +23,7 @@ class SciCodeLinter:
     """Main linter class for checking scientific Python code.
 
     Designed for both human users and GenAI coding agents.
-    Detects 64 common patterns of bugs in scientific code including
+    Detects 66 common patterns of bugs in scientific code including
     data leakage, PyTorch training issues, numerical errors, and more.
     """
 ```
@@ -109,7 +109,7 @@ def list_patterns(self) -> list[DetectionPattern]
 List all available detection patterns.
 
 **Returns:**
-- List of `DetectionPattern` objects (64 total)
+- List of `DetectionPattern` objects (66 total)
 
 **Example:**
 ```python
@@ -129,7 +129,7 @@ Loads and manages detection patterns from YAML catalog.
 class DetectionCatalog:
     """Loads and manages detection patterns from YAML catalog.
 
-    Provides access to all 64 detection patterns with methods to filter
+    Provides access to all 66 detection patterns with methods to filter
     by ID, severity, or category.
     """
 ```
@@ -317,17 +317,22 @@ for finding in result.findings:
 
 ### Location
 
-Where an issue was found in the code.
+Where an issue was found in the code. Uses name-based identification with AST-verified line numbers.
 
 **Attributes:**
-- `type: str` - "function", "class", "method", or "module"
-- `name: str` - Function/class/method name
-- `snippet: str` - Exact line of code
+- `name: str | None` - Function/class/method name where issue occurs
+- `location_type: str | None` - "function", "class", "method", or "module"
+- `lines: list[int]` - Full line range of the function/method (for context)
+- `focus_line: int | None` - Specific line to look at (most actionable)
+- `snippet: str` - Code snippet from the function/method
 
 **Example:**
 ```python
 location = finding.location
-print(f"Found in {location.type}: {location.name}")
+print(f"Found in {location.location_type}: {location.name}")
+print(f"Lines: {location.lines[0]}-{location.lines[-1]}")
+if location.focus_line:
+    print(f"Focus on line: {location.focus_line}")
 print(f"Code: {location.snippet}")
 ```
 
@@ -480,7 +485,7 @@ result = linter.check_file(Path("ml_pipeline.py"))
 # Process findings
 for finding in result.findings:
     print(f"\n[{finding.severity}] {finding.id}")
-    print(f"Location: {finding.location.type} '{finding.location.name}'")
+    print(f"Location: {finding.location.location_type} '{finding.location.name}'")
     print(f"Code: {finding.location.snippet}")
     print(f"Issue: {finding.explanation}")
 

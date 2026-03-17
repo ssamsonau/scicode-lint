@@ -1,63 +1,38 @@
 import torch
 import torch.nn as nn
-import torch.optim as optim
 
 
-class TransformerBlock(nn.Module):
-    def __init__(self, d_model, nhead):
-        super().__init__()
-        self.attention = nn.MultiheadAttention(d_model, nhead, dropout=0.1)
-        self.norm1 = nn.LayerNorm(d_model)
-        self.norm2 = nn.LayerNorm(d_model)
-        self.dropout = nn.Dropout(0.1)
-        self.ff = nn.Sequential(
-            nn.Linear(d_model, d_model * 4),
-            nn.GELU(),
-            nn.Dropout(0.1),
-            nn.Linear(d_model * 4, d_model),
-        )
+class GANTrainer:
+    def __init__(self, generator, discriminator, latent_dim=128):
+        self.gen = generator
+        self.disc = discriminator
+        self.latent_dim = latent_dim
+        self.opt_g = torch.optim.Adam(generator.parameters(), lr=2e-4, betas=(0.5, 0.999))
+        self.opt_d = torch.optim.Adam(discriminator.parameters(), lr=2e-4, betas=(0.5, 0.999))
+        self.criterion = nn.BCEWithLogitsLoss()
 
-    def forward(self, x):
-        attn_out, _ = self.attention(x, x, x)
-        x = self.norm1(x + self.dropout(attn_out))
-        x = self.norm2(x + self.dropout(self.ff(x)))
-        return x
+    def train_epoch(self, dataloader):
+        for real_images, _ in dataloader:
+            batch_size = real_images.size(0)
+            real_labels = torch.ones(batch_size, 1)
+            fake_labels = torch.zeros(batch_size, 1)
 
+            self.opt_d.zero_grad()
+            real_pred = self.disc(real_images)
+            d_real_loss = self.criterion(real_pred, real_labels)
 
-def train_with_warmup(model, train_loader, val_loader, test_loader, epochs=50):
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.AdamW(model.parameters(), lr=1e-4)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, epochs)
+            z = torch.randn(batch_size, self.latent_dim)
+            fake_images = self.gen(z)
+            fake_pred = self.disc(fake_images.detach())
+            d_fake_loss = self.criterion(fake_pred, fake_labels)
 
-    for epoch in range(epochs):
-        total_loss = 0.0
-        for batch_x, batch_y in train_loader:
-            optimizer.zero_grad()
-            out = model(batch_x)
-            loss = criterion(out, batch_y)
-            loss.backward()
-            optimizer.step()
-            total_loss += loss.item()
+            d_loss = d_real_loss + d_fake_loss
+            d_loss.backward()
+            self.opt_d.step()
 
-        model.eval()
-        with torch.no_grad():
-            val_correct = 0
-            for val_x, val_y in val_loader:
-                preds = model(val_x).argmax(dim=1)
-                val_correct += (preds == val_y).sum().item()
-
-        if epoch % 10 == 0:
-            with torch.no_grad():
-                for test_x, test_y in test_loader:
-                    _ = model(test_x)
-
-        for batch_x, batch_y in train_loader:
-            optimizer.zero_grad()
-            out = model(batch_x)
-            loss = criterion(out, batch_y)
-            loss.backward()
-            optimizer.step()
-
-        scheduler.step()
-
-    return model
+            self.disc.eval()
+            self.opt_g.zero_grad()
+            gen_pred = self.disc(self.gen(z))
+            g_loss = self.criterion(gen_pred, real_labels)
+            g_loss.backward()
+            self.opt_g.step()

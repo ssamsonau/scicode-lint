@@ -32,10 +32,15 @@ Single-process loading = num_workers=0 OR num_workers not specified (defaults to
 
 Check for BOTH:
 1. DataLoader(...) with num_workers=0 OR num_workers parameter missing entirely
-2. GPU training indicators: .cuda(), .to(device), loss.backward()
+2. GPU training indicators: .cuda() or .to(device) in training loop, plus loss.backward()
 
-YES = Bug: DataLoader uses num_workers=0 or omits it, with GPU training code present
-NO = Clean: num_workers >= 1 specified, or CPU-only code, or inference-only
+NOT a bug (answer NO) in these cases:
+- Tensors moved to GPU BEFORE TensorDataset creation (data = data.to(device) happens BEFORE TensorDataset(data, ...))
+- num_workers >= 1 specified
+- Inference-only code (model.eval(), torch.no_grad(), no loss.backward())
+
+YES = Bug: DataLoader with num_workers=0/missing AND GPU training code (data.to(device) in loop + loss.backward())
+NO = Clean: Tensors on GPU before TensorDataset, or num_workers >= 1, or inference-only
 """
 
 warning_message = """
@@ -58,6 +63,7 @@ min_confidence = 0.85
 type = "function"
 name = "train_with_single_worker"
 snippet = "num_workers=0"
+lines = [7]
 
 [[tests.positive]]
 file = "test_positive/dataloader_missing_workers.py"
@@ -69,6 +75,7 @@ min_confidence = 0.85
 type = "function"
 name = "prepare_dataloaders"
 snippet = "train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True)"
+lines = [36]
 
 [[tests.negative]]
 file = "test_negative/dataloader_with_workers.py"
@@ -85,6 +92,12 @@ context_notes = "Using num_workers=0 for debugging is acceptable as it makes err
 allow_detection = true
 allow_skip = true
 
+[tests.context_dependent.expected_location]
+type = "function"
+name = "create_debug_loader"
+snippet = "loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0)"
+lines = [25]
+
 [[tests.negative]]
 file = "test_negative/small_dataset_inference.py"
 description = "Inference-only code with num_workers=0 - detection explicitly excludes inference-only cases"
@@ -100,7 +113,12 @@ min_confidence = 0.85
 type = "function"
 name = "get_training_loader"
 snippet = "DataLoader(train_data, batch_size=batch_size, shuffle=True, pin_memory=True)"
+lines = [23]
 
 [[tests.negative]]
 file = "test_negative/image_loader_workers.py"
 description = "Correct usage: ImageDataset with DataLoaders that explicitly set num_workers=4 for efficient multi-process image loading"
+
+[[tests.negative]]
+file = "test_negative/preloaded_gpu_tensors.py"
+description = "Data pre-loaded to GPU before TensorDataset/DataLoader - num_workers irrelevant as DataLoader just slices in-memory GPU tensors with no disk I/O"

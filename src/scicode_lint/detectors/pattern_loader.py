@@ -7,6 +7,10 @@ Loads and validates pattern definitions from pattern.toml files.
 import tomllib
 from pathlib import Path
 
+from loguru import logger
+
+from scicode_lint.config import Severity
+
 from .catalog import DetectionPattern
 from .pattern_models import PatternTOML
 
@@ -62,6 +66,7 @@ class PatternLoader:
         patterns: list[PatternTOML] = []
 
         if not self.patterns_dir.exists():
+            logger.warning(f"Patterns directory not found: {self.patterns_dir}")
             return patterns
 
         for category_dir in self.patterns_dir.iterdir():
@@ -79,16 +84,14 @@ class PatternLoader:
                         patterns.append(self.load_pattern_toml(pattern_dir))
                     except Exception as e:
                         # Log but continue loading other patterns
-                        print(f"Warning: Failed to load {pattern_dir}: {e}")
+                        logger.warning(f"Failed to load {pattern_dir}: {e}")
                         continue
 
         return patterns
 
-    def to_legacy_pattern(self, pattern_toml: PatternTOML) -> DetectionPattern:
+    def to_detection_pattern(self, pattern_toml: PatternTOML) -> DetectionPattern:
         """
-        Convert TOML pattern to legacy DetectionPattern format.
-
-        This is for backward compatibility with existing linter code.
+        Convert TOML pattern to DetectionPattern dataclass.
 
         Args:
             pattern_toml: Validated PatternTOML object
@@ -96,8 +99,6 @@ class PatternLoader:
         Returns:
             DetectionPattern object
         """
-        from scicode_lint.config import Severity
-
         return DetectionPattern(
             id=pattern_toml.meta.id,
             category=pattern_toml.meta.category,

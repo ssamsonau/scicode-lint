@@ -1,17 +1,27 @@
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import RobustScaler
+from sklearn.linear_model import Ridge
+from sklearn.model_selection import cross_val_score
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 
-def preprocess_features(X, y):
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
-    scaler = RobustScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-    return X_train_scaled, X_test_scaled, y_train, y_test
+def evaluate_with_pipeline(X, y):
+    pipe = Pipeline(
+        [
+            ("scaler", StandardScaler()),
+            ("model", Ridge(alpha=1.0)),
+        ]
+    )
+    scores = cross_val_score(pipe, X, y, cv=5, scoring="neg_mean_squared_error")
+    return scores.mean()
 
 
-def scale_train_only(train_features, test_features):
-    scaler = RobustScaler()
-    train_scaled = scaler.fit_transform(train_features)
-    test_scaled = scaler.transform(test_features)
-    return train_scaled, test_scaled
+def fit_pipeline(X_train, y_train, X_holdout):
+    pipe = Pipeline(
+        [
+            ("scaler", StandardScaler()),
+            ("model", Ridge()),
+        ]
+    )
+    pipe.fit(X_train, y_train)
+    predictions = pipe.predict(X_holdout)
+    return predictions

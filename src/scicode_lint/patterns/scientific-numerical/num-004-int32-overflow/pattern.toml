@@ -40,7 +40,6 @@ Does this code aggregate int32 values without overflow protection?
 Look for:
 - np.sum() or .sum() on explicitly int32 arrays without dtype parameter
 - np.cumsum() on int32 data
-- Large array aggregations where intermediate values exceed 2 billion
 
 Only flag explicit int32 (dtype=np.int32, astype('int32')). Ignore float64 arrays.
 
@@ -71,6 +70,7 @@ min_confidence = 0.85
 type = "function"
 name = "compute_total"
 snippet = "total = np.sum(data)"
+lines = [5]
 
 [[tests.positive]]
 file = "test_positive/large_accumulation.py"
@@ -82,17 +82,16 @@ min_confidence = 0.85
 type = "function"
 name = "sum_products"
 snippet = "total = products.sum()"
+lines = [6]
 
 [[tests.negative]]
 file = "test_negative/safe_dtype.py"
-description = "Aggregations using dtype=np.int64 or dtype=np.float64, or explicit astype() conversion before sum/cumsum"
+description = "Image processing with small int32 values (pixel indices, bounding boxes, component labels) where values are bounded and aggregation overflow is not a risk"
 
 [[tests.negative]]
 file = "test_negative/float_aggregation.py"
-description = "Small arrays where overflow is impossible, or arrays already using float64/int64 dtypes"
+description = "Float-domain operations (normalized dot products, percentages, rolling averages, softmax) where inputs are float and overflow is not a concern"
 
-
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/large_product.py"
 description = "Factorial computation and matrix operations using int32 that silently overflow on larger input values."
@@ -102,7 +101,8 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "compute_factorial"
-snippet = "result = np.int32(1)"
+snippet = "result *= np.int32(i)"
+lines = [7]
 
 [[tests.negative]]
 file = "test_negative/large_product_safe.py"

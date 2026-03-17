@@ -1,23 +1,27 @@
+"""Data preprocessing pipeline reusing RandomState across operations."""
+
 import numpy as np
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+from sklearn.decomposition import PCA
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import QuantileTransformer
 
 
-def train_models(X, y):
+def preprocess_pipeline(X, y):
     rng = np.random.RandomState(42)
 
-    rf = RandomForestClassifier(random_state=rng)
-    gb = GradientBoostingClassifier(random_state=rng)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=rng
+    )
 
-    rf.fit(X, y)
-    gb.fit(X, y)
+    qt = QuantileTransformer(random_state=rng, output_distribution="normal")
+    X_train = qt.fit_transform(X_train)
+    X_test = qt.transform(X_test)
 
-    return rf, gb
+    pca = PCA(n_components=10)
+    X_train = pca.fit_transform(X_train)
+    X_test = pca.transform(X_test)
 
+    noise = rng.randn(*X_train.shape) * 0.01
+    X_train = X_train + noise
 
-def cross_validate_ensemble(X, y, n_estimators=5):
-    rng = np.random.RandomState(0)
-    estimators = []
-    for _ in range(n_estimators):
-        est = RandomForestClassifier(random_state=rng)
-        estimators.append(est)
-    return estimators
+    return X_train, X_test, y_train, y_test

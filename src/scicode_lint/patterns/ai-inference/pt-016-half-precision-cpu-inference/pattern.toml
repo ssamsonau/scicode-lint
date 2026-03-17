@@ -60,14 +60,15 @@ false_positive_risks = []
 
 [[tests.positive]]
 file = "test_positive/half_on_cpu.py"
-description = "Using half precision on CPU"
-expected_issue = "model.half() or float16 used on CPU device"
+description = "Recommendation model deployed on CPU with half precision for scoring"
+expected_issue = "model.half() and torch.float16 used on CPU for recommendation inference"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "run_cpu_inference"
-snippet = ".half()"
+name = "deploy_recommender"
+snippet = "model.half()"
+lines = [21]
 
 [[tests.negative]]
 file = "test_negative/cpu_proper_precision.py"
@@ -83,14 +84,15 @@ description = "bfloat16 on CPU (efficient on supported hardware)"
 
 [[tests.positive]]
 file = "test_positive/cpu_half_model.py"
-description = "Converting model to CPU then half precision"
-expected_issue = "model.cpu() then model.half() - float16 on CPU"
+description = "Speech encoder model using half precision for CPU transcription"
+expected_issue = "model.cpu().half() for speech recognition on CPU"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "run_cpu_inference"
+name = "transcribe_on_cpu"
 snippet = "model.half()"
+lines = [21]
 
 [[tests.positive]]
 file = "test_positive/half_precision_cpu.py"
@@ -102,3 +104,4 @@ min_confidence = 0.85
 type = "function"
 name = "run_cpu_inference"
 snippet = "model.half().cpu()"
+lines = [20]

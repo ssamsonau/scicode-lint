@@ -1,5 +1,4 @@
 # Pattern: perf-005-unnecessary-array-copy
-# Fixed: Pattern was a stub. Now complete with proper detection.
 
 [meta]
 id = "perf-005"
@@ -21,7 +20,10 @@ Unnecessary .copy() wastes memory. Only copy when you need mutation independence
 
 tags = ["numpy", "memory", "performance"]
 related_patterns = ["np-001"]
-references = []
+references = [
+    "https://numpy.org/doc/stable/reference/generated/numpy.ndarray.copy.html",
+    "https://numpy.org/doc/stable/user/basics.copies.html",
+]
 
 [detection]
 question = """
@@ -65,6 +67,7 @@ min_confidence = 0.85
 type = "function"
 name = "analyze_data"
 snippet = "data = arr.copy()"
+lines = [5, 21]
 
 [[tests.positive]]
 file = "test_positive/copy_for_return.py"
@@ -76,10 +79,11 @@ min_confidence = 0.70
 type = "function"
 name = "get_subset"
 snippet = "return arr[start:end].copy()"
+lines = [2]
 
 [[tests.negative]]
 file = "test_negative/copy_then_modify.py"
-description = "Array copied then modified in-place - copy is necessary"
+description = "Signal processing with bandpass filter and outlier clipping - copies modified in-place with [:]=, -=, and index assignment"
 
 [[tests.negative]]
 file = "test_negative/copy_for_independence.py"
@@ -92,8 +96,13 @@ context_notes = "Depends on whether the external function modifies its input"
 allow_detection = true
 allow_skip = true
 
+[tests.context_dependent.expected_location]
+type = "function"
+name = "pass_to_external_library"
+snippet = "safe_copy = arr.copy()"
+lines = [2]
 
-# === Auto-generated entries (review and update) ===
+
 [[tests.positive]]
 file = "test_positive/explicit_copy_perf.py"
 description = "Array copied then used only for read-only transformations (mean subtraction, normalization, element-wise operations without mutation)"
@@ -104,7 +113,8 @@ min_confidence = 0.85
 type = "function"
 name = "normalize_data"
 snippet = "data = arr.copy()"
+lines = [4, 5]
 
 [[tests.negative]]
 file = "test_negative/inplace_operations.py"
-description = "Copy IS needed: arrays are modified in-place with -=, /=, .sort(), and index assignment after copying"
+description = "Particle simulation and numerical methods - copies modified in-place with +=, %=, *=, .sort(), and index assignment"

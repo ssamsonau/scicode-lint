@@ -3,7 +3,7 @@ import time
 import torch
 
 
-def profile_inference(model, x, runs=50):
+def time_inference_passes(model, x, runs=50):
     model.cuda()
     x = x.cuda()
     model.eval()

@@ -67,6 +67,7 @@ min_confidence = 0.85
 type = "function"
 name = "process_data"
 snippet = "subset[:] = 0"
+lines = [6]
 
 [[tests.positive]]
 file = "test_positive/advanced_slice.py"
@@ -78,17 +79,8 @@ min_confidence = 0.85
 type = "function"
 name = "update_matrix_block"
 snippet = "block += 10"
+lines = [6]
 
-[[tests.negative]]
-file = "test_negative/proper_copy.py"
-description = "Slices explicitly use .copy() before modification, preventing mutation of original array"
-
-[[tests.negative]]
-file = "test_negative/readonly_slice.py"
-description = "Slices used only for read operations (mean, std, argmax, sum) without any modification"
-
-
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/batch_normalize.py"
 description = "2D and 1D array slices are assigned without .copy() and then modified via -= and *= operators, causing unintended mutation of the original data"
@@ -99,6 +91,15 @@ min_confidence = 0.85
 type = "function"
 name = "normalize_features"
 snippet = "normalized -= mean"
+lines = [8]
+
+[[tests.negative]]
+file = "test_negative/proper_copy.py"
+description = "Slices explicitly use .copy() before modification, preventing mutation of original array"
+
+[[tests.negative]]
+file = "test_negative/readonly_slice.py"
+description = "Slices used only for read operations (mean, std, argmax, sum) without any modification"
 
 [[tests.negative]]
 file = "test_negative/batch_normalize_copy.py"

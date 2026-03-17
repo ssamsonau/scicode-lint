@@ -29,14 +29,26 @@ class TestCaseEvaluation(BaseModel):
     test_type: Literal["positive", "negative", "context_dependent"]
     expected_behavior: str
 
-    # New linter output format (line-based with reasoning)
+    # Linter output format (name-based with reasoning)
     linter_detected: Literal["yes", "no", "context-dependent"]
-    linter_lines: list[int]
-    linter_snippet: str
-    linter_reasoning: str
-    linter_issue: str | None
-    linter_confidence: float
+    linter_name: str | None = None  # Detected function/class/method name
+    linter_location_type: str | None = None  # "function", "method", "class", "module"
+    linter_lines: list[int] = Field(default_factory=list)  # Resolved line numbers (context)
+    linter_focus_line: int | None = None  # Specific line to look at (verified)
+    linter_snippet: str = ""
+    linter_reasoning: str = ""
+    linter_issue: str | None = None
+    linter_confidence: float = 0.0
     linter_thinking: str | None = None  # Model's thinking from <think> tags
+
+    # Expected location from pattern.toml (for validation)
+    expected_name: str | None = None  # Expected function/class/method name
+    expected_location_type: str | None = None  # Expected type
+    expected_lines: list[int] = Field(default_factory=list)
+
+    # Name matching result (primary metric)
+    name_match: bool = False  # Whether detected name matches expected name
+    name_match_partial: bool = False  # Partial match (e.g., "train" vs "Trainer.train")
 
     # Judge evaluation
     judge_verdict: Literal["yes", "no", "partial"]
@@ -55,6 +67,18 @@ class TestCaseEvaluation(BaseModel):
     def aligned(self) -> bool:
         """Whether direct metrics and LLM judge agree."""
         return self.alignment in ("both_pass", "both_fail")
+
+    @property
+    def location_match_passed(self) -> bool:
+        """Whether location matching passed based on name matching.
+
+        Name is required in expected_location, so this always uses name matching.
+        Returns True if no expected_name (negative test or legacy pattern).
+        """
+        if not self.expected_name:
+            # No expected location = skip check (negative tests)
+            return True
+        return self.name_match or self.name_match_partial
 
 
 class PatternJudgeMetrics(BaseModel):

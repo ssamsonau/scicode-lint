@@ -22,25 +22,35 @@ CUDA before fork: initializing CUDA then forking can deadlock. Use mp.set_start_
 
 tags = []
 related_patterns = []
-references = []
+references = [
+    "https://pytorch.org/docs/stable/notes/multiprocessing.html",
+    "https://docs.python.org/3/library/multiprocessing.html#contexts-and-start-methods",
+]
 
 [detection]
 question = """
 Analyze CUDA initialization with multiprocessing.
 
-Initializing CUDA before spawning multiprocessing workers can cause deadlocks. The CUDA context doesn't survive fork() correctly, leading to hangs or crashes.
+CUDA context doesn't survive fork() - initializing CUDA before forking can deadlock. The default start method on Linux is fork. Using mp.set_start_method('spawn') avoids this because spawn creates fresh interpreter processes that don't inherit the parent's CUDA state.
 
-Correct approach: Use mp.set_start_method('spawn') and initialize CUDA inside each worker.
+WHAT INITIALIZES CUDA:
+- tensor.cuda() or tensor.to("cuda") - actually moves tensor to GPU
+- model.cuda() or model.to(device) where device is cuda
+- torch.cuda.* operations (set_device, synchronize)
 
-Does this code initialize CUDA before multiprocessing fork?
+WHAT DOES NOT INITIALIZE CUDA:
+- device = "cuda" or device = torch.device("cuda") - just a string/object
+- DataLoader creation - workers spawn lazily when iteration starts
+- Function definitions with CUDA code inside - only executed when called
 
-Look for:
-- .cuda() or .to(device) in __main__ block before Process/Pool creation
-- Model or tensor moved to GPU before multiprocessing spawn
-- CUDA initialization followed by multiprocessing without spawn method
+Does this code initialize CUDA before multiprocessing Process/Pool creation without setting spawn method?
 
-YES = Bug found: CUDA initialized before multiprocessing fork
-NO = Correct: CUDA initialized inside workers, or uses spawn method
+Check:
+1. Is .cuda() or .to(cuda_device) called on tensor/model BEFORE Process/Pool?
+2. Is the start method set to 'spawn' (via mp.set_start_method or mp.get_context)?
+
+YES = Bug: CUDA init before Process/Pool creation WITHOUT spawn method set (uses fork default)
+NO = Clean: spawn method is set, or CUDA init only happens inside workers, or only device strings (no actual CUDA init)
 """
 
 warning_message = """
@@ -63,6 +73,7 @@ min_confidence = 0.85
 type = "module"
 name = "__main__"
 snippet = "data = torch.randn(1000, 1000).to(device)"
+lines = [13]
 
 [[tests.positive]]
 file = "test_positive/model_cuda_then_mp.py"
@@ -74,10 +85,11 @@ min_confidence = 0.85
 type = "module"
 name = "module_level"
 snippet = "model = model.cuda()"
+lines = [23]
 
 [[tests.negative]]
 file = "test_negative/spawn_method_cuda.py"
-description = "Correctly uses spawn method and initializes CUDA inside each worker process"
+description = "Distributed training with mp.spawn - CUDA initialized inside each worker via DDP, no CUDA before fork"
 
 [[tests.negative]]
 file = "test_negative/cuda_in_worker.py"
@@ -95,7 +107,12 @@ min_confidence = 0.85
 type = "function"
 name = "init_and_parallelize"
 snippet = "model = torch.nn.Linear(10, 10).cuda()"
+lines = [20]
 
 [[tests.negative]]
 file = "test_negative/spawn_method.py"
 description = "Correctly sets spawn method and initializes CUDA inside worker function after multiprocessing spawn"
+
+[[tests.negative]]
+file = "test_negative/dataloader_before_cuda.py"
+description = "DataLoader and device string created before Process - no actual CUDA initialization until workers start"

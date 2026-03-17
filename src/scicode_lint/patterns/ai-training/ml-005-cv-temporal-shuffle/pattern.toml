@@ -64,6 +64,7 @@ min_confidence = 0.85
 type = "function"
 name = "cross_validate_with_shuffle"
 snippet = "KFold(n_splits=5, shuffle=True"
+lines = [9, 21]
 
 [[tests.negative]]
 file = "test_negative/timeseries_split_correct.py"
@@ -76,6 +77,12 @@ context_notes = "Depends on independence: OK if samples truly independent, probl
 allow_detection = true
 allow_skip = true
 
+[tests.context_dependent.expected_location]
+type = "function"
+name = "cross_validate_user_sessions"
+snippet = "cv = KFold(n_splits=5, shuffle=True, random_state=42)"
+lines = [9]
+
 
 [[tests.positive]]
 file = "test_positive/shuffled_time_cv.py"
@@ -87,17 +94,19 @@ min_confidence = 0.85
 type = "function"
 name = "time_series_cv"
 snippet = "kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)"
+lines = [5, 19]
 
 [[tests.positive]]
 file = "test_positive/time_series_kfold.py"
-description = "Gradient boosting model validated on time-series data with shuffled KFold, violating temporal ordering."
-expected_issue = "Temporal leakage: KFold(shuffle=True) on time-series data trains on future to predict past"
+description = "Time-series stock/sales data validated with RepeatedKFold and StratifiedKFold shuffle=True, violating temporal ordering"
+expected_issue = "Temporal leakage: shuffled CV on time-series data trains on future to predict past"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
-name = "cross_validate_timeseries"
-snippet = "kf = KFold(n_splits=5, shuffle=True)"
+type = "class"
+name = "TimeSeriesValidator"
+snippet = "RepeatedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=42)"
+lines = [12, 33]
 
 [[tests.negative]]
 file = "test_negative/temporal_cv.py"

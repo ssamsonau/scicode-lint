@@ -3,20 +3,15 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 
 
-def square_if_positive(value):
-    if value > 0:
-        return value**2
-    return 0
+def transform_element(value):
+    return np.sin(value) + np.cos(value)
 
 
-def parallel_conditional_square(array):
-    results = []
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        futures = [executor.submit(square_if_positive, x) for x in array]
-        for future in futures:
-            results.append(future.result())
+def parallel_element_transform(array, max_workers=4):
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        results = list(executor.map(transform_element, array.tolist()))
     return np.array(results)
 
 
-input_array = np.random.randn(50000)
-output = parallel_conditional_square(input_array)
+data = np.random.randn(10000)
+output = parallel_element_transform(data)

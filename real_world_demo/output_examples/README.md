@@ -21,7 +21,7 @@ output_examples/
 
 ### PapersWithCode (`papers_with_code/`)
 
-Scientific ML code from 38 papers across domains (biology, chemistry, physics, etc.).
+Scientific ML code from the meta loop set (38 papers, 120 self-contained files). See [`paper_sets/`](../paper_sets/) for dataset details.
 
 | File | Description |
 |------|-------------|

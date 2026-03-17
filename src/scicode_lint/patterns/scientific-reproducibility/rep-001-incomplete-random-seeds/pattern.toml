@@ -66,6 +66,7 @@ min_confidence = 0.85
 type = "function"
 name = "prepare_data"
 snippet = "train_test_split(X, y, test_size=0.2)"
+lines = [9]
 
 [[tests.negative]]
 file = "test_negative/train_test_split_with_seed.py"
@@ -83,6 +84,7 @@ min_confidence = 0.85
 type = "function"
 name = "train_model"
 snippet = "random.gauss(0, 0.1)"
+lines = [9]
 
 [[tests.positive]]
 file = "test_positive/partial_seeding.py"
@@ -94,6 +96,7 @@ min_confidence = 0.85
 type = "function"
 name = "setup_experiment"
 snippet = "np.random.seed(42)"
+lines = [7]
 
 [[tests.negative]]
 file = "test_negative/complete_seed.py"

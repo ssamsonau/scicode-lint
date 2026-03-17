@@ -29,26 +29,26 @@ references = [
 
 [detection]
 question = """
-Analyze BINARY classification thresholding in this code.
+Does this code apply a THRESHOLD to raw neural network LOGITS for BINARY CLASSIFICATION without converting to probabilities first?
 
-FIRST: Determine if this is BINARY classification (2 classes, single output) or MULTI-CLASS (3+ classes, multiple outputs).
-- Binary: single output neuron, BCELoss/BCEWithLogitsLoss, threshold at 0.5
-- Multi-class: multiple output neurons, CrossEntropyLoss, use argmax for prediction
+CRITICAL: This pattern ONLY applies when there is an ACTUAL COMPARISON with a threshold value (like > 0.5, > 0.7).
 
-This pattern ONLY applies to BINARY classification. Multi-class classification correctly uses argmax on logits.
+Look for code that does: output > 0.5 or output > threshold WITHOUT torch.sigmoid() first.
 
-For binary: Raw logits are unbounded. Thresholding logits > 0.5 is meaningless without sigmoid.
-Correct approach: Apply sigmoid() to convert logits to probabilities [0,1], then threshold.
+NOT a bug (answer NO):
+- Multi-class classification using argmax (no threshold needed)
+- Regression models predicting continuous values (no threshold comparison)
+- Code that applies sigmoid() before thresholding
+- Code with NO threshold comparison at all
 
-Does this BINARY classification code threshold raw logits without sigmoid?
+BUG (answer YES):
+- Binary classifier output compared to 0.5 without sigmoid (e.g., logits > 0.5)
+- BCEWithLogitsLoss used but raw output thresholded directly
 
-Look for:
-- Single-output binary classifier with output > 0.5 without sigmoid
-- BCEWithLogitsLoss used but threshold applied to raw output
-- NOT multi-class with argmax (that is correct)
+IMPORTANT: If there is NO threshold comparison (no > 0.5 or similar), answer NO.
 
-YES = Bug found: BINARY classification thresholding raw logits without sigmoid
-NO = Correct: sigmoid applied before threshold, OR this is MULTI-CLASS using argmax
+YES = Bug found: raw logits compared to threshold without sigmoid
+NO = Correct: sigmoid applied, OR no threshold comparison, OR multi-class/regression
 """
 
 warning_message = """
@@ -71,6 +71,7 @@ min_confidence = 0.85
 type = "function"
 name = "predict_batch"
 snippet = "predictions = (logits > 0.5).float()"
+lines = [22]
 
 [[tests.positive]]
 file = "test_positive/sentiment_classifier.py"
@@ -82,14 +83,15 @@ min_confidence = 0.85
 type = "function"
 name = "classify_text"
 snippet = "is_positive = raw_output > 0.5"
+lines = [24]
 
 [[tests.negative]]
-file = "test_negative/binary_classifier_correct.py"
-description = "Binary classifier that correctly applies sigmoid before thresholding"
+file = "test_negative/multiclass_classifier.py"
+description = "Multi-class classifier using argmax - not binary classification, no sigmoid needed"
 
 [[tests.negative]]
-file = "test_negative/sentiment_with_sigmoid.py"
-description = "Sentiment classifier that correctly converts logits to probabilities before thresholding"
+file = "test_negative/text_encoder_multiclass.py"
+description = "Multi-class text encoder using softmax and argmax - not binary classification"
 
 
 [[tests.positive]]
@@ -102,7 +104,8 @@ min_confidence = 0.85
 type = "class"
 name = "BatchPredictor"
 snippet = "class BatchPredictor"
+lines = [4]
 
 [[tests.negative]]
-file = "test_negative/batch_prediction_correct.py"
-description = "Batch predictor and image classifier correctly apply sigmoid before thresholding"
+file = "test_negative/regression_model.py"
+description = "Regression model predicting continuous values - no binary classification threshold"

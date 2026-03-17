@@ -57,14 +57,15 @@ false_positive_risks = []
 
 [[tests.positive]]
 file = "test_positive/benchmark_variable_shapes.py"
-description = "CuDNN benchmark enabled for variable-shape inference"
-expected_issue = "cudnn.benchmark=True with variable input shapes"
+description = "Video frame analyzer with cudnn.benchmark=True processing multi-resolution frames"
+expected_issue = "cudnn.benchmark=True when processing video frames at different resolutions"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "run_variable_batch_inference"
+name = "analyze_video_frames"
 snippet = "cudnn.benchmark = True"
+lines = [24]
 
 [[tests.negative]]
 file = "test_negative/fixed_shape_benchmark.py"
@@ -92,14 +93,16 @@ min_confidence = 0.85
 type = "function"
 name = "inference_server"
 snippet = "cudnn.benchmark = True"
+lines = [25]
 
 [[tests.positive]]
 file = "test_positive/dynamic_input_benchmark.py"
-description = "CuDNN benchmark enabled globally for variable-sized inference requests"
-expected_issue = "cudnn.benchmark=True applied to inference with dynamic input shapes"
+description = "NLP text classifier with cudnn.benchmark=True processing variable-length sequences"
+expected_issue = "cudnn.benchmark=True with Conv1d model processing texts of different lengths"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "setup_inference"
+name = "classify_texts"
 snippet = "cudnn.benchmark = True"
+lines = [24]

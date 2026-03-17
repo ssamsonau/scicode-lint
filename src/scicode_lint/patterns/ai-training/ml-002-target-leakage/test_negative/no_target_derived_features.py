@@ -1,21 +1,18 @@
-from sklearn.model_selection import train_test_split
+import numpy as np
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import PolynomialFeatures
 
 
-def feature_engineering_without_target(df):
-    df["feature_ratio"] = df["feature1"] / (df["feature2"] + 1)
-    df["feature_sum"] = df["feature1"] + df["feature2"]
-
-    X = df[["feature1", "feature2", "feature_ratio", "feature_sum"]]
-    y = df["target"]
-
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    return X_train, X_test, y_train, y_test
+def create_interaction_features(X_train, X_test, degree=2):
+    poly = PolynomialFeatures(degree=degree, interaction_only=True, include_bias=False)
+    X_train_poly = poly.fit_transform(X_train)
+    X_test_poly = poly.transform(X_test)
+    return X_train_poly, X_test_poly
 
 
-def category_encoding_without_target(df):
-    df["category_freq"] = df.groupby("category")["category"].transform("count")
-
-    X = df[["feature1", "category_freq"]]
-    y = df["target"]
-
-    return train_test_split(X, y, test_size=0.2, random_state=42)
+def reduce_dimensions(X_train, X_test, n_components=10):
+    pca = PCA(n_components=n_components)
+    X_train_reduced = pca.fit_transform(X_train)
+    X_test_reduced = pca.transform(X_test)
+    explained = np.sum(pca.explained_variance_ratio_)
+    return X_train_reduced, X_test_reduced, explained

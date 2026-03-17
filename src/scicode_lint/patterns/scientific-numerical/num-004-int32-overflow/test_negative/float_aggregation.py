@@ -1,26 +1,29 @@
 import numpy as np
 
 
-def sum_products(matrix1, matrix2):
-    products = matrix1.astype(np.float64) * matrix2.astype(np.float64)
-    total = products.sum()
-    return total
+def normalized_dot_product(vec1, vec2):
+    """Dot product of unit vectors - result bounded by 1."""
+    v1_norm = vec1 / np.linalg.norm(vec1)
+    v2_norm = vec2 / np.linalg.norm(vec2)
+    return np.dot(v1_norm, v2_norm)
 
 
-def running_total(stream_data):
-    running = np.cumsum(stream_data, dtype=np.float64)
-    return running
+def percentage_calculation(counts, total):
+    """Percentages are always 0-100, no overflow risk."""
+    return 100.0 * counts / total
 
 
-def compute_statistics(measurements):
-    total = np.sum(measurements, dtype=np.float64)
-    mean = total / len(measurements)
-    return mean
+def rolling_average(data, window=10):
+    """Rolling average maintains same scale as input."""
+    cumsum = np.cumsum(np.insert(data.astype(float), 0, 0))
+    return (cumsum[window:] - cumsum[:-window]) / window
 
 
-data1 = np.random.randint(0, 100000, size=(500, 500), dtype=np.int32)
-data2 = np.random.randint(0, 100000, size=(500, 500), dtype=np.int32)
-result = sum_products(data1, data2)
+def softmax(logits):
+    """Softmax output is always in [0, 1], no overflow in result."""
+    exp_logits = np.exp(logits - np.max(logits))
+    return exp_logits / exp_logits.sum()
 
-small_array = np.arange(100, dtype=np.int32)
-total = np.sum(small_array)
+
+vec = np.random.rand(100)
+sm = softmax(vec)

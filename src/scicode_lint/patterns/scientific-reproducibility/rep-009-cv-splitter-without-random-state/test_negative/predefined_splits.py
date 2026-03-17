@@ -25,7 +25,7 @@ def train_val_split_fixed(X, y, model, val_fold=0):
         return model.score(X[val_idx], y[val_idx])
 
 
-class FixedSplitCV:
+class ExternalSplitCV:
     def __init__(self, splits_file):
         self.splits = np.load(splits_file)
 

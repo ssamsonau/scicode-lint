@@ -20,5 +20,9 @@ def record_event(event_type):
     return event
 
 
-def create_run_id():
-    return f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+def save_measurement(sensor_data):
+    """Save sensor measurement with timestamp in scientific record."""
+    return {
+        "data": sensor_data,
+        "recorded_at": datetime.now(),
+    }

@@ -57,17 +57,11 @@ import json
 import time
 import warnings
 from abc import ABC, abstractmethod
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import httpx
 from loguru import logger
 from pydantic import BaseModel, ValidationError
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
 
 from scicode_lint.config import LLMConfig
 
@@ -84,30 +78,48 @@ warnings.filterwarnings(
 
 T = TypeVar("T", bound=BaseModel)
 
-# Note: This minimal system prompt is kept for backward compatibility
-# but is no longer used by async_complete_structured (which now respects the provided system_prompt)
-VLLM_SYSTEM_PROMPT = """You are a code analyzer. Analyze the code and answer the detection question.
-Be conservative - only report bugs you're confident about (confidence >= 0.7).
-Use function/class/method names for locations, not line numbers."""
+
+class MissingLocationError(ValueError):
+    """Raised when LLM returns detected='yes' but no location.
+
+    This is a specific validation error that indicates the model understood
+    there was an issue but failed to identify where it occurs in the code.
+    The error message includes details for debugging and logging.
+    """
+
+    def __init__(self, detected: str, reasoning: str, confidence: float = 0.0):
+        self.detected = detected
+        self.reasoning = reasoning
+        self.confidence = confidence
+        super().__init__(
+            f"LLM returned detected='{detected}' but no location. Reasoning: {reasoning[:100]}..."
+        )
+
+
+# Correction prompt added when retrying after missing location
+# Includes previous response to help model understand the issue
+MISSING_LOCATION_CORRECTION = """
+
+CORRECTION REQUIRED - Your previous response was INVALID:
+- You said: detected="{detected}"
+- Your reasoning: "{reasoning}"
+- But you provided: location=null
+
+This is invalid. If you detect an issue, you MUST provide the location.
+Identify the function, class, or method name where the issue occurs.
+
+OPTIONS:
+1. If you CAN identify the location: provide it as:
+   "location": {{"name": "function_name", "location_type": "function", "near_line": 15}}
+2. If you CANNOT identify a specific location: change your answer to detected="no"
+   (An issue without identifiable location is not actionable)
+
+Respond with valid JSON including proper location OR change to detected="no".
+"""
 
 
 class LLMClient(ABC):
     """Abstract base class for LLM clients with structured output."""
-
-    @abstractmethod
-    def complete_structured(self, system_prompt: str, user_prompt: str, schema: type[T]) -> T:
-        """
-        Get structured completion from LLM.
-
-        Args:
-            system_prompt: System message
-            user_prompt: User message
-            schema: Pydantic model class for response structure
-
-        Returns:
-            Validated Pydantic model instance
-        """
-        pass
 
     @abstractmethod
     async def async_complete_structured(
@@ -153,11 +165,11 @@ class VLLMClient(LLMClient):
         Uses OpenAI-compatible API format but is NOT for commercial APIs.
         """
         self.config = config
-        self._max_model_len: int | None = None
+        self._max_model_len: int = 0
 
         # Use OpenAI SDK for vLLM's OpenAI-compatible API
         try:
-            from openai import AsyncOpenAI, OpenAI
+            from openai import AsyncOpenAI
         except ImportError as e:
             raise RuntimeError(
                 "openai SDK is required for vLLM client. Install with: pip install openai"
@@ -170,18 +182,7 @@ class VLLMClient(LLMClient):
             timeout=float(self.config.timeout),
         )
 
-        # Create sync client for non-async requests
-        self._sync_client = OpenAI(
-            base_url=self.config.base_url + "/v1",
-            api_key="dummy",  # vLLM doesn't require API keys
-            timeout=float(self.config.timeout),
-        )
-
-        # Auto-detect max_model_len if not specified
-        if self.config.max_model_len:
-            self._max_model_len = self.config.max_model_len
-        else:
-            self._auto_detect_max_model_len()
+        self._max_model_len = self.config.max_model_len
 
     @staticmethod
     def _extract_thinking(text: str) -> tuple[str, str | None]:
@@ -240,21 +241,13 @@ class VLLMClient(LLMClient):
         return text.strip()
 
     @staticmethod
-    @retry(
-        retry=retry_if_exception_type((json.JSONDecodeError, ValidationError)),
-        stop=stop_after_attempt(2),
-        wait=wait_exponential(multiplier=1, min=1, max=4),
-        reraise=True,
-    )
     def _parse_and_validate(response_text: str, schema: type[T]) -> T:
         """
-        Parse JSON response and validate against Pydantic schema with retry.
+        Parse JSON response and validate against Pydantic schema.
 
-        Retries once on JSON parse or validation errors to handle transient issues.
         Strips thinking tags (Qwen3) and markdown code fences that models often add.
-
         If the schema has a 'thinking' field, the extracted thinking content will be
-        stored there. Otherwise, it's logged at debug level.
+        stored there.
 
         Args:
             response_text: Raw JSON string from LLM (may have thinking tags or markdown fences)
@@ -264,7 +257,9 @@ class VLLMClient(LLMClient):
             Validated Pydantic model instance
 
         Raises:
-            ValueError: If parsing or validation fails after retries
+            json.JSONDecodeError: If JSON parsing fails
+            MissingLocationError: If detected='yes'/'context-dependent' but location is None
+            ValidationError: If other schema validation fails
         """
         # Extract thinking content (Qwen3) and strip markdown code fences
         cleaned_text, thinking_content = VLLMClient._extract_thinking(response_text)
@@ -285,6 +280,16 @@ class VLLMClient(LLMClient):
         if thinking_content and "thinking" in schema.model_fields:
             response_data["thinking"] = thinking_content
 
+        # Check for missing location before full validation (to raise specific error)
+        detected = response_data.get("detected")
+        location = response_data.get("location")
+        if detected in ("yes", "context-dependent") and not location:
+            reasoning = response_data.get("reasoning", "")
+            confidence = response_data.get("confidence", 0.0)
+            raise MissingLocationError(
+                detected=detected, reasoning=reasoning, confidence=confidence
+            )
+
         try:
             result = schema.model_validate(response_data)
         except ValidationError as e:
@@ -294,72 +299,93 @@ class VLLMClient(LLMClient):
 
         return result
 
-    def complete_structured(self, system_prompt: str, user_prompt: str, schema: type[T]) -> T:
+    def _handle_response(
+        self,
+        response_text: str,
+        schema: type[T],
+        attempt: int,
+        max_attempts: int,
+        start_time: float,
+        label: str,
+    ) -> tuple[T | None, str | None]:
+        """Handle LLM response: parse, validate, and manage retry logic.
+
+        Args:
+            response_text: Raw LLM response text
+            schema: Pydantic model class to validate against
+            attempt: Current attempt number (0-indexed)
+            max_attempts: Maximum number of attempts
+            start_time: Time when the call started (for elapsed logging)
+            label: Log label ("vLLM call" or "Async vLLM call")
+
+        Returns:
+            Tuple of (result, correction_prompt). If result is not None, the call
+            succeeded. If result is None, correction_prompt contains the retry prompt.
+
+        Raises:
+            ValueError: If JSON parsing or schema validation fails (non-retryable)
         """
-        Get structured completion from vLLM using OpenAI SDK.
-
-        Uses vLLM's guided_json for schema-constrained output that preserves thinking.
-        Requires vLLM with guided decoding support (XGrammar/Outlines backend).
-        """
-        start_time = time.time()
-        logger.debug(f"Starting vLLM call for {schema.__name__}")
-
-        # Get JSON schema from Pydantic model
-        json_schema = schema.model_json_schema()
-
-        # Limit output tokens to prevent thinking models from running too long
-        max_tokens = self.config.max_completion_tokens or 2048
-
-        # IMPORTANT: Use guided_json in extra_body, NOT response_format with json_schema.
-        #
-        # Qwen3 (and other thinking models) output <think>...</think> blocks BEFORE the JSON.
-        # - guided_json: Model thinks first, then produces constrained JSON (preserves reasoning)
-        # - response_format json_schema: Forces immediate JSON output (SKIPS thinking phase)
-        #
-        # Using json_schema drops accuracy from ~99% to ~78% because the model can't reason.
-        # The guided_json approach uses vLLM's XGrammar/Outlines backend for schema enforcement.
-        try:
-            completion = self._sync_client.chat.completions.create(
-                model=self.config.model_served_name,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                extra_body={"guided_json": json_schema, "top_k": self.config.top_k},
-                temperature=self.config.temperature,
-                top_p=self.config.top_p,
-                max_tokens=max_tokens,
-            )
-        except Exception as e:
-            # Don't fallback - any alternative also skips thinking, giving ~78% accuracy
-            raise RuntimeError(
-                f"vLLM structured output failed: {e}\n"
-                "guided_json with XGrammar/Outlines is required for thinking models."
-            ) from e
-
-        elapsed = time.time() - start_time
-        logger.info(f"vLLM call completed in {elapsed:.2f}s for {schema.__name__}")
-
-        # Parse and validate JSON with Pydantic (with retry)
-        response_text = completion.choices[0].message.content
-        if response_text is None:
-            raise ValueError("LLM returned empty response")
-
         try:
             result = self._parse_and_validate(response_text, schema)
+            elapsed = time.time() - start_time
+            logger.info(f"{label} completed in {elapsed:.2f}s for {schema.__name__}")
+            return result, None
+
+        except MissingLocationError as e:
+            if attempt < max_attempts - 1:
+                correction = MISSING_LOCATION_CORRECTION.format(
+                    detected=e.detected, reasoning=e.reasoning[:200]
+                )
+                logger.warning(
+                    f"Missing location (detected='{e.detected}'), retrying with correction"
+                )
+                return None, correction
+            else:
+                # Final attempt failed - flip to "no" since we can't identify location
+                logger.warning(
+                    f"Missing location after retry - flipping to 'no': {e.reasoning[:100]}"
+                )
+                flipped_data = {
+                    "detected": "no",
+                    "location": None,
+                    "confidence": 0.5,
+                    "reasoning": (
+                        f"Originally detected='{e.detected}' but could not identify "
+                        f"specific location. Flipped to 'no' since unlocatable "
+                        f"issues are not actionable. Original reasoning: {e.reasoning[:150]}"
+                    ),
+                }
+                return schema.model_validate(flipped_data), None
+
         except (json.JSONDecodeError, ValidationError) as e:
-            # After retries failed, raise clear error
             error_type = (
                 "JSON parse" if isinstance(e, json.JSONDecodeError) else "schema validation"
             )
-            logger.error(f"LLM response {error_type} failed after retries")
+            logger.error(f"LLM response {error_type} failed")
             raise ValueError(
                 f"LLM returned invalid response ({error_type} error). "
-                f"This indicates the model is not producing valid structured output. "
-                f"Original error: {e}"
+                f"Model not producing valid structured output. Error: {e}"
             ) from e
 
-        return result
+    def _build_api_params(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        json_schema: dict[str, Any],
+        max_tokens: int,
+    ) -> dict[str, Any]:
+        """Build parameters for the OpenAI API call."""
+        return {
+            "model": self.config.model_served_name,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "extra_body": {"guided_json": json_schema, "top_k": self.config.top_k},
+            "temperature": self.config.temperature,
+            "top_p": self.config.top_p,
+            "max_tokens": max_tokens,
+        }
 
     async def async_complete_structured(
         self, system_prompt: str, user_prompt: str, schema: type[T]
@@ -370,116 +396,50 @@ class VLLMClient(LLMClient):
         Uses vLLM's guided_json for schema-constrained output that preserves thinking.
         Requires vLLM with guided decoding support (XGrammar/Outlines backend).
 
+        If the model returns detected='yes' but missing location, retries once with a
+        correction prompt to enforce location extraction.
+
         Concurrent requests with shared prefixes benefit from automatic prefix caching.
         Uses OpenAI AsyncClient for true async concurrency.
-
-        vLLM is designed for concurrent requests with continuous batching and KV cache sharing.
-        Parallel execution is recommended for optimal throughput.
         """
         start_time = time.time()
         logger.debug(f"Starting async vLLM call for {schema.__name__}")
 
-        # Get JSON schema from Pydantic model
         json_schema = schema.model_json_schema()
-
-        # Limit output tokens to prevent thinking models from running too long
         max_tokens = self.config.max_completion_tokens or 2048
+        correction_prompt: str | None = None
+        max_attempts = 2
 
-        # IMPORTANT: Use guided_json in extra_body, NOT response_format with json_schema.
-        # See comment in complete_structured() for full explanation.
-        # TL;DR: json_schema skips <think> phase, dropping accuracy from ~99% to ~78%.
-        try:
-            completion = await self._async_client.chat.completions.create(
-                model=self.config.model_served_name,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                extra_body={"guided_json": json_schema, "top_k": self.config.top_k},
-                temperature=self.config.temperature,
-                top_p=self.config.top_p,
-                max_tokens=max_tokens,
+        for attempt in range(max_attempts):
+            current_prompt = user_prompt
+            if correction_prompt:
+                current_prompt = user_prompt + correction_prompt
+                logger.info(f"Retrying with correction prompt (attempt {attempt + 1})")
+
+            # IMPORTANT: Use guided_json in extra_body, NOT response_format with json_schema.
+            # Qwen3 outputs <think>...</think> blocks BEFORE the JSON.
+            # Using json_schema drops accuracy from ~99% to ~78% because it skips thinking.
+            try:
+                completion = await self._async_client.chat.completions.create(
+                    **self._build_api_params(system_prompt, current_prompt, json_schema, max_tokens)
+                )
+            except Exception as e:
+                raise RuntimeError(
+                    f"vLLM structured output failed: {e}\n"
+                    "guided_json with XGrammar/Outlines is required for thinking models."
+                ) from e
+
+            response_text = completion.choices[0].message.content
+            if response_text is None:
+                raise ValueError("LLM returned empty response")
+
+            result, correction_prompt = self._handle_response(
+                response_text, schema, attempt, max_attempts, start_time, "Async vLLM call"
             )
-        except Exception as e:
-            # Don't fallback - any alternative also skips thinking, giving ~78% accuracy
-            raise RuntimeError(
-                f"vLLM structured output failed: {e}\n"
-                "guided_json with XGrammar/Outlines is required for thinking models."
-            ) from e
+            if result is not None:
+                return result
 
-        elapsed = time.time() - start_time
-        logger.info(f"Async vLLM call completed in {elapsed:.2f}s for {schema.__name__}")
-
-        # Parse and validate JSON with Pydantic (with retry)
-        response_text = completion.choices[0].message.content
-        if response_text is None:
-            raise ValueError("LLM returned empty response")
-
-        try:
-            result = self._parse_and_validate(response_text, schema)
-        except (json.JSONDecodeError, ValidationError) as e:
-            # After retries failed, raise clear error
-            error_type = (
-                "JSON parse" if isinstance(e, json.JSONDecodeError) else "schema validation"
-            )
-            logger.error(f"LLM response {error_type} failed after retries")
-            raise ValueError(
-                f"LLM returned invalid response ({error_type} error). "
-                f"This indicates the model is not producing valid structured output. "
-                f"Original error: {e}"
-            ) from e
-
-        return result
-
-    def _auto_detect_max_model_len(self) -> None:
-        """Auto-detect max_model_len from vLLM server.
-
-        Queries /v1/models endpoint to get model configuration.
-        Falls back to conservative default (6000 tokens) if detection fails.
-        """
-        try:
-            response = httpx.get(
-                f"{self.config.base_url}/v1/models",
-                timeout=5.0,
-            )
-            if response.status_code == 200:
-                data = response.json()
-                if "data" in data and len(data["data"]) > 0:
-                    model_info = data["data"][0]
-                    # vLLM may include max_model_len in model metadata
-                    # Try common field names
-                    for field in ["max_model_len", "max_length", "max_position_embeddings"]:
-                        if field in model_info:
-                            self._max_model_len = int(model_info[field])
-                            logger.info(
-                                f"Auto-detected max_model_len: {self._max_model_len} tokens"
-                            )
-                            return
-
-            # Fallback: use config value
-            self._max_model_len = self.config.max_model_len or self._get_config_max_model_len()
-            logger.warning(
-                "Could not auto-detect max_model_len from server, using default: "
-                f"{self._max_model_len} tokens"
-            )
-
-        except Exception as e:
-            # Fallback on any error
-            self._max_model_len = self.config.max_model_len or self._get_config_max_model_len()
-            logger.warning(
-                f"Error auto-detecting max_model_len ({e}), using default: "
-                f"{self._max_model_len} tokens"
-            )
-
-    def _get_config_max_model_len(self) -> int:
-        """Get max_model_len from config.toml (computed from max_input + max_completion)."""
-        from scicode_lint.config import load_config_from_toml
-
-        config = load_config_from_toml()
-        llm = config.get("llm", {})
-        max_input: int = llm.get("max_input_tokens", 16000)
-        max_completion: int = llm.get("max_completion_tokens", 4096)
-        return max_input + max_completion
+        raise RuntimeError("Unexpected: all attempts exhausted without result or exception")
 
     def get_max_model_len(self) -> int:
         """Get maximum context length in tokens.
@@ -492,9 +452,7 @@ class VLLMClient(LLMClient):
             >>> max_len = client.get_max_model_len()
             >>> print(f"Max tokens: {max_len}")
         """
-        if self._max_model_len is None:
-            self._auto_detect_max_model_len()
-        return self._max_model_len or self._get_config_max_model_len()
+        return self._max_model_len
 
 
 def detect_vllm() -> tuple[str, str | None]:
@@ -551,6 +509,7 @@ def create_client(config: LLMConfig) -> LLMClient:
     # Auto-detect base_url if not specified
     if not config.base_url:
         detected_url, _ = detect_vllm()
-        config.base_url = detected_url
+        # Create a copy to avoid mutating the caller's config
+        config = config.model_copy(update={"base_url": detected_url})
 
     return VLLMClient(config)

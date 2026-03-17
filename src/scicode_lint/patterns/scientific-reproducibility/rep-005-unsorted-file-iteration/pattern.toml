@@ -25,34 +25,26 @@ references = [
 
 [detection]
 question = """
-Analyze file iteration for reproducibility issues.
+Does this code have ORDER-DEPENDENT file iteration without sorting?
 
-os.listdir(), glob.glob(), and Path.iterdir() return files in arbitrary order that depends on the filesystem. This order varies between runs and machines.
+os.listdir(), glob.glob(), Path.glob() return files in non-deterministic order.
+This is ONLY a bug when iteration order affects results.
 
-ONLY these functions have non-deterministic order:
-- os.listdir()
-- os.scandir()
-- glob.glob()
-- Path.glob()
-- Path.rglob()
-- Path.iterdir()
+BUG (answer YES) - order affects results:
+- Appending to list/array then concatenating: for f in glob(): data.append(load(f)); concat(data)
+- Merging configs in order: for f in glob(): config.update(load(f))
+- Processing files sequentially where position matters
+- Yielding files without sorting
 
-Does this code use these functions without sorted()?
+NOT a bug (answer NO) - order doesn't affect results:
+- Building dict from glob: {name: load(f) for f in glob()} - dict access by key ignores iteration order
+- Finding max/min: max(glob(...), key=...)
+- Counting files: len(glob(...))
+- sorted() wrapper used
+- Files come from JSON manifest (order defined by data file)
 
-Look for these specific patterns:
-- os.listdir() or os.scandir() not wrapped in sorted()
-- glob.glob() or Path.glob() not wrapped in sorted()
-- Path.iterdir() not wrapped in sorted()
-
-Examples of CORRECT usage (NO bug):
-- sorted(os.listdir(dir)) - explicitly sorted
-- sorted(glob.glob(pattern)) - explicitly sorted
-- Iterating over a JSON array (manifest["files"]) - JSON arrays preserve order
-- Iterating over a list read from file - text files preserve order
-- Iterating over Python list/tuple - these preserve order
-
-YES = Bug: os.listdir/glob.glob/Path.iterdir used without sorted()
-NO = Correct: sorted() used, or iterating over ordered data structure (JSON array, text file, list)
+YES = Bug: unsorted iteration where order affects final result (list/array building, concat, merge)
+NO = Clean: dict lookup, max/min, counting, sorted() used, manifest-based order
 """
 
 warning_message = """
@@ -74,6 +66,7 @@ min_confidence = 0.85
 type = "function"
 name = "load_dataset"
 snippet = "os.listdir"
+lines = [16]
 
 [[tests.negative]]
 file = "test_negative/manifest_file.py"
@@ -87,10 +80,14 @@ description = "Processing a single file (no iteration)"
 file = "test_negative/sorted_glob.py"
 description = "Using sorted() with glob/listdir for reproducibility"
 
+[[tests.negative]]
+file = "test_negative/dict_lookup.py"
+description = "Glob results converted to dict for lookup - iteration order doesn't affect key-based access"
+
 # === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/glob_unsorted.py"
-description = "glob.glob() and os.listdir() used without sorting, affecting file processing order in multiple functions."
+description = "glob.glob() and os.listdir() used without sorting - order affects config merging and data concatenation."
 expected_issue = "glob.glob() and os.listdir() without sorted() wrapper"
 min_confidence = 0.85
 
@@ -98,14 +95,16 @@ min_confidence = 0.85
 type = "function"
 name = "load_all_configs"
 snippet = "glob.glob"
+lines = [12, 22, 30]
 
 [[tests.positive]]
 file = "test_positive/unsorted_listdir.py"
-description = "os.listdir() used to load and concatenate numpy arrays without sorting, causing non-reproducible concatenation order."
-expected_issue = "os.listdir() without sorted() wrapper when order affects results"
+description = "Text corpus loading with os.listdir() and Path.iterdir() without sorting - order affects token list and vocabulary IDs."
+expected_issue = "os.listdir() and Path.iterdir() without sorted() wrapper when order affects results"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
 name = "load_all_data"
 snippet = "os.listdir"
+lines = [10, 23]

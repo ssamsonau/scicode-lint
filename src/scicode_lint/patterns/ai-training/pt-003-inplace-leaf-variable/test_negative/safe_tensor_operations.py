@@ -2,32 +2,26 @@ import torch
 import torch.nn as nn
 
 
-class CustomNormalization(nn.Module):
-    def __init__(self):
+class SpectralNormFC(nn.Module):
+    def __init__(self, in_features, out_features):
         super().__init__()
-        self.gamma = nn.Parameter(torch.ones(1))
-        self.beta = nn.Parameter(torch.zeros(1))
+        self.weight = nn.Parameter(torch.randn(out_features, in_features))
+        self.bias = nn.Parameter(torch.zeros(out_features))
 
     def forward(self, x):
-        mean = x.mean()
-        std = x.std()
-        normalized = (x - mean) / (std + 1e-8)
-        return self.gamma * normalized + self.beta
+        u = torch.randn(self.weight.shape[0], device=self.weight.device)
+        v = torch.randn(self.weight.shape[1], device=self.weight.device)
+        for _ in range(3):
+            v = torch.mv(self.weight.t(), u)
+            v = v / (v.norm() + 1e-8)
+            u = torch.mv(self.weight, v)
+            u = u / (u.norm() + 1e-8)
+        sigma = u.dot(torch.mv(self.weight, v))
+        normed_weight = self.weight / sigma
+        return torch.nn.functional.linear(x, normed_weight, self.bias)
 
 
-class DeepNetwork(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.norm = CustomNormalization()
-        self.layers = nn.Sequential(
-            nn.Linear(200, 128), nn.ReLU(), nn.Linear(128, 64), nn.ReLU(), nn.Linear(64, 10)
-        )
-
-    def forward(self, x):
-        x = self.norm(x)
-        return self.layers(x)
-
-
-def forward_pass(model, inputs):
-    outputs = model(inputs)
-    return outputs
+def clip_and_scale(tensor, max_norm=1.0):
+    norm = tensor.norm()
+    scale = torch.clamp(max_norm / (norm + 1e-8), max=1.0)
+    return tensor * scale

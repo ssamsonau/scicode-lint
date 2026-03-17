@@ -1,21 +1,26 @@
-from concurrent.futures import ProcessPoolExecutor
+import multiprocessing as mp
 
 import numpy as np
 
 
-def compute_eigenvalues(matrix):
-    eigenvals, _ = np.linalg.eig(matrix)
-    return np.sort(eigenvals)
+def train_model_on_batch(batch_data, model_params):
+    X, y = batch_data
+    weights = np.random.randn(X.shape[1])
+    for _ in range(1000):
+        predictions = X @ weights
+        gradient = X.T @ (predictions - y)
+        weights -= 0.001 * gradient
+    return weights
 
 
-def parallel_eigenvalue_analysis(matrices):
-    results = []
-    with ProcessPoolExecutor(max_workers=4) as executor:
-        futures = [executor.submit(compute_eigenvalues, mat) for mat in matrices]
-        for future in futures:
-            results.append(future.result())
-    return results
+def distributed_training(batches, model_params, num_workers=4):
+    with mp.Pool(num_workers) as pool:
+        results = pool.starmap(
+            train_model_on_batch,
+            [(batch, model_params) for batch in batches],
+        )
+    return np.mean(results, axis=0)
 
 
-matrices = [np.random.randn(500, 500) for _ in range(20)]
-eigenvalues = parallel_eigenvalue_analysis(matrices)
+batches = [(np.random.randn(1000, 50), np.random.randn(1000)) for _ in range(8)]
+final_weights = distributed_training(batches, {})

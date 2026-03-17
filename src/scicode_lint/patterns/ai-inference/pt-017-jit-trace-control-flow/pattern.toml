@@ -62,6 +62,7 @@ min_confidence = 0.85
 type = "function"
 name = "trace_model"
 snippet = "torch.jit.trace"
+lines = [32, 39]
 
 [[tests.negative]]
 file = "test_negative/correct_jit_usage.py"
@@ -77,14 +78,15 @@ description = "Using jit.script for control flow models"
 
 [[tests.positive]]
 file = "test_positive/trace_conditional.py"
-description = "Tracing a model with data-dependent conditional activation logic"
-expected_issue = "torch.jit.trace() on model with conditional branch based on tensor values"
+description = "Tracing pure data preprocessing functions (no nn.Module) with if-based branching"
+expected_issue = "torch.jit.trace() on standalone functions with data-dependent branching for normalization and outlier removal"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "export_model"
+name = "export_preprocessing"
 snippet = "torch.jit.trace"
+lines = [24, 27]
 
 [[tests.positive]]
 file = "test_positive/trace_loop.py"
@@ -96,3 +98,4 @@ min_confidence = 0.85
 type = "function"
 name = "trace_loop_model"
 snippet = "torch.jit.trace"
+lines = [21]

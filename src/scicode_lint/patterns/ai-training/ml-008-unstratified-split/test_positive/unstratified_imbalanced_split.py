@@ -1,24 +1,46 @@
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import KFold, cross_val_score, train_test_split
+import numpy as np
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.model_selection import RepeatedKFold
 
 
-def prepare_train_test(X, y):
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    print(f"Train positive rate: {y_train.mean():.2%}")
-    print(f"Test positive rate: {y_test.mean():.2%}")
-    return X_train, X_test, y_train, y_test
+class ImbalancedClassifierTrainer:
+    """Trainer for imbalanced classification without stratification."""
+
+    def __init__(self, n_splits: int = 5, n_repeats: int = 3):
+        self.cv = RepeatedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=0)
+        self.model = GradientBoostingClassifier(n_estimators=50)
+
+    def cross_validate(self, X: np.ndarray, y: np.ndarray) -> list[float]:
+        scores = []
+        for train_idx, test_idx in self.cv.split(X):
+            X_train, X_test = X[train_idx], X[test_idx]
+            y_train, y_test = y[train_idx], y[test_idx]
+
+            self.model.fit(X_train, y_train)
+            scores.append(self.model.score(X_test, y_test))
+
+        return scores
 
 
-def evaluate_with_cv(X, y):
-    model = LogisticRegression()
-    cv = KFold(n_splits=5, shuffle=True, random_state=42)
-    scores = cross_val_score(model, X, y, cv=cv, scoring="roc_auc")
-    print(f"Cross-validation scores: {scores}")
-    print(f"Mean AUC: {scores.mean():.3f}")
-    print(f"Std AUC: {scores.std():.3f}")
-    return scores
+def bootstrap_evaluation(X, y, n_bootstrap: int = 100, sample_ratio: float = 0.8):
+    """Bootstrap sampling without stratification for imbalanced data."""
+    rng = np.random.default_rng(seed=42)
+    n_samples = int(len(X) * sample_ratio)
+    results = []
 
+    for _ in range(n_bootstrap):
+        indices = rng.choice(len(X), size=n_samples, replace=True)
+        X_boot, y_boot = X[indices], y[indices]
 
-def split_for_evaluation(X, y):
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    return X_train, X_test, y_train, y_test
+        test_mask = np.ones(len(X), dtype=bool)
+        test_mask[indices] = False
+        X_test, y_test = X[test_mask], y[test_mask]
+
+        if len(np.unique(y_boot)) < 2:
+            continue
+
+        model = GradientBoostingClassifier(n_estimators=20)
+        model.fit(X_boot, y_boot)
+        results.append(model.score(X_test, y_test))
+
+    return np.mean(results), np.std(results)

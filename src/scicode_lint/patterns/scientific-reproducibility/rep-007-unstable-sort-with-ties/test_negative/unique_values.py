@@ -1,31 +1,34 @@
-import numpy as np
+import heapq
+from dataclasses import dataclass
+from typing import TypeVar
+
+T = TypeVar("T")
 
 
-def sort_unique_ids(user_ids):
-    assert len(user_ids) == len(np.unique(user_ids)), "IDs must be unique"
-    return np.sort(user_ids)
+@dataclass(order=True)
+class PrioritizedItem:
+    priority: float
+    sequence: int
+    data: object
 
 
-def rank_by_unique_key(items, unique_keys):
-    assert len(unique_keys) == len(np.unique(unique_keys)), "Keys must be unique"
-    order = np.argsort(unique_keys)
-    return items[order]
+class PriorityQueue:
+    def __init__(self):
+        self._heap: list[PrioritizedItem] = []
+        self._counter = 0
+
+    def push(self, priority: float, data: object) -> None:
+        item = PrioritizedItem(priority, self._counter, data)
+        self._counter += 1
+        heapq.heappush(self._heap, item)
+
+    def pop(self) -> object:
+        item = heapq.heappop(self._heap)
+        return item.data
+
+    def top_k(self, k: int) -> list[object]:
+        return [heapq.heappop(self._heap).data for _ in range(min(k, len(self._heap)))]
 
 
-def get_sorted_timestamps(timestamps):
-    if len(timestamps) != len(np.unique(timestamps)):
-        raise ValueError("Timestamps must be unique")
-    return np.sort(timestamps)
-
-
-class UniqueKeySorter:
-    def __init__(self, data, key_column):
-        self.data = data
-        self.key_column = key_column
-
-    def sort(self):
-        keys = self.data[self.key_column]
-        if len(keys) != len(np.unique(keys)):
-            raise ValueError("Key column must have unique values")
-        order = np.argsort(keys)
-        return {k: v[order] for k, v in self.data.items()}
+def sort_with_uuid_tiebreaker(items: list[dict]) -> list[dict]:
+    return sorted(items, key=lambda x: (x["value"], x["uuid"]))

@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from scicode_lint.config import Severity
 
@@ -24,24 +23,6 @@ class DetectionPattern:
     severity: Severity
     detection_question: str
     warning_message: str
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "DetectionPattern":
-        """Create pattern from YAML dictionary.
-
-        Args:
-            data: Dictionary with pattern fields from YAML
-
-        Returns:
-            DetectionPattern instance
-        """
-        return cls(
-            id=data["id"],
-            category=data["category"],
-            severity=Severity(data["severity"]),
-            detection_question=data["detection_question"],
-            warning_message=data["warning_message"],
-        )
 
 
 class DetectionCatalog:
@@ -81,8 +62,7 @@ class DetectionCatalog:
         loader = PatternLoader(self.patterns_dir)
         toml_patterns = loader.load_all_patterns()
 
-        # Convert to legacy DetectionPattern format
-        return [loader.to_legacy_pattern(p) for p in toml_patterns]
+        return [loader.to_detection_pattern(p) for p in toml_patterns]
 
     def get_pattern(self, pattern_id: str) -> DetectionPattern | None:
         """Get pattern by ID.

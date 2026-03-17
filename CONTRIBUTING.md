@@ -241,11 +241,11 @@ python evals/run_eval.py
 - Validates patterns work together without interference
 
 ```bash
-# Hardcoded ground truth
-python evals/integration/run_integration_eval.py -v
+# Full pipeline: Generate → Verify → Lint → Judge
+python evals/integration/integration_eval.py --generate-count 10
 
-# LLM-as-judge
-python evals/integration/run_integration_eval_llm_judge.py -v
+# Skip verification/judge for faster evaluation
+python evals/integration/integration_eval.py --generate-count 10 --skip-verification --skip-judge
 ```
 
 **See:** [evals/README.md](evals/README.md) and [evals/integration/README.md](evals/integration/README.md) for details.

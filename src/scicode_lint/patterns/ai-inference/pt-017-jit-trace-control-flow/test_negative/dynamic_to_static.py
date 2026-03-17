@@ -37,5 +37,4 @@ class RouterModel(nn.Module):
         return self.branch_b(x)
 
 
-# Use script for conditional model
 scripted_router = torch.jit.script(RouterModel())

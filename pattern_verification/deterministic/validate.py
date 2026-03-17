@@ -2,27 +2,31 @@
 """Comprehensive pattern validation - deterministic quality checks.
 
 Usage:
-    python scripts/validate_pattern_tests.py           # Check all patterns
-    python scripts/validate_pattern_tests.py --fix     # Auto-fix what's possible
-    python scripts/validate_pattern_tests.py ml-002    # Check specific pattern
-    python scripts/validate_pattern_tests.py --strict  # Fail on warnings too
-    python scripts/validate_pattern_tests.py --fetch-refs   # Fetch and cache reference docs
-    python scripts/validate_pattern_tests.py --clean-cache  # Remove orphaned cache files
+    python pattern_verification/deterministic/validate.py           # Check all patterns
+    python pattern_verification/deterministic/validate.py --fix     # Auto-fix what's possible
+    python pattern_verification/deterministic/validate.py ml-002    # Check specific pattern
+    python pattern_verification/deterministic/validate.py --strict  # Fail on warnings too
+    python pattern_verification/deterministic/validate.py --fetch-refs   # Fetch and cache reference docs
+    python pattern_verification/deterministic/validate.py --clean-cache  # Remove orphaned cache files
 
 Checks performed:
 1. TOML/file sync - every test file has TOML entry and vice versa
 2. Schema validation - pattern.toml matches Pydantic model
-3. Data leakage - no BUG/CORRECT/WRONG hints in test files
+3. Intent hints - no docstrings/names that reveal expected answers (buggy_, correct_, etc.)
 4. Test file count - minimum 3 positive, 3 negative (warning)
 5. TODO markers - no unfinished placeholders in TOML
 6. Detection question format - ends with YES/NO conditions
 7. Test file syntax - all .py files are valid Python
 8. Empty fields - required fields have content
 9. Category mismatch - meta.category matches directory location
-10. Snippet verification - expected_location snippets exist in files (warning)
+10. Snippet verification - expected_location snippets exist at specified lines
+10b. Expected lines - positive/context-dependent tests MUST have expected_location.lines
+10c. Expected name - expected_location.name exists in test file (AST check)
 11. Related patterns - related_patterns references exist
 12. Test file diversity - detect copy-paste (AST similarity)
-13. Reference URLs - fetch and cache reference documentation (--fetch-refs)
+13. No comments - test files must not contain # comments (stripped before LLM analysis)
+14. Reference URLs - fetch and cache reference documentation (--fetch-refs)
+15. Registry sync - _registry.toml matches actual pattern count (global check)
 """
 
 import argparse
@@ -40,6 +44,9 @@ from typing import Any
 
 from pydantic import BaseModel
 
+# Add project root to sys.path so pattern_verification can be imported
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 # Cache settings for reference docs
 DOC_CACHE_DIR = Path(__file__).parent / "doc_cache"
 DOC_CACHE_RAW_DIR = DOC_CACHE_DIR / "raw"
@@ -54,28 +61,49 @@ MAX_DOC_LINES = 1000  # Warn if cached doc exceeds this (find more specific page
 
 
 # Pydantic model for vLLM doc extraction response
-class CutRange(BaseModel):
-    """Line range to cut from documentation."""
-
-    start: int
-    end: int
-
-
 class DocCutResponse(BaseModel):
     """Response indicating which line ranges to cut."""
 
     cut: list[list[int]]  # List of [start, end] pairs
 
 
-# Data leakage patterns to detect in test files
-DATA_LEAKAGE_PATTERNS = [
-    (r"#\s*BUG:", "BUG marker comment"),
-    (r"#\s*CORRECT:", "CORRECT marker comment"),
-    (r"#\s*WRONG", "WRONG marker comment"),
-    (r"#\s*FIXME:", "FIXME marker comment"),
-    (r"#\s*This is (wrong|incorrect|buggy|the bug)", "Hint comment"),
-    (r"#\s*This (leaks|causes|creates)", "Hint comment explaining issue"),
-    (r'""".*?(bug|issue|problem|incorrect|wrong).*?"""', "Docstring with hint"),
+# Intent hint patterns to detect in test files
+# These reveal expected answers, preventing fair LLM evaluation
+# Note: Comments are caught by CHECK 13 (no_comments), so we focus on:
+# - Docstrings with hints
+# - Function/variable names that reveal correctness
+INTENT_HINT_PATTERNS = [
+    # Docstring hints - bug indicators (evaluative language about code quality)
+    (
+        r'"""[^"]*\b(bug|buggy|issue|problem|incorrect|wrong|broken|bad|leaky|leak|flaw|defect)\b[^"]*"""',
+        "Docstring hints at bug",
+    ),
+    (
+        r"'''[^']*\b(bug|buggy|issue|problem|incorrect|wrong|broken|bad|leaky|leak|flaw|defect)\b[^']*'''",
+        "Docstring hints at bug",
+    ),
+    # Docstring hints - correctness indicators (explicit "this is correct/fixed")
+    (
+        r'"""[^"]*(correct|fixed|proper)\s+\w*\s*(implementation|version|approach|code|way|method)[^"]*"""',
+        "Docstring hints at correctness",
+    ),
+    (
+        r"'''[^']*(correct|fixed|proper)\s+\w*\s*(implementation|version|approach|code|way|method)[^']*'''",
+        "Docstring hints at correctness",
+    ),
+    # Naming hints - function/class/variable names that reveal intent
+    (r"\bdef\s+(buggy_|incorrect_|wrong_|broken_|bad_|leaky_)", "Function name hints at bug"),
+    (r"\bdef\s+(correct_|fixed_|proper_|safe_|good_)", "Function name hints at correctness"),
+    (r"\bclass\s+(Buggy|Incorrect|Wrong|Broken|Bad|Leaky)", "Class name hints at bug"),
+    (r"\bclass\s+(Correct|Fixed|Proper|Safe|Good)", "Class name hints at correctness"),
+    (
+        r"\b(buggy|incorrect|wrong|broken|bad|leaky)_(function|method|class|data|model|scaler)\s*=",
+        "Variable name hints at bug",
+    ),
+    (
+        r"\b(correct|fixed|proper|safe|good)_(function|method|class|data|model|scaler)\s*=",
+        "Variable name hints at correctness",
+    ),
 ]
 
 # Required YES/NO pattern at end of detection question
@@ -198,12 +226,19 @@ def check_schema(pattern_dir: Path, toml_data: dict[str, Any], result: Validatio
 
 
 # =============================================================================
-# CHECK 3: Data Leakage Detection
+# CHECK 3: Intent Hints Detection (docstrings and naming)
 # =============================================================================
 
 
-def check_data_leakage(pattern_dir: Path, result: ValidationResult) -> None:
-    """Check test files for hint comments that leak answers."""
+def check_intent_hints(pattern_dir: Path, result: ValidationResult) -> None:
+    """Check test files for hints that reveal expected answers.
+
+    Detects:
+    - Docstrings containing words like "bug", "incorrect", "wrong"
+    - Function/class/variable names like "buggy_function", "correct_approach"
+
+    Note: Comments are handled by CHECK 13 (no_comments).
+    """
     for test_type in ["positive", "negative", "context_dependent"]:
         test_dir = pattern_dir / f"test_{test_type}"
         if not test_dir.exists():
@@ -218,13 +253,13 @@ def check_data_leakage(pattern_dir: Path, result: ValidationResult) -> None:
             except Exception:
                 continue
 
-            for pattern, desc in DATA_LEAKAGE_PATTERNS:
+            for pattern, desc in INTENT_HINT_PATTERNS:
                 if re.search(pattern, content, re.IGNORECASE):
                     result.issues.append(
                         ValidationIssue(
                             "error",
-                            "data_leakage",
-                            f"{desc} found",
+                            "intent_hints",
+                            f"{desc}",
                             file=f"test_{test_type}/{py_file.name}",
                         )
                     )
@@ -412,38 +447,208 @@ def check_category_mismatch(
 def check_expected_location_snippets(
     pattern_dir: Path, toml_data: dict[str, Any], result: ValidationResult
 ) -> None:
-    """Check that expected_location snippets exist in the actual test files."""
+    """Check that expected_location snippets exist at specified lines.
+
+    Two checks:
+    1. Snippet must exist somewhere in the file (error if not)
+    2. If lines are specified, snippet must appear within those lines (error if not)
+    """
     tests = toml_data.get("tests", {})
 
+    for test_type in ["positive", "context_dependent"]:
+        for entry in tests.get(test_type, []):
+            expected_loc = entry.get("expected_location", {})
+            snippet = expected_loc.get("snippet", "")
+            lines = expected_loc.get("lines", [])
+            file_path_str = entry.get("file", "")
+
+            if not snippet or not file_path_str:
+                continue
+
+            file_path = pattern_dir / file_path_str
+            if not file_path.exists():
+                continue  # Already caught by toml_sync check
+
+            try:
+                content = file_path.read_text()
+                file_lines = content.splitlines()
+
+                # Normalize whitespace for comparison
+                normalized_content = " ".join(content.split())
+                normalized_snippet = " ".join(snippet.split())
+
+                # Check 1: Snippet exists somewhere in file
+                if normalized_snippet not in normalized_content:
+                    result.issues.append(
+                        ValidationIssue(
+                            "error",
+                            "snippet_not_in_file",
+                            f"Snippet not found in file: '{snippet[:50]}...'",
+                            file=file_path_str,
+                        )
+                    )
+                    continue  # Skip line check if snippet not in file at all
+
+                # Check 2: If lines specified, snippet must be at those lines
+                if lines:
+                    # Extract content at specified lines (1-indexed)
+                    lines_content = []
+                    for line_num in lines:
+                        if 1 <= line_num <= len(file_lines):
+                            lines_content.append(file_lines[line_num - 1])
+
+                    lines_text = " ".join(" ".join(lines_content).split())
+
+                    if normalized_snippet not in lines_text:
+                        result.issues.append(
+                            ValidationIssue(
+                                "error",
+                                "snippet_not_at_lines",
+                                f"Snippet '{snippet[:30]}...' not at lines {lines}",
+                                file=file_path_str,
+                            )
+                        )
+            except Exception:
+                pass
+
+
+# =============================================================================
+# CHECK 10b: Expected Lines Required
+# =============================================================================
+
+
+def check_expected_lines(
+    pattern_dir: Path, toml_data: dict[str, Any], result: ValidationResult
+) -> None:
+    """Check that expected_lines is defined for positive/context_dependent tests.
+
+    Expected lines are required for:
+    - positive tests: MUST have expected_lines (bug location is known)
+    - context_dependent tests: MUST have expected_lines (potential issue location)
+    - negative tests: should NOT have expected_lines (no bug to locate)
+    """
+    tests = toml_data.get("tests", {})
+
+    # Check positive tests - MUST have expected_lines
     for entry in tests.get("positive", []):
-        expected_loc = entry.get("expected_location", {})
-        snippet = expected_loc.get("snippet", "")
         file_path_str = entry.get("file", "")
+        expected_loc = entry.get("expected_location", {})
+        lines = expected_loc.get("lines", [])
 
-        if not snippet or not file_path_str:
-            continue
+        if not lines:
+            result.issues.append(
+                ValidationIssue(
+                    "error",
+                    "missing_expected_lines",
+                    "Positive test must have expected_location.lines (add lines = [n, m, ...])",
+                    file=file_path_str,
+                )
+            )
 
-        file_path = pattern_dir / file_path_str
-        if not file_path.exists():
-            continue  # Already caught by toml_sync check
+    # Check context_dependent tests - MUST have expected_lines
+    for entry in tests.get("context_dependent", []):
+        file_path_str = entry.get("file", "")
+        expected_loc = entry.get("expected_location", {})
+        lines = expected_loc.get("lines", [])
 
-        try:
-            content = file_path.read_text()
-            # Normalize whitespace for comparison
-            normalized_content = " ".join(content.split())
-            normalized_snippet = " ".join(snippet.split())
+        if not lines:
+            result.issues.append(
+                ValidationIssue(
+                    "error",
+                    "missing_expected_lines",
+                    "Context-dependent test must have expected_location.lines",
+                    file=file_path_str,
+                )
+            )
 
-            if normalized_snippet not in normalized_content:
+
+# =============================================================================
+# CHECK 10c: Expected Name Exists in Test File
+# =============================================================================
+
+
+def _get_defined_names(tree: ast.AST) -> dict[str, str]:
+    """Extract all function, class, and method names from AST.
+
+    Returns:
+        Dict mapping name to location_type ("function", "class", "method").
+    """
+    names: dict[str, str] = {}
+
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            # Check if it's a method (inside a class)
+            for parent in ast.walk(tree):
+                if isinstance(parent, ast.ClassDef):
+                    for item in parent.body:
+                        if item is node:
+                            names[node.name] = "method"
+                            break
+            if node.name not in names:
+                names[node.name] = "function"
+        elif isinstance(node, ast.ClassDef):
+            names[node.name] = "class"
+
+    return names
+
+
+def check_expected_name_exists(
+    pattern_dir: Path, toml_data: dict[str, Any], result: ValidationResult
+) -> None:
+    """Check that expected_location.name exists in test file via AST.
+
+    With name-based detection, the linter matches on function/class names.
+    This check ensures the expected_location.name actually exists in the test file,
+    catching typos early during validation instead of waiting for evals to fail.
+    """
+    tests = toml_data.get("tests", {})
+
+    for test_type in ["positive", "context_dependent"]:
+        for entry in tests.get(test_type, []):
+            file_path_str = entry.get("file", "")
+            expected_loc = entry.get("expected_location", {})
+            expected_name = expected_loc.get("name", "")
+            expected_type = expected_loc.get("type", "")
+
+            if not expected_name:
+                continue  # Missing name is caught by schema validation
+
+            # Skip module-level (no specific name to check)
+            if expected_type == "module":
+                continue
+
+            file_path = pattern_dir / file_path_str
+            if not file_path.exists():
+                continue  # File existence checked elsewhere
+
+            try:
+                source = file_path.read_text()
+                tree = ast.parse(source)
+            except (SyntaxError, OSError):
+                continue  # Syntax errors caught elsewhere
+
+            defined_names = _get_defined_names(tree)
+
+            if expected_name not in defined_names:
                 result.issues.append(
                     ValidationIssue(
-                        "warning",
-                        "snippet_mismatch",
-                        f"Snippet not found in file: '{snippet[:50]}...'",
+                        "error",
+                        "expected_name_not_found",
+                        f"expected_location.name '{expected_name}' not found in file. "
+                        f"Defined names: {list(defined_names.keys())[:5]}",
                         file=file_path_str,
                     )
                 )
-        except Exception:
-            pass
+            elif expected_type and defined_names[expected_name] != expected_type:
+                result.issues.append(
+                    ValidationIssue(
+                        "warning",
+                        "expected_type_mismatch",
+                        f"expected_location.type '{expected_type}' but "
+                        f"'{expected_name}' is a {defined_names[expected_name]}",
+                        file=file_path_str,
+                    )
+                )
 
 
 # =============================================================================
@@ -547,7 +752,57 @@ def check_test_diversity(pattern_dir: Path, result: ValidationResult) -> None:
 
 
 # =============================================================================
-# CHECK 13: Reference URL Validation and Caching
+# CHECK 13: No Comments in Test Files
+# =============================================================================
+
+
+def check_no_comments(pattern_dir: Path, result: ValidationResult) -> None:
+    """Check test files contain no # comments.
+
+    Why forbid comments if they're stripped before LLM evaluation?
+    1. Consistency - developers see exactly what LLM sees when reviewing
+    2. No fossilized interpretations - old/wrong comments don't mislead maintainers
+    3. Defense in depth - if stripping fails (syntax error), no comments leak through
+
+    Uses Python's tokenize module to correctly identify comments
+    (handles # inside strings).
+    """
+    import io
+    import tokenize
+
+    for test_type in ["positive", "negative", "context_dependent"]:
+        test_dir = pattern_dir / f"test_{test_type}"
+        if not test_dir.exists():
+            continue
+
+        for py_file in test_dir.glob("*.py"):
+            if py_file.name.startswith("_"):
+                continue
+
+            try:
+                content = py_file.read_text()
+                for tok in tokenize.generate_tokens(io.StringIO(content).readline):
+                    if tok.type == tokenize.COMMENT:
+                        comment_text = tok.string.strip()
+                        if len(comment_text) > 30:
+                            comment_text = comment_text[:30] + "..."
+                        result.issues.append(
+                            ValidationIssue(
+                                "error",
+                                "no_comments",
+                                f"Comment found at line {tok.start[0]}: {comment_text}",
+                                file=f"test_{test_type}/{py_file.name}",
+                            )
+                        )
+                        break
+            except tokenize.TokenError:
+                pass
+            except Exception:
+                pass
+
+
+# =============================================================================
+# CHECK 14: Reference URL Validation and Caching
 # =============================================================================
 
 
@@ -1043,6 +1298,49 @@ def clean_orphaned_cache(patterns_dir: Path) -> list[str]:
 
 
 # =============================================================================
+# CHECK 15: Registry Sync (global check)
+# =============================================================================
+
+
+def check_registry_sync(patterns_dir: Path) -> tuple[bool, str]:
+    """Check that _registry.toml is in sync with actual patterns.
+
+    Returns:
+        Tuple of (is_valid, message). is_valid is True if registry is up to date.
+    """
+    registry_path = patterns_dir / "_registry.toml"
+
+    if not registry_path.exists():
+        return False, "Registry file _registry.toml not found"
+
+    # Count actual patterns
+    actual_count = 0
+    for category in patterns_dir.iterdir():
+        if not category.is_dir() or category.name.startswith((".", "_")):
+            continue
+        for pattern_dir in category.iterdir():
+            if pattern_dir.is_dir() and (pattern_dir / "pattern.toml").exists():
+                actual_count += 1
+
+    # Read registry count
+    try:
+        with open(registry_path, "rb") as f:
+            registry_data = tomllib.load(f)
+        registry_count = registry_data.get("total_patterns", 0)
+    except Exception as e:
+        return False, f"Failed to read registry: {e}"
+
+    if registry_count != actual_count:
+        return (
+            False,
+            f"Registry out of sync: has {registry_count} patterns but {actual_count} exist. "
+            f"Run: python src/scicode_lint/tools/rebuild_registry.py --patterns-dir {patterns_dir}",
+        )
+
+    return True, f"Registry in sync ({actual_count} patterns)"
+
+
+# =============================================================================
 # FIX FUNCTIONS
 # =============================================================================
 
@@ -1219,7 +1517,7 @@ def validate_pattern(
     # Run checks
     sync_issues = check_toml_file_sync(pattern_dir, toml_data, result)
     check_schema(pattern_dir, toml_data, result)
-    check_data_leakage(pattern_dir, result)
+    check_intent_hints(pattern_dir, result)
     check_test_count(pattern_dir, result)
     check_todo_markers(toml_path, result)
     check_detection_question(toml_data, result)
@@ -1227,8 +1525,11 @@ def validate_pattern(
     check_empty_fields(toml_data, result)
     check_category_mismatch(pattern_dir, toml_data, result)
     check_expected_location_snippets(pattern_dir, toml_data, result)
+    check_expected_lines(pattern_dir, toml_data, result)
+    check_expected_name_exists(pattern_dir, toml_data, result)
     check_related_patterns_exist(pattern_dir, toml_data, result)
     check_test_diversity(pattern_dir, result)
+    check_no_comments(pattern_dir, result)
     check_reference_urls(toml_data, result, fetch=fetch_refs)
 
     # Apply fixes if requested
@@ -1239,17 +1540,13 @@ def validate_pattern(
 
 
 def find_all_patterns(patterns_dir: Path) -> list[Path]:
-    """Find all pattern directories."""
-    patterns = []
-    for category in patterns_dir.iterdir():
-        if not category.is_dir() or category.name.startswith((".", "_")):
-            continue
-        for pattern_dir in category.iterdir():
-            if not pattern_dir.is_dir() or pattern_dir.name.startswith((".", "_")):
-                continue
-            if (pattern_dir / "pattern.toml").exists():
-                patterns.append(pattern_dir)
-    return sorted(patterns)
+    """Find all pattern directories.
+
+    Delegates to shared utility in pattern_verification.utils.
+    """
+    from pattern_verification.utils import find_all_patterns as _find_all_patterns
+
+    return _find_all_patterns(patterns_dir)
 
 
 def main() -> int:
@@ -1287,13 +1584,28 @@ def main() -> int:
         else:
             print("No orphaned cache files found.")
 
+    # Check registry sync (global check) - auto-fix if out of sync
+    registry_ok, registry_msg = check_registry_sync(patterns_dir)
+    if not registry_ok:
+        # Auto-rebuild registry
+        from scicode_lint.tools.rebuild_registry import RegistryBuilder
+
+        builder = RegistryBuilder(patterns_dir)
+        builder.write_registry()
+        print(
+            f"⚠ Registry was out of sync - rebuilt automatically ({builder.get_stats()['total']} patterns)"
+        )
+    elif not args.quiet:
+        print(f"✓ Registry: {registry_msg}")
+
     # Find patterns
     if args.pattern:
-        matches = list(patterns_dir.glob(f"*/{args.pattern}"))
-        if not matches:
+        from pattern_verification.utils import resolve_pattern
+
+        patterns = resolve_pattern(patterns_dir, args.pattern)
+        if not patterns:
             print(f"Error: Pattern '{args.pattern}' not found", file=sys.stderr)
             return 1
-        patterns = matches
     else:
         patterns = find_all_patterns(patterns_dir)
 

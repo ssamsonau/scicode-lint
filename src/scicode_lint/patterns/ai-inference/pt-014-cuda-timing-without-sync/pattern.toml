@@ -22,24 +22,26 @@ references = ["https://pytorch.org/docs/stable/notes/cuda.html#asynchronous-exec
 
 [detection]
 question = """
-Does this code time CUDA/GPU operations without synchronization?
+Does this code benchmark GPU KERNEL timing without synchronization?
 
-CUDA operations are asynchronous - model(x) returns immediately while GPU computes in background.
-Using time.time()/time.perf_counter() without torch.cuda.synchronize() measures queue time, not execution time.
+IMPORTANT: Only flag code explicitly measuring GPU kernel/model execution time.
+High-level program timing (measuring overall script duration) does NOT need synchronize().
 
-Check these conditions:
-1. Code uses .cuda() or tensors/models on GPU
-2. Uses time.time() or time.perf_counter() to measure duration
-3. NO torch.cuda.synchronize() called before recording end time
+Look for explicit GPU benchmarking patterns:
+- Timing model inference: start = time.time(); model(x); elapsed = time.time() - start
+- Timing specific GPU operations: timing individual layers, forward passes
+- Benchmarking code: functions named "benchmark", "profile", "measure_latency"
 
-NOT a bug (ignore these):
-- CPU-only code (no .cuda(), no GPU tensors)
-- Uses torch.profiler (handles sync internally)
-- Uses torch.cuda.Event() for timing (handles sync via record/synchronize)
-- torch.cuda.synchronize() called before end time measurement
+NOT a bug (answer NO):
+- High-level program timing (timing entire script, epoch, or long process)
+- torch.profiler (handles sync internally)
+- torch.cuda.Event() (proper GPU timing method)
+- PyTorch Lightning Trainer (handles sync internally)
+- Operations that implicitly sync: .cpu(), .numpy(), print(tensor), saving results
+- torch.cuda.synchronize() called before end time
 
-YES = Bug: time.time/perf_counter around GPU ops WITHOUT synchronize() before end time
-NO = Clean: CPU code, or uses profiler/CUDA events, or has synchronize() before end time
+YES = Bug: Explicit GPU kernel timing without synchronize() before end time
+NO = Clean: High-level timing, profiler, CUDA events, implicit sync, or synchronize() called
 """
 
 warning_message = """
@@ -61,6 +63,7 @@ min_confidence = 0.85
 type = "function"
 name = "benchmark_model"
 snippet = "time.perf_counter()"
+lines = [10, 13]
 
 [[tests.positive]]
 file = "test_positive/timing_without_sync.py"
@@ -72,6 +75,7 @@ min_confidence = 0.85
 type = "function"
 name = "measure_inference_time"
 snippet = "time.time()"
+lines = [20, 23]
 
 [[tests.negative]]
 file = "test_negative/cpu_benchmark.py"
@@ -85,6 +89,10 @@ description = "Using torch.profiler for GPU profiling"
 file = "test_negative/cuda_events.py"
 description = "Using CUDA events for accurate GPU timing"
 
+[[tests.negative]]
+file = "test_negative/highlevel_timing.py"
+description = "High-level program timing (epoch duration, experiment time) - microsecond precision not needed"
+
 [[tests.positive]]
 file = "test_positive/gpu_profiler.py"
 description = "Layer-by-layer GPU timing without synchronization causing inaccurate measurements"
@@ -95,6 +103,7 @@ min_confidence = 0.85
 type = "function"
 name = "profile_layers"
 snippet = "time.time()"
+lines = [10, 12, 14, 16]
 
 [[tests.positive]]
 file = "test_positive/latency_measurement.py"
@@ -106,3 +115,4 @@ min_confidence = 0.85
 type = "function"
 name = "profile_forward_pass"
 snippet = "time.perf_counter()"
+lines = [10, 12]

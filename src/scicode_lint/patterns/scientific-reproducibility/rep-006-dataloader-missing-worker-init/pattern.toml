@@ -64,6 +64,7 @@ min_confidence = 0.85
 type = "function"
 name = "create_dataloader"
 snippet = "num_workers"
+lines = [19, 24]
 
 [[tests.negative]]
 file = "test_negative/single_worker.py"
@@ -80,22 +81,24 @@ description = "DataLoader with worker_init_fn for proper seeding"
 # === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/dataloader_no_worker_init.py"
-description = "Dataset with numpy random augmentation loaded with multiple workers but no worker_init_fn."
-expected_issue = "DataLoader(num_workers=4) without worker_init_fn causes identical random augmentation across workers"
+description = "Audio spectrogram dataset with random time masking loaded with multi-worker DataLoader but no worker_init_fn."
+expected_issue = "DataLoader(num_workers=6) without worker_init_fn causes identical random masking across workers"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
 name = "create_dataloader"
 snippet = "DataLoader(dataset"
+lines = [28]
 
 [[tests.positive]]
 file = "test_positive/multiworker_loader.py"
-description = "Dataset generating random data in __getitem__ with multiple DataLoaders using workers but no worker_init_fn."
-expected_issue = "DataLoader(num_workers>0) without worker_init_fn causes all workers to have identical random states"
+description = "Contrastive learning dataset using random.choice for pair selection with multi-worker DataLoader but no worker_init_fn."
+expected_issue = "DataLoader(num_workers=4) without worker_init_fn causes identical random.choice across workers"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
 name = "create_dataloader"
-snippet = "return DataLoader(dataset, batch_size=batch_size, num_workers=4, shuffle=True)"
+snippet = "DataLoader(dataset"
+lines = [28]

@@ -1,21 +1,22 @@
-import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 
 
-def parallel_square(arr, num_workers=4):
-    def square(x):
-        return x**2
+def clip_value(x):
+    if x < -1.0:
+        return -1.0
+    elif x > 1.0:
+        return 1.0
+    return x
 
-    with mp.Pool(num_workers) as pool:
-        result = pool.map(square, arr.tolist())
-    return np.array(result)
+
+def parallel_clip(array, max_workers=4):
+    flat = array.flatten().tolist()
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        results = list(executor.map(clip_value, flat))
+    return np.array(results).reshape(array.shape)
 
 
-def parallel_normalize(data, num_workers=4):
-    def normalize_element(x):
-        return (x - data.mean()) / data.std()
-
-    with mp.Pool(num_workers) as pool:
-        result = pool.map(normalize_element, data.tolist())
-    return np.array(result)
+matrix = np.random.randn(200, 300)
+clipped = parallel_clip(matrix)

@@ -1,15 +1,19 @@
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import RobustScaler
-from sklearn.svm import SVR
+class FeatureNormalizer:
+    def __init__(self):
+        self.mean = None
+        self.std = None
+
+    def fit(self, tensor):
+        self.mean = tensor.mean(dim=0)
+        self.std = tensor.std(dim=0) + 1e-8
+
+    def transform(self, tensor):
+        return (tensor - self.mean) / self.std
 
 
-def build_regression_model(X, y, test_size=0.2):
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
-
-    scaler = RobustScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-
-    model = SVR()
-    model.fit(X_train_scaled, y_train)
-    return model, scaler, X_test_scaled, y_test
+def normalize_sensor_readings(train_readings, test_readings):
+    normalizer = FeatureNormalizer()
+    normalizer.fit(train_readings)
+    train_normed = normalizer.transform(train_readings)
+    test_normed = normalizer.transform(test_readings)
+    return train_normed, test_normed

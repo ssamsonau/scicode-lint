@@ -50,14 +50,15 @@ false_positive_risks = []
 
 [[tests.positive]]
 file = "test_positive/save_without_version.py"
-description = "Saving model without version metadata"
-expected_issue = "pickle.dump(model) without version info"
+description = "ML pipeline saving scaler and model with pickle.dump but no version metadata"
+expected_issue = "pickle.dump for scaler, model, and metadata without __version__"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "save_model"
-snippet = "pickle.dump"
+name = "save_model_pickle"
+snippet = "pickle.dump(scaler"
+lines = [19, 22, 25]
 
 [[tests.negative]]
 file = "test_negative/torch_save.py"
@@ -71,25 +72,26 @@ description = "Exporting to ONNX format"
 file = "test_negative/versioned_save.py"
 description = "Saving model with version metadata"
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/pickle_without_version.py"
-description = "Saving sklearn models with joblib.dump without version metadata"
-expected_issue = "joblib.dump(model, filepath) without library version tracking"
+description = "Saving sklearn models with both joblib.dump and pickle.dump without version metadata"
+expected_issue = "joblib.dump and pickle.dump without library version tracking"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
 name = "save_model"
-snippet = "joblib.dump(model, filepath)"
+snippet = "joblib.dump"
+lines = [8, 13]
 
 [[tests.positive]]
-file = "test_positive/save_model.py"
-description = "Saving pickled models and checkpoints without version information"
-expected_issue = "pickle.dump(model, f) and pickle.dump(checkpoint, f) without version metadata"
+file = "test_positive/checkpoint_no_version.py"
+description = "CheckpointManager saving checkpoints without version metadata"
+expected_issue = "pickle.dump(checkpoint) without library version tracking"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
-name = "save_model"
-snippet = "pickle.dump"
+type = "method"
+name = "save_checkpoint"
+snippet = "pickle.dump(checkpoint"
+lines = [23, 30]

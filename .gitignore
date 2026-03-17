@@ -58,8 +58,9 @@ Thumbs.db
 # Log files
 *.log
 
-# Semantic validation reports (generated on each run)
+# Pattern verification reports (generated on each run)
 pattern_verification/semantic/reports/
+pattern_verification/deterministic/reports/
 
 # Benchmarking results and temporary files
 benchmark_results.json
@@ -102,3 +103,6 @@ real_world_demo/reports/
 # Generated files that may accidentally land in package directory
 src/scicode_lint/evals/
 src/scicode_lint/reports/
+
+# Future work notes (local only)
+future_work/

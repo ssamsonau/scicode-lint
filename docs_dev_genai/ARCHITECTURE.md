@@ -7,18 +7,20 @@ Core design decisions for building an effective AI-powered linter.
 ## Table of Contents
 
 - [0. Foundational Principle: Two-Tier LLM Strategy](#0-foundational-principle-two-tier-llm-strategy)
-- [1. Prompt Structure: Code First](#1-prompt-structure-code-first-critical-for-performance)
-- [2. Prompt Injection Defense](#2-prompt-injection-defense-critical-for-security)
-- [3. Detection Only, No Fixes](#3-detection-only-no-fixes)
-- [4. One Narrow Prompt Per Pitfall](#4-one-narrow-prompt-per-pitfall)
-- [5. Eval Coverage for Every Pattern](#5-eval-coverage-for-every-pattern)
-- [6. Minimize False Positives](#6-minimize-false-positives)
-- [7. Simple Implementation](#7-simple-implementation)
-- [8. Local-First LLM Architecture](#8-local-first-llm-architecture)
-- [9. Context Window Sizing](#9-context-window-sizing)
-- [10. Evaluation Strategy](#10-evaluation-strategy-testing-vs-evals-vs-benchmarks)
-- [11. LLM-as-Judge Quality Evaluation](#11-llm-as-judge-quality-evaluation)
-- [12. Patterns Grounded in Official Documentation](#12-patterns-grounded-in-official-documentation)
+- [1. Why LLM-Only, Not AST](#1-why-llm-only-not-ast)
+- [2. Prompt Structure: Code First](#2-prompt-structure-code-first-critical-for-performance)
+- [3. Prompt Injection Defense](#3-prompt-injection-defense-critical-for-security)
+- [4. Detection Only, No Fixes](#4-detection-only-no-fixes)
+- [5. One Narrow Prompt Per Pitfall](#5-one-narrow-prompt-per-pitfall)
+- [6. Eval Coverage for Every Pattern](#6-eval-coverage-for-every-pattern)
+- [7. Minimize False Positives](#7-minimize-false-positives)
+- [8. Simple Implementation](#8-simple-implementation)
+- [9. Local-First LLM Architecture](#9-local-first-llm-architecture)
+- [10. Context Window Sizing](#10-context-window-sizing)
+- [11. Evaluation Strategy](#11-evaluation-strategy-testing-vs-evals-vs-benchmarks)
+- [12. LLM-as-Judge Quality Evaluation](#12-llm-as-judge-quality-evaluation)
+- [13. Patterns Grounded in Official Documentation](#13-patterns-grounded-in-official-documentation)
+- [14. Name-Based Location Detection](#14-name-based-location-detection)
 
 ---
 
@@ -47,6 +49,8 @@ Our runtime approach:
 - Analyzing detection failures
 - Code generation and refactoring
 
+All development-time Claude CLI calls go through the shared `dev_lib.ClaudeCLI` async wrapper (`dev_lib/claude_cli.py`), which provides consistent error handling, timeout management, and argument construction. The `dev_lib/` package is dev-only — not part of the installed package.
+
 The **pattern-reviewer** agent in `pattern_verification/pattern-reviewer/` uses SOTA models to identify issues in pattern definitions. Fixes are implemented directly in your Claude Code session.
 
 See [pattern_verification/README.md](../pattern_verification/README.md) for the complete verification workflow.
@@ -63,13 +67,104 @@ We use Qwen3, a thinking model that reasons through problems. Detection question
 
 **Think of it as: "Would a junior developer following these exact instructions catch this bug?"**
 
-**📖 Pattern guide:** [patterns/README.md](../patterns/README.md)
+**📖 Pattern guide:** [patterns/README.md](../src/scicode_lint/patterns/README.md)
 
 This principle affects everything else in this document - all architectural decisions support reliable detection with a constrained-capacity local model.
 
 ---
 
-## 1. Prompt Structure: Code First (Critical for Performance)
+## 1. Why LLM-Only, Not AST
+
+**Principle:** Use LLM-based detection instead of AST pattern matching for sustainability.
+
+**Clarification:** We use AST for **location resolution** (Section 14), not for **bug detection**. The LLM identifies what's wrong and names the function; stdlib `ast` just maps that name to line numbers. This is fundamentally different from AST-based detection where AST rules encode the bug patterns themselves. We use Python's standard library `ast` module (stable), not `astroid` or pylint plugins (brittle).
+
+### The AST Linter Graveyard
+
+Existing ML-specific AST linters have sustainability problems:
+
+| Tool | Status | Problem |
+|------|--------|---------|
+| dslinter | Broken | Last release predates the pylint version that broke it |
+| MLScent | Never released | 76 detectors, never packaged for PyPI |
+| mllint | Abandoned | "No longer maintained... I have since graduated" |
+
+This reflects a structural pattern in scientific software, not individual failing.
+
+### Why AST Linters Are Hard to Maintain
+
+**Note:** Python's stdlib `ast` module is quite stable. The maintenance burden comes from elsewhere:
+
+| What breaks | Frequency | Example |
+|-------------|-----------|---------|
+| pylint/astroid plugin API | Common | dslinter broke when pylint updated its plugin interface |
+| Pattern rules for library APIs | Frequent | sklearn renamed `cross_validation` → `model_selection`; AST parses both fine, but your rule that looks for `sklearn.cross_validation` stops matching |
+| New ML frameworks | Ongoing | PyTorch Lightning, HuggingFace, JAX - all different APIs to write rules for |
+| stdlib `ast` changes | Rare | `ast.Constant` replaced `ast.Num`, `ast.Str` in Python 3.8 |
+
+**The real issue:** Each pattern needs rules for every API variant. When libraries evolve, rules become stale. Someone must track library changelogs and update patterns accordingly.
+
+### Why LLM-Based Detection Is Sustainable
+
+Natural language detection questions avoid these problems:
+
+```python
+# AST approach (brittle)
+def check_data_leakage(tree):
+    # Find StandardScaler().fit() calls
+    # Check if called before train_test_split
+    # Handle 15 different ways people write this
+    # Break when sklearn changes API
+    # Break when Python 3.13 changes ast module
+
+# scicode-lint approach (robust)
+DETECTION_QUESTION = """
+Is the scaler/normalizer fitted on the full dataset
+before splitting into train/test?
+"""
+# Works regardless of API spelling
+# Understands intent, not just syntax
+```
+
+**LLM approach is sustainable because:**
+- Natural language is stable (unlike AST APIs)
+- Detection questions are self-documenting
+- No dependency on pylint/astroid library versions
+- One person can write/improve patterns without deep AST knowledge
+- Model understands intent, handles code variations naturally
+
+### What About Hybrid (AST + LLM)?
+
+**Considered but rejected.** Adding AST pre-filtering would:
+- Add a second system to maintain
+- Introduce the same brittleness that killed dslinter
+- Require someone to keep AST patterns updated when libraries change
+- Split focus between two approaches
+
+**The accuracy gap** (controlled tests vs real-world) should be addressed by:
+- Better detection questions
+- Multi-file context (pass related files together)
+- Better prompting strategies
+- Model improvements over time
+
+Not by adding a second system that requires perpetual maintenance.
+
+### Is AST Better for the LLM to Reason About?
+
+**No.** Source code is better than AST dumps for LLM input:
+
+| Aspect | Source Code | AST Dump |
+|--------|-------------|----------|
+| Training data | LLMs trained on billions of lines of source | Minimal AST in training |
+| Token efficiency | `x = train_test_split(data)` (~6 tokens) | 50+ tokens for same expression |
+| Semantic cues | Variable names carry meaning (`train_data`) | Names buried in structure |
+| Readability | Natural for reasoning | Verbose, hard to follow |
+
+**Bottom line:** Qwen was trained on source code, not AST. Send it what it knows.
+
+---
+
+## 2. Prompt Structure: Code First (Critical for Performance)
 
 **Principle:** User code MUST come before detection instructions in prompts.
 
@@ -160,6 +255,19 @@ results = await asyncio.gather(*tasks)
 
 **Single-file scope:** Files are processed one at a time (sequentially) to maximize prefix cache hits within each file. All patterns for a given file share the exact same code prefix, resulting in maximum cache efficiency.
 
+### Preprocessing: Comment Stripping
+
+Before code is sent to the LLM, `#` comments are stripped (replaced with whitespace to preserve line numbers). This ensures:
+
+- **Detection based on code structure, not stated intent** - The LLM analyzes what the code does, not what comments claim it does
+- **No intention leakage in test file evaluation** - Test files can't accidentally hint at expected answers
+- **Misleading real-world comments don't confuse the model** - Outdated or incorrect comments are ignored
+- **Reduced token usage** - Larger files fit within context limits
+
+**Implementation:** `src/scicode_lint/preprocessing/comments.py` uses Python's `tokenize` module to correctly identify comments (handles `#` inside strings, f-strings, etc.). Triple-quoted strings (including docstrings) are preserved - Python's tokenizer classifies these as `STRING` tokens, not `COMMENT` tokens, so only `#` comments are stripped.
+
+**Configuration:** Enabled by default via `strip_comments = true` in `config.toml` under `[preprocessing]`.
+
 ### Implementation
 
 **Build time (prompt generation):**
@@ -187,7 +295,7 @@ messages = [
 
 ---
 
-## 2. Prompt Injection Defense (Critical for Security)
+## 3. Prompt Injection Defense (Critical for Security)
 
 **Principle:** User code must be explicitly isolated from instructions to prevent prompt injection attacks.
 
@@ -311,7 +419,7 @@ All defenses are validated in `tests/test_prompt_injection_defense.py`:
 
 ---
 
-## 3. Detection Only, No Fixes
+## 4. Detection Only, No Fixes
 
 **Principle:** Linter detects issues, does not automatically fix them.
 
@@ -355,7 +463,7 @@ NOT:
 
 ---
 
-## 4. One Narrow Prompt Per Pitfall
+## 5. One Narrow Prompt Per Pitfall
 
 **Principle:** Each detection pattern gets its own focused prompt, not one mega-prompt.
 
@@ -406,7 +514,7 @@ for prompt in saved_prompts:
 
 ---
 
-## 5. Eval Coverage for Every Pattern
+## 6. Eval Coverage for Every Pattern
 
 **Principle:** Every detection pattern must have synthetic test code with known bugs.
 
@@ -416,16 +524,43 @@ for prompt in saved_prompts:
 - **Regression testing** - Catch when updates break existing patterns
 - **Quality gate** - New patterns can't land without evals
 
+### No Intent Hints in Test Files
+
+**Critical:** Test files must not hint at expected answers. The LLM must detect issues from code structure alone.
+
+**What gets stripped/blocked:**
+
+| Hint Type | Handling | Example |
+|-----------|----------|---------|
+| `#` comments | Stripped before LLM (preprocessing) | `# BUG: leakage here` |
+| Docstrings with hints | Blocked by validator | `"""This is buggy."""` |
+| Revealing names | Blocked by validator | `def buggy_function()`, `correct_scaler` |
+
+**Why this matters:**
+- If test files contain hints, we're testing reading comprehension, not detection ability
+- Real-world code doesn't have `# BUG:` markers
+- Evaluation results become meaningless if the LLM can "cheat"
+
+**Why forbid comments if they're stripped?**
+- **Consistency**: Developers see exactly what LLM sees when reviewing test files
+- **No fossilized interpretations**: Old/wrong comments don't mislead pattern maintainers
+- **Defense in depth**: If stripping fails (syntax error), no comments leak through
+
+**Quality gates:**
+- `validate.py` CHECK 3: Intent hints (docstrings, names)
+- `validate.py` CHECK 13: No comments (all `#` comments forbidden)
+- Semantic reviewer: Catches subtler hints regex misses
+
 ### Eval Structure
 
 For each pattern:
 ```python
 # tests/fixtures/numpy_indexing/
-├── positive/           # Code that SHOULD trigger detection
+├── test_positive/      # Code that SHOULD trigger detection
 │   ├── array_indexed_before_check.py
 │   ├── missing_bounds_validation.py
 │   └── ...
-└── negative/           # Code that should NOT trigger
+└── test_negative/      # Code that should NOT trigger
     ├── proper_validation.py
     ├── safe_indexing.py
     └── ...
@@ -447,7 +582,7 @@ def test_numpy_indexing_pattern():
 
 ---
 
-## 6. Minimize False Positives
+## 7. Minimize False Positives
 
 **Principle:** A noisy tool gets ignored. Better to miss real issues than flood with false alarms.
 
@@ -470,7 +605,7 @@ def test_numpy_indexing_pattern():
 
 ---
 
-## 7. Simple Implementation
+## 8. Simple Implementation
 
 **Principle:** Modern Python, minimal dependencies, easy to understand.
 
@@ -498,7 +633,7 @@ def test_numpy_indexing_pattern():
 
 ---
 
-## 8. Local-First LLM Architecture
+## 9. Local-First LLM Architecture
 
 **Principle:** Run on user's hardware, no cloud API dependencies for core functionality.
 
@@ -533,7 +668,7 @@ Always use `guided_json` in `extra_body` instead. vLLM's XGrammar/Outlines backe
 
 ---
 
-## 9. Context Window Sizing
+## 10. Context Window Sizing
 
 **Principle:** Context window should accommodate 90-95% of real-world files without wasting VRAM.
 
@@ -633,7 +768,7 @@ Current data (2019 analysis) suggests Python file sizes are stable and 16K remai
 
 ---
 
-## 10. Evaluation Strategy: Testing vs Evals vs Benchmarks
+## 11. Evaluation Strategy: Testing vs Evals vs Benchmarks
 
 **Principle:** Different validation types serve different purposes and have different characteristics.
 
@@ -683,7 +818,7 @@ Current data (2019 analysis) suggests Python file sizes are stable and 16K remai
 
 ---
 
-## 11. LLM-as-Judge Quality Evaluation
+## 12. LLM-as-Judge Quality Evaluation
 
 **Principle:** Use the same LLM to evaluate whether its detections match intended behavior.
 
@@ -899,8 +1034,7 @@ accuracy = calculate_accuracy(results)
 ```
 evals/
 ├── run_eval.py                 # Eval runner (use --skip-judge for fast mode)
-├── metrics.py                  # Precision/recall/F1
-├── validators.py               # Location matching
+├── judge_models.py             # Pydantic models for judge verdicts
 └── prompts/
     └── judge_system_prompt.py  # Clearly separated system prompts
 ```
@@ -910,9 +1044,9 @@ evals/
 patterns/                       # Moved from patterns
 └── {category}/{pattern}/
     ├── pattern.toml
-    ├── positive/               # Code with bugs (docstring = expected)
-    ├── negative/               # Correct code (docstring = why correct)
-    └── context_dependent/      # Ambiguous (docstring = nuance)
+    ├── test_positive/          # Code with bugs (docstring = expected)
+    ├── test_negative/          # Correct code (docstring = why correct)
+    └── test_context_dependent/ # Ambiguous (docstring = nuance)
 ```
 
 ### Best Practices
@@ -925,7 +1059,7 @@ patterns/                       # Moved from patterns
 
 ---
 
-## 12. Patterns Grounded in Official Documentation
+## 13. Patterns Grounded in Official Documentation
 
 **Principle:** Every pattern should reference official documentation that supports its detection logic.
 
@@ -981,35 +1115,72 @@ The pattern-reviewer agent reads cached docs to verify:
 
 ---
 
+## 14. Name-Based Location Detection
+
+**Principle:** LLMs identify issues by function/class NAME, not line numbers. AST verifies and resolves exact lines.
+
+**Core insight:** LLMs are good at semantic understanding (what function has the bug), bad at counting lines (±1-2 variance is common). This caused oscillation in the improvement loop - the same detection might report lines [24, 25] on one run and [23, 24, 25] on another.
+
+**Solution:** Name-based detection with AST verification.
+
+```
+LLM Output:     {"name": "train_model", "location_type": "function", "near_line": 25}
+AST Resolution: Finds train_model at lines 20-35, verifies near_line is within bounds
+Final Output:   Location with lines=[20..35], focus_line=25, snippet="def train_model..."
+```
+
+**Benefits:**
+1. **Eliminates line oscillation** - Same function name always resolves to same lines
+2. **Forces code understanding** - LLM must identify the construct, not just point at a line
+3. **Enables verification** - We can check that the named function actually exists
+4. **Better user output** - "Issue in train_model (lines 20-35, focus: 25)" is more actionable
+
+**One finding per pattern:** Each pattern produces at most ONE finding per file. If the same bug appears multiple times, only the clearest instance is reported. Users fix, re-run, and catch the next one.
+
+**📖 Complete details:** [DETECTION_ARCHITECTURE.md](DETECTION_ARCHITECTURE.md)
+
+---
+
 ## Summary
 
 Key architectural decisions:
 
-1. **Code-first prompts** - 10-50x speedup via prefix caching
+1. **LLM for detection, AST for location** - Sustainable detection without perpetual maintenance
+   - **AST linters die** - dslinter, MLScent, mllint all abandoned or broken
+   - **Natural language is stable** - Detection questions don't break when APIs change
+   - **AST only for name→line mapping** - Not for bug patterns (see Section 14)
+2. **Code-first prompts** - 10-50x speedup via prefix caching
    - **Async batching** - All patterns checked concurrently for maximum GPU utilization
    - **Single-file scope** - Files processed sequentially to maximize cache hit rate
-2. **Prompt injection defense** - XML delimiters + system instructions + structured output
+   - **Comment stripping** - `#` comments removed before LLM (preserves line numbers)
+3. **Prompt injection defense** - XML delimiters + system instructions + structured output
    - **Defense-in-depth** - Three layers of protection against adversarial code
    - **Preserves caching** - Security measures compatible with code-first structure
-3. **Detection only** - No automatic fixes, user reviews all findings
-4. **Narrow prompts** - One focused task per pattern
-5. **100% eval coverage** - Every pattern has positive/negative test cases
-6. **Minimize false positives** - Conservative > noisy
-7. **Keep it simple** - Modern Python, minimal dependencies
-8. **Local-first** - Privacy, cost, speed, reproducibility
+4. **Detection only** - No automatic fixes, user reviews all findings
+5. **Narrow prompts** - One focused task per pattern
+6. **100% eval coverage** - Every pattern has positive/negative test cases
+   - **No intent hints** - Test files can't reveal answers via comments, docstrings, or naming
+   - **Quality gates** - Deterministic + semantic checks enforce hint-free test files
+7. **Minimize false positives** - Conservative > noisy
+8. **Keep it simple** - Modern Python, minimal dependencies
+9. **Local-first** - Privacy, cost, speed, reproducibility
    - **Thinking models need `guided_json`** - Never use `response_format: json_schema` (skips reasoning, drops accuracy from 99% to 78%)
-9. **20K total context** (16K input + 4K response) - Empirically sized for 90-95% coverage based on 10M+ repository analysis
-   - **Efficient allocation** - vLLM paged attention means no waste on smaller files
-   - **Configurable** - Values set in config.toml, not hardcoded
-10. **Clear validation taxonomy** - tests (deterministic) vs benchmarks (performance) vs evals (quality)
-11. **LLM-as-judge evaluation** - Flexible semantic correctness validation using same model
+10. **20K total context** (16K input + 4K response) - Empirically sized for 90-95% coverage based on 10M+ repository analysis
+    - **Efficient allocation** - vLLM paged attention means no waste on smaller files
+    - **Configurable** - Values set in config.toml, not hardcoded
+11. **Clear validation taxonomy** - tests (deterministic) vs benchmarks (performance) vs evals (quality)
+12. **LLM-as-judge evaluation** - Flexible semantic correctness validation using same model
     - **Simple comparison** - Does output match intended behavior?
     - **Clearly separated prompts** - System instructions isolated from evaluation data
     - **Complements hardcoded evals** - Both approaches validate quality
-12. **Grounded in official docs** - Every pattern references authoritative documentation
+13. **Grounded in official docs** - Every pattern references authoritative documentation
     - **Credibility** - Warnings backed by official sources, not opinions
     - **Verifiable** - Semantic review checks alignment with docs
     - **Maintainable** - Can verify patterns match updated library docs
+14. **Name-based location detection** - LLM identifies function/class names, AST resolves lines
+    - **Eliminates oscillation** - Same name always resolves to same lines
+    - **Forces understanding** - LLM must identify the construct, not just a line number
+    - **One finding per pattern** - Report clearest instance, user re-runs after fixing
 
 **Current limitation:** Single-file analysis only - cross-file issues not detected.
 

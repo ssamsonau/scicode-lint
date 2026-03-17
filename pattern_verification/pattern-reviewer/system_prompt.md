@@ -35,6 +35,13 @@ Given a pattern ID (e.g., "pt-001"), read and verify:
 
 5. **Negative tests avoid the bug**: Does each negative test correctly avoid the bug while being relevant code?
 
+6. **No intent hints in code**: Test files must not hint at expected answers through:
+   - Comments (deterministic check catches these - all comments forbidden)
+   - Docstrings explaining the bug/correctness
+   - Function/variable names like `buggy_function`, `correct_approach`, `leaky_scaler`
+
+   The LLM must detect issues from code structure alone, not from human-readable hints.
+
 ### Required Fields
 
 **`[[tests.positive]]`** - ALL fields required:

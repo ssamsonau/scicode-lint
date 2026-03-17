@@ -1,19 +1,18 @@
+"""Training for competition with external test set."""
+
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 
 
 def train_for_competition(train_file: str):
-    """Context-dependent: test set might exist externally (e.g., Kaggle)."""
-    # Load training data
+    """Train model for competition submission."""
     data = pd.read_csv(train_file)
     X = data.drop("target", axis=1)
     y = data["target"]
 
-    # Split into train/val for local development
     X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    # Tune model
     best_model = None
     best_val_acc = 0
 
@@ -28,9 +27,6 @@ def train_for_competition(train_file: str):
 
     print(f"Local validation accuracy: {best_val_acc:.2%}")
 
-    # Context: In a Kaggle competition, the test set is separate (test.csv)
-    # and predictions are submitted for evaluation
-    # This code alone looks like multi-test leakage, but test set exists externally
     return best_model
 
 

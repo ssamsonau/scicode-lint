@@ -12,8 +12,7 @@ updated = "2026-03-03"
 author = "scicode-lint"
 
 description = """
-Using exact equality assertions (assert x == y, assertEqual) on floating point values in tests is unreliable due to floating point precision limitations. Use np.testing.assert_allclose() with rtol/atol parameters for robust float comparisons in tests.
-"""
+Using exact equality assertions (assert x == y, assertEqual) on floating point values in tests is unreliable due to floating point precision limitations. Use np.testing.assert_allclose() with rtol/atol parameters for robust float comparisons in tests."""
 
 explanation = """
 Use np.testing.assert_allclose(actual, expected, rtol, atol) for float comparisons in tests. Exact equality assertions on floats are unreliable.
@@ -47,12 +46,15 @@ NO = Correct: uses assert_allclose/assert_almost_equal, or asserting integers/sh
 """
 
 warning_message = """
-Use np.testing.assert_allclose(actual, expected, rtol, atol) for float comparisons in tests. Exact equality assertions on floats are unreliable.
-
-"""
+Use np.testing.assert_allclose(actual, expected, rtol, atol) for float comparisons in tests. Exact equality assertions on floats are unreliable."""
 
 min_confidence = 0.85
-false_positive_risks = []
+false_positive_risks = [
+    "Integer array comparisons (exact equality is safe for ints)",
+    "Shape and size assertions (exact equality is appropriate)",
+    "Boolean and string array comparisons",
+    "Index/argmax comparisons (integers)",
+]
 
 [tests]
 
@@ -63,24 +65,14 @@ expected_issue = "Exact equality assertion on floating point test results"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
+type = "method"
 name = "test_trigonometric"
 snippet = "assert result == 1.0"
-
-[[tests.positive]]
-file = "test_positive/test_assertions.py"
-description = "Unit tests with assert or .all() on float array equality, or != assertions on computed floating point values"
-expected_issue = "Float comparison in tests without tolerance"
-min_confidence = 0.85
-
-[tests.positive.expected_location]
-type = "function"
-name = "test_eigenvalues"
-snippet = "assert (eigenvals == expected).all()"
+lines = [17]
 
 [[tests.negative]]
 file = "test_negative/proper_test_assertions.py"
-description = "Tests using np.testing.assert_allclose() with rtol/atol parameters for all floating point comparisons"
+description = "Signal processing tests using exact equality only on integers, shapes, indices, string labels, and array lengths — no float comparisons"
 
 [[tests.negative]]
 file = "test_negative/integer_assertions.py"
@@ -97,7 +89,20 @@ min_confidence = 0.85
 type = "function"
 name = "test_sine_values"
 snippet = "assert result == 0.5"
+lines = [7]
+
+[[tests.positive]]
+file = "test_positive/test_statistics.py"
+description = "Statistical tests using exact equality assertions on correlation coefficients, standard deviations, and probability sums computed with scipy/numpy"
+expected_issue = "Exact equality assertions on floating point statistical computations"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "function"
+name = "test_correlation_coefficient"
+snippet = "assert r == 1.0"
+lines = [9]
 
 [[tests.negative]]
 file = "test_negative/test_numerical_correct.py"
-description = "Correct float comparisons using np.isclose(), np.testing.assert_allclose(), and pytest.approx() with tolerance parameters for trigonometric, matrix, and vector operations"
+description = "Molecular simulation tests using numpy.testing.assert_allclose() with rtol/atol for Lennard-Jones potential, bond lengths, and Boltzmann weights"

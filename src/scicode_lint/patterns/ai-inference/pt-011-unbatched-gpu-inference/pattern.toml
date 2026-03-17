@@ -39,7 +39,6 @@ ANSWER YES (bug) if:
 ANSWER NO (correct) if ANY of these:
 - Uses DataLoader for batching
 - Has batch loop (for batch in ..., batch_size parameter, accumulates into batches)
-- Processes items one at a time in a stream/loop
 - Uses torch.stack() on accumulated small batches
 
 YES = Bug: entire dataset to GPU in single forward pass
@@ -66,17 +65,19 @@ min_confidence = 0.85
 type = "function"
 name = "evaluate_on_test_set"
 snippet = "test_images = test_images.to(device)"
+lines = [33]
 
 [[tests.positive]]
 file = "test_positive/single_forward_pass.py"
-description = "Test functions that perform single forward pass on entire test set loaded to GPU"
-expected_issue = "The test_model and predict_all functions move complete datasets to GPU without batching, risking memory overflow"
+description = "Autoencoder anomaly detection that loads all sensor readings to GPU at once"
+expected_issue = "The compute_anomaly_scores and detect_anomalies functions load full dataset to GPU without batching"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "test_model"
-snippet = "X_test = X_test.cuda()"
+name = "compute_anomaly_scores"
+snippet = "all_data = sensor_readings.to(device)"
+lines = [29]
 
 [[tests.positive]]
 file = "test_positive/embedding_full_dataset.py"
@@ -88,6 +89,7 @@ min_confidence = 0.85
 type = "function"
 name = "compute_embeddings"
 snippet = "sequences_gpu = all_sequences.to(device)"
+lines = [23]
 
 [[tests.negative]]
 file = "test_negative/batched_evaluation.py"
@@ -104,6 +106,12 @@ description = "Real-time streaming inference processing individual items - ineff
 context_notes = "Single-sample inference is acceptable in true real-time streaming where latency matters more than throughput"
 allow_detection = true
 allow_skip = true
+
+[tests.context_dependent.expected_location]
+type = "function"
+name = "process_stream"
+snippet = "output = model(tensor.unsqueeze(0))"
+lines = [11]
 
 [[tests.negative]]
 file = "test_negative/real_time_processor_batched.py"

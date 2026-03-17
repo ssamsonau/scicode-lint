@@ -1,29 +1,30 @@
 import numpy as np
 
 
-def standardize(matrix):
-    row_means = matrix.mean(axis=1, keepdims=True)
-    row_stds = matrix.std(axis=1, keepdims=True)
-    row_stds = np.maximum(row_stds, 1e-10)
-    standardized = (matrix - row_means) / row_stds
-    return standardized
+def percentage_of_total(values):
+    total = np.sum(values)
+    if total == 0:
+        return np.zeros_like(values)
+    return 100.0 * values / total
 
 
-def min_max_normalize(data, eps=1e-10):
-    data_min = data.min()
-    data_max = data.max()
-    range_val = data_max - data_min
-    normalized = (data - data_min) / (range_val + eps)
-    return normalized
+def probability_distribution(counts):
+    total = counts.sum()
+    if total == 0:
+        return np.ones(len(counts)) / len(counts)
+    return counts / total
 
 
-def coefficient_of_variation(samples):
-    mean = samples.mean()
-    std = samples.std()
-    epsilon = 1e-12
-    cv = std / (mean + epsilon)
-    return cv
+def weighted_average(values, weights):
+    weight_sum = np.sum(weights)
+    if weight_sum == 0:
+        return np.mean(values)
+    return np.sum(values * weights) / weight_sum
 
 
-data = np.array([[1, 1, 1], [2, 3, 4], [5, 5, 5]])
-std_data = standardize(data)
+def divide_with_where(a, b):
+    return np.where(b != 0, a / b, 0.0)
+
+
+data = np.array([10, 20, 30, 40])
+pcts = percentage_of_total(data)

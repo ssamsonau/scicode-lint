@@ -42,7 +42,7 @@ Look for:
 - Default arguments that are lists, dicts, or sets
 - Functions that modify their default argument
 
-YES = Bug found: mutable default argument ([] or {} in function signature)
+YES = Bug found: mutable default argument ([], {}, or set() in function signature)
 NO = Correct: uses None as default, or only immutable defaults
 """
 
@@ -66,28 +66,20 @@ min_confidence = 0.85
 type = "function"
 name = "add_measurement"
 snippet = "def add_measurement(value, history=[]):"
+lines = [4]
 
 [[tests.positive]]
 file = "test_positive/cache_defaults.py"
-description = "Cache pattern with cache={} default, or functions with list/dict defaults used for accumulation or storage"
+description = "Weight caching with shared dict default, metric logging with shared list default, and FeatureSelector class with shared set() default - demonstrating dict, list, and set mutable defaults"
 expected_issue = "Dictionary or list default argument mutated across invocations"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "memoized_computation"
-snippet = "def memoized_computation(x, cache={}):"
+name = "make_layer"
+snippet = "def make_layer(input_dim, output_dim, weight_cache={}):"
+lines = [4]
 
-[[tests.negative]]
-file = "test_negative/proper_defaults.py"
-description = "Functions using None as default with if arg is None: arg = [] pattern to create fresh mutable objects per call"
-
-[[tests.negative]]
-file = "test_negative/immutable_defaults.py"
-description = "Functions with immutable defaults (floats, ints, strings, tuples) or no default arguments"
-
-
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/config_builder.py"
 description = "Functions with mutable defaults in function signatures and class constructors: options={} in build_config, history=[] in create_metrics, initial_values=[] in Accumulator.__init__"
@@ -98,6 +90,15 @@ min_confidence = 0.85
 type = "function"
 name = "build_config"
 snippet = "def build_config(name, options={}):"
+lines = [1]
+
+[[tests.negative]]
+file = "test_negative/proper_defaults.py"
+description = "Safe patterns: dataclass field(default_factory), None-with-guard for pipeline steps, RNG objects as defaults, immutable keyword-only args"
+
+[[tests.negative]]
+file = "test_negative/immutable_defaults.py"
+description = "Functions with immutable defaults (floats, ints, strings, tuples) or no default arguments"
 
 [[tests.negative]]
 file = "test_negative/config_builder_fixed.py"

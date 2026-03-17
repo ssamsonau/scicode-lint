@@ -1,6 +1,6 @@
 #!/bin/bash
 # Start vLLM server locally
-# Run with: bash scripts/start_vllm.sh [OPTIONS] [MODEL] [PORT] [MAX_LEN] [GPU_MEM] [MAX_NUM_SEQS]
+# Run with: bash src/scicode_lint/vllm/start_vllm.sh [OPTIONS] [MODEL] [PORT] [MAX_LEN] [GPU_MEM] [MAX_NUM_SEQS]
 #
 # Options:
 #   --restart, --force    Kill any running vLLM server before starting
@@ -8,13 +8,13 @@
 # All parameters read from config.toml by default.
 #
 # Examples:
-#   bash scripts/start_vllm.sh
-#   bash scripts/start_vllm.sh --restart
-#   bash scripts/start_vllm.sh "meta-llama/Llama-3.1-8B-Instruct"
-#   bash scripts/start_vllm.sh --restart "Qwen/Qwen3-8B-FP8" 5001 20096 0.85 256
+#   bash src/scicode_lint/vllm/start_vllm.sh
+#   bash src/scicode_lint/vllm/start_vllm.sh --restart
+#   bash src/scicode_lint/vllm/start_vllm.sh "meta-llama/Llama-3.1-8B-Instruct"
+#   bash src/scicode_lint/vllm/start_vllm.sh --restart "Qwen/Qwen3-8B-FP8" 5001 20096 0.85 256
 #
 # For background mode:
-#   nohup bash scripts/start_vllm.sh > /tmp/vllm.log 2>&1 &
+#   nohup bash src/scicode_lint/vllm/start_vllm.sh > /tmp/vllm.log 2>&1 &
 #
 # Requirements:
 #   pip install scicode-lint[vllm-server]
@@ -38,6 +38,48 @@ while [[ "$1" == --* ]]; do
             ;;
     esac
 done
+
+# Read configuration values from config.toml using Python
+# Sets: CFG_MODEL, CFG_MAX_LEN, CFG_GPU_MEM, CFG_MAX_NUM_SEQS, CFG_MIN_VRAM_MB
+read_config() {
+    local values
+    values=$(python3 -c "
+try:
+    import tomllib
+    with open('config.toml', 'rb') as f:
+        config = tomllib.load(f)
+    llm = config.get('llm', {})
+    vllm_cfg = config.get('vllm', {})
+    perf = config.get('performance', {})
+    max_input = llm.get('max_input_tokens', 16000)
+    max_completion = llm.get('max_completion_tokens', 4096)
+    print(llm.get('model', ''))
+    print(max_input + max_completion)
+    print(vllm_cfg.get('gpu_memory_utilization', 0.85))
+    print(perf.get('vllm_max_num_seqs', 256))
+    print(vllm_cfg.get('min_vram_mb', 15500))
+except Exception:
+    print('')
+    print(20096)
+    print(0.85)
+    print(256)
+    print(15500)
+" 2>/dev/null)
+    CFG_MODEL=$(echo "$values" | sed -n '1p')
+    CFG_MAX_LEN=$(echo "$values" | sed -n '2p')
+    CFG_GPU_MEM=$(echo "$values" | sed -n '3p')
+    CFG_MAX_NUM_SEQS=$(echo "$values" | sed -n '4p')
+    CFG_MIN_VRAM_MB=$(echo "$values" | sed -n '5p')
+    # Apply defaults for empty/missing values
+    CFG_MODEL="${CFG_MODEL:-RedHatAI/Qwen3-8B-FP8-dynamic}"
+    CFG_MAX_LEN="${CFG_MAX_LEN:-20096}"
+    CFG_GPU_MEM="${CFG_GPU_MEM:-0.85}"
+    CFG_MAX_NUM_SEQS="${CFG_MAX_NUM_SEQS:-256}"
+    CFG_MIN_VRAM_MB="${CFG_MIN_VRAM_MB:-15500}"
+}
+
+# Load config once
+read_config
 
 # Check if vLLM is installed
 if ! command -v vllm &> /dev/null; then
@@ -95,18 +137,7 @@ if [ -z "$3" ] || [ -z "$4" ]; then
         # Round up to avoid misleading "19GB" for 20GB cards
         VRAM_GB=$(( (VRAM_MB + 512) / 1024 ))
 
-        # Read min_vram_mb from config.toml
-        MIN_VRAM_MB=$(python3 -c "
-import sys
-try:
-    import tomllib
-    with open('config.toml', 'rb') as f:
-        config = tomllib.load(f)
-    print(config.get('vllm', {}).get('min_vram_mb', 15500))
-except:
-    print(15500)
-" 2>/dev/null)
-        MIN_VRAM_MB="${MIN_VRAM_MB:-15500}"
+        MIN_VRAM_MB="$CFG_MIN_VRAM_MB"
         MIN_VRAM_GB=$((MIN_VRAM_MB / 1024))
 
         # Enforce minimum VRAM from config
@@ -143,41 +174,11 @@ except:
             exit 1
         fi
 
-        # Read configuration from config.toml
-        # Covers 90-95th percentile based on 10M+ repo analysis
-        # Median: 258 lines, Mean: 879 lines, 90th: ~1,500 lines
-        # Paged attention means no waste on smaller files
-        CONFIG_VALUES=$(python3 -c "
-import sys
-try:
-    import tomllib
-    with open('config.toml', 'rb') as f:
-        config = tomllib.load(f)
-    llm = config.get('llm', {})
-    vllm = config.get('vllm', {})
-    perf = config.get('performance', {})
-    max_input = llm.get('max_input_tokens', 16000)
-    max_completion = llm.get('max_completion_tokens', 4096)
-    print(llm.get('model', ''))
-    print(max_input + max_completion)
-    print(vllm.get('gpu_memory_utilization', 0.85))
-    print(perf.get('vllm_max_num_seqs', 256))
-except:
-    print('')
-    print(20096)  # 16000 + 4096 default
-    print(0.85)
-    print(256)
-" 2>/dev/null)
-        # Parse config values
-        DEFAULT_MODEL=$(echo "$CONFIG_VALUES" | sed -n '1p')
-        DEFAULT_MAX_LEN=$(echo "$CONFIG_VALUES" | sed -n '2p')
-        DEFAULT_GPU_MEM=$(echo "$CONFIG_VALUES" | sed -n '3p')
-        DEFAULT_MAX_NUM_SEQS=$(echo "$CONFIG_VALUES" | sed -n '4p')
-        # Fallback if config not found or values not set
-        DEFAULT_MODEL="${DEFAULT_MODEL:-RedHatAI/Qwen3-8B-FP8-dynamic}"
-        DEFAULT_MAX_LEN="${DEFAULT_MAX_LEN:-20096}"
-        DEFAULT_GPU_MEM="${DEFAULT_GPU_MEM:-0.85}"
-        DEFAULT_MAX_NUM_SEQS="${DEFAULT_MAX_NUM_SEQS:-256}"
+        # Use config values (already loaded by read_config)
+        DEFAULT_MODEL="$CFG_MODEL"
+        DEFAULT_MAX_LEN="$CFG_MAX_LEN"
+        DEFAULT_GPU_MEM="$CFG_GPU_MEM"
+        DEFAULT_MAX_NUM_SEQS="$CFG_MAX_NUM_SEQS"
 
         echo "✓ Detected ${VRAM_GB}GB VRAM (compute capability: ${COMPUTE_CAP:-unknown})"
         echo "  → Model: $DEFAULT_MODEL"
@@ -195,41 +196,16 @@ except:
         exit 1
     fi
 else
-    # User specified custom max_len and gpu_mem - read model and defaults from config
-    CONFIG_VALUES=$(python3 -c "
-import sys
-try:
-    import tomllib
-    with open('config.toml', 'rb') as f:
-        config = tomllib.load(f)
-    llm = config.get('llm', {})
-    vllm = config.get('vllm', {})
-    perf = config.get('performance', {})
-    max_input = llm.get('max_input_tokens', 16000)
-    max_completion = llm.get('max_completion_tokens', 4096)
-    print(llm.get('model', ''))
-    print(max_input + max_completion)
-    print(vllm.get('gpu_memory_utilization', 0.85))
-    print(perf.get('vllm_max_num_seqs', 256))
-except:
-    print('')
-    print(20096)  # 16000 + 4096 default
-    print(0.85)
-    print(256)
-" 2>/dev/null)
-    DEFAULT_MODEL=$(echo "$CONFIG_VALUES" | sed -n '1p')
-    DEFAULT_MAX_LEN=$(echo "$CONFIG_VALUES" | sed -n '2p')
-    DEFAULT_GPU_MEM=$(echo "$CONFIG_VALUES" | sed -n '3p')
-    DEFAULT_MAX_NUM_SEQS=$(echo "$CONFIG_VALUES" | sed -n '4p')
-    DEFAULT_MODEL="${DEFAULT_MODEL:-RedHatAI/Qwen3-8B-FP8-dynamic}"
-    DEFAULT_MAX_LEN="${DEFAULT_MAX_LEN:-20096}"
-    DEFAULT_GPU_MEM="${DEFAULT_GPU_MEM:-0.85}"
-    DEFAULT_MAX_NUM_SEQS="${DEFAULT_MAX_NUM_SEQS:-256}"
+    # User specified custom max_len and gpu_mem - use config values for defaults
+    DEFAULT_MODEL="$CFG_MODEL"
+    DEFAULT_MAX_LEN="$CFG_MAX_LEN"
+    DEFAULT_GPU_MEM="$CFG_GPU_MEM"
+    DEFAULT_MAX_NUM_SEQS="$CFG_MAX_NUM_SEQS"
 fi
 
 # Configuration (with optional parameters)
 # If user didn't specify model, use hardware-detected default
-MODEL="${1:-${DEFAULT_MODEL:-Qwen/Qwen3-8B-FP8}}"
+MODEL="${1:-${DEFAULT_MODEL:-RedHatAI/Qwen3-8B-FP8-dynamic}}"
 PORT="${2:-5001}"
 MAX_LEN="${3:-$DEFAULT_MAX_LEN}"
 GPU_MEM="${4:-$DEFAULT_GPU_MEM}"
@@ -275,7 +251,7 @@ echo "  Served as: $SERVED_NAME"
 echo "  Port: $PORT"
 echo "  Max length: $MAX_LEN tokens"
 echo "  Max sequences: $MAX_NUM_SEQS"
-echo "  GPU memory: ${GPU_MEM}%"
+echo "  GPU memory utilization: ${GPU_MEM}"
 echo ""
 echo "Model will download automatically on first run (~8GB)"
 echo ""

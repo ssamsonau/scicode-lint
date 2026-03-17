@@ -142,8 +142,8 @@ python pattern_verification/semantic/semantic_validate.py ml-001-scaler-leakage 
 python pattern_verification/semantic/semantic_validate.py ml-001                  # short form
 
 # Both work:
-scicode-lint check myfile.py --pattern ml-001-scaler-leakage  # canonical
-scicode-lint check myfile.py --pattern ml-001                  # short form
+scicode-lint lint myfile.py --pattern ml-001-scaler-leakage  # canonical
+scicode-lint lint myfile.py --pattern ml-001                  # short form
 ```
 
 ## File Roles
@@ -194,6 +194,12 @@ description = "Scaler fit on combined train+test data"
 expected_issue = "Data leakage: scaler statistics include test set"
 min_confidence = 0.85
 
+[tests.positive.expected_location]
+type = "function"
+name = "normalize_with_test_stats"
+snippet = "all_data = torch.cat"
+lines = [6, 7, 8]  # Lines where leakage occurs
+
 [[tests.negative]]
 file = "test_negative/scaler_after_split.py"
 description = "Correct scaler usage after split"
@@ -238,18 +244,30 @@ Cached locally for semantic review (see `pattern_verification/deterministic/doc_
 
 **Purpose**: Pure Python code to test detection on (NO hints, NO documentation)
 
-**⚠️ CRITICAL - NO DATA LEAKAGE ALLOWED:**
+**⚠️ CRITICAL - NO INTENT HINTS IN TEST FILES:**
 
-Test files must contain **ONLY code** - ZERO documentation, ZERO hints, ZERO comments about what's wrong.
+Test files must contain **ONLY code** - no comments, no hint docstrings, no revealing names.
 
 **Absolutely forbidden**:
-- Module docstrings explaining the issue
-- Function docstrings with "ISSUE:", "BUG:", "CORRECT:" markers
-- Inline comments like `# Data leakage here` or `# This is wrong`
-- Variable names like `buggy_function` or `correct_approach`
-- ANY text that tells the LLM what the answer is
+- **ANY `#` comments** - ALL comments are stripped before LLM evaluation
+- **Docstrings with hints** - words like "bug", "issue", "incorrect", "wrong", "broken"
+- **Naming that reveals intent**:
+  - Functions: `buggy_function`, `correct_approach`, `leaky_scaler`
+  - Classes: `BrokenModel`, `CorrectImplementation`
+  - Variables: `bad_data`, `fixed_result`
+- **ANY text that tells the LLM what the answer is**
 
-**Why**: If test files contain hints, the LLM sees the answer. This invalidates evaluation - we're testing the LLM's detection ability, not its reading comprehension.
+**Why no comments (even though they're stripped)?**
+1. **Consistency** - Developers see exactly what LLM sees when reviewing test files
+2. **No fossilized interpretations** - Old/wrong comments don't mislead pattern maintainers
+3. **Defense in depth** - If stripping fails (syntax error), no comments leak through
+4. **Clean test data** - Test files are pure code samples, no annotations
+
+**Why no docstrings/names with hints?**
+1. Docstrings and names are NOT stripped - they're part of the code structure
+2. If test files contain hints, the LLM sees the answer
+3. This invalidates evaluation - we're testing detection ability, not reading comprehension
+4. The deterministic validator (`validate.py`) enforces these rules
 
 All context belongs in `pattern.toml` (detection question and test descriptions), which the linter partially sees (only [detection] section, not [tests]).
 
@@ -326,14 +344,14 @@ def fit_on_train_and_val(train_data, val_data, test_data):
 
 ## Pattern Categories
 
-### ai-training (16 patterns)
+### ai-training (19 patterns)
 Critical ML training correctness issues:
 - Data leakage (scaler, target, temporal)
 - PyTorch training modes
 - Gradient management
 - Loss function selection
 
-### ai-inference (13 patterns)
+### ai-inference (12 patterns)
 Model inference correctness:
 - Missing eval mode / inference_mode
 - Missing no_grad context
@@ -345,11 +363,6 @@ Model inference correctness:
 - CuDNN benchmark with variable shapes
 - Softmax before cross entropy
 - Benchmark without warmup
-
-### ai-data (1 pattern)
-Data loading issues:
-- DataLoader configuration
-- dtype mismatches
 
 ### scientific-numerical (10 patterns)
 Numerical precision and stability:
@@ -456,6 +469,12 @@ description = "Description of the issue in this file"
 expected_issue = "What the issue is"
 min_confidence = 0.85
 
+[tests.positive.expected_location]
+type = "function"           # "function", "class", "method", or "module"
+name = "train_model"        # Name of the function/class/method (or "module" for module-level)
+snippet = "optimizer.step"  # Code snippet that identifies the bug location
+lines = [15, 16, 17]        # REQUIRED: Line numbers where the bug occurs
+
 [[tests.negative]]
 file = "test_negative/correct.py"
 description = "Correct code that should NOT trigger"
@@ -465,7 +484,42 @@ file = "test_context_dependent/edge_case.py"
 description = "Ambiguous case"
 allow_detection = true
 allow_skip = true
+
+[tests.context_dependent.expected_location]
+type = "function"
+name = "process_data"
+snippet = "scaler.fit"
+lines = [8, 9]              # REQUIRED for context-dependent tests too
 ```
+
+**`expected_location` fields:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `type` | Yes | Location type: "function", "class", "method", or "module" |
+| `name` | Yes | Name of the containing function/class/method |
+| `snippet` | Yes | Code snippet that identifies the bug |
+| `lines` | **Yes (positive & context-dependent)** | Line numbers where issue occurs |
+
+**How location validation works:**
+
+Evals use **name-based matching** as the primary validation:
+1. **Type match**: `type` must match exactly (function, class, method, or module)
+2. **Name match**: Function/class/method name must match (exact or partial)
+3. **Snippet match**: Code snippet similarity (Jaccard threshold)
+
+The `lines` field serves as:
+- **Deterministic validation**: Snippet must exist at these lines (checked by `validate.py`)
+- **Debugging aid**: When evals fail, shows expected vs detected lines
+- **Human reference**: Helps pattern authors locate the bug in test files
+
+**Note:** The linter's LLM outputs a name-based location (function name + approximate line), which is then resolved to exact lines via AST. See [DETECTION_ARCHITECTURE.md](../../../docs_dev_genai/DETECTION_ARCHITECTURE.md) for details.
+
+Negative tests should NOT have `expected_location` (no bug to locate).
+
+**One finding per file:**
+
+Each pattern produces at most **ONE finding per file**. If the same bug appears multiple times, only the clearest instance is reported. Users fix one issue, re-run, and catch the next.
 
 ### 3. Create Test Files
 
@@ -516,7 +570,7 @@ python evals/run_eval.py --pattern ml-999-my-pattern
 - Detection question clarity and focus
 - Test file diversity (not just copies with different names)
 - Test files match their `[tests]` metadata descriptions
-- No data leakage hints in test code
+- No intent hints in test code (comments, docstrings, naming)
 
 ## Two Evaluation Modes
 
@@ -541,7 +595,7 @@ This provides logical separation while keeping everything in one file for simpli
 
 ### `pattern_verification/deterministic/validate.py` - Comprehensive Validation
 
-Runs 9 deterministic quality checks on pattern definitions:
+Runs 18 deterministic quality checks on pattern definitions:
 
 ```bash
 # Check all patterns
@@ -561,13 +615,17 @@ python pattern_verification/deterministic/validate.py --strict
 
 1. **TOML/file sync** - Every test file has TOML entry and vice versa
 2. **Schema validation** - pattern.toml matches Pydantic model
-3. **Data leakage** - No BUG/CORRECT/WRONG hints in test files
+3. **Intent hints** - No docstrings/names revealing answers (`buggy_function`, etc.)
 4. **Test file count** - Minimum 3 positive, 3 negative (warning)
 5. **TODO markers** - No unfinished placeholders in TOML
 6. **Detection question format** - Ends with YES/NO conditions
 7. **Test file syntax** - All .py files are valid Python
 8. **Empty fields** - Required fields have content
 9. **Test file diversity** - Detect copy-paste (AST similarity)
+10. **Snippet at lines** - Snippet must exist at specified `expected_location.lines`
+11. **Expected lines** - Positive/context-dependent tests must have `expected_location.lines`
+12. **Expected name** - `expected_location.name` must exist in test file (AST check)
+13. **No comments** - All `#` comments forbidden in test files
 
 **Auto-fix capabilities:**
 - **Add**: Creates TOML entries for test files on disk that aren't referenced
@@ -592,11 +650,11 @@ python pattern_verification/semantic/semantic_validate.py --all
 - Test file relevance to the bug being detected
 - Snippet existence in test files
 
-**📖 Full verification guide:** [pattern_verification/README.md](../pattern_verification/README.md)
+**📖 Full verification guide:** [pattern_verification/README.md](../../../pattern_verification/README.md)
 
 ## See Also
 
-- [pattern_verification/](../pattern_verification/) - Complete verification guide (deterministic + semantic)
-- [evals/](../evals/) - Evaluation frameworks
-- [CONTRIBUTING.md](../CONTRIBUTING.md) - How to contribute patterns
-- [ARCHITECTURE.md](../docs_dev_genai/ARCHITECTURE.md) - Design principles
+- [pattern_verification/](../../../pattern_verification/) - Complete verification guide (deterministic + semantic)
+- [evals/](../../../evals/) - Evaluation frameworks
+- [CONTRIBUTING.md](../../../CONTRIBUTING.md) - How to contribute patterns
+- [ARCHITECTURE.md](../../../docs_dev_genai/ARCHITECTURE.md) - Design principles

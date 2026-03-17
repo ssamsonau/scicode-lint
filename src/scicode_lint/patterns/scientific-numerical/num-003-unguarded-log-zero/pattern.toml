@@ -52,7 +52,11 @@ np.log(0) returns -inf silently and poisons downstream computations. Use np.log1
 """
 
 min_confidence = 0.85
-false_positive_risks = []
+false_positive_risks = [
+    "Values guaranteed positive by domain (power measurements, pH, decibels)",
+    "Prior filtering operations that remove zeros (data[data > 0])",
+    "np.where() conditional logging that handles zeros explicitly",
+]
 
 [tests]
 
@@ -66,6 +70,7 @@ min_confidence = 0.85
 type = "function"
 name = "compute_entropy"
 snippet = "log_probs = np.log(probabilities)"
+lines = [5]
 
 [[tests.positive]]
 file = "test_positive/log_calculations.py"
@@ -77,6 +82,7 @@ min_confidence = 0.85
 type = "function"
 name = "kl_divergence"
 snippet = "kl = np.sum(p * np.log(p / q))"
+lines = [16]
 
 [[tests.negative]]
 file = "test_negative/guarded_log.py"
@@ -86,18 +92,17 @@ description = "np.log() with epsilon addition, np.maximum(), or np.clip() to pre
 file = "test_negative/log1p_usage.py"
 description = "Proper use of np.log1p() for log(1+x), or explicit nonzero masks before log operations"
 
-
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/entropy_calc.py"
-description = "Multiple entropy and divergence calculations calling np.log() directly on probability arrays without guards, risking -inf when zeros occur."
-expected_issue = "np.log() called on unguarded probability arrays in entropy and divergence calculations"
+description = "Bayesian classifier class using np.log() on class counts and feature means that could be zero, plus mutual information with unguarded log of joint probabilities"
+expected_issue = "np.log() called on class prior counts and feature means that could be zero"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
-name = "compute_entropy"
-snippet = "return -np.sum(probs * np.log(probs))"
+type = "method"
+name = "fit"
+snippet = "self.class_log_priors = np.log(class_counts / len(y))"
+lines = [12]
 
 [[tests.negative]]
 file = "test_negative/entropy_calc_safe.py"

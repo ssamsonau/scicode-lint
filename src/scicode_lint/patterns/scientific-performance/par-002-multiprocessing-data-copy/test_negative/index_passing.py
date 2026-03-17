@@ -2,22 +2,21 @@ from multiprocessing import Pool
 
 import numpy as np
 
-big_array = np.random.randn(80000, 500)
+
+def compute_chunk_stats(args):
+    filepath, start, end = args
+    data = np.load(filepath, mmap_mode="r")
+    chunk = data[start:end]
+    return {"mean": float(chunk.mean()), "std": float(chunk.std())}
 
 
-def process_indices(idx_range):
-    start, end = idx_range
-    return np.sum(big_array[start:end])
-
-
-def parallel_with_indices(num_workers):
-    chunk_size = len(big_array) // num_workers
-    index_ranges = [(i * chunk_size, (i + 1) * chunk_size) for i in range(num_workers)]
+def parallel_with_indices(filepath, total_rows, num_workers=4):
+    chunk_size = total_rows // num_workers
+    tasks = [
+        (filepath, i * chunk_size, (i + 1) * chunk_size) for i in range(num_workers)
+    ]
 
     with Pool(processes=num_workers) as pool:
-        results = pool.map(process_indices, index_ranges)
+        results = pool.map(compute_chunk_stats, tasks)
 
-    return sum(results)
-
-
-total_sum = parallel_with_indices(4)
+    return results

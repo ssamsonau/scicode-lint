@@ -22,18 +22,31 @@ references = ["https://pytorch.org/tutorials/recipes/recipes/benchmark.html"]
 
 [detection]
 question = """
-Does this CUDA/GPU benchmark code time ALL model iterations without any warmup handling?
+Does this code measure GPU BENCHMARK timing without warmup?
 
-ONLY flag if: GPU timing measures from first pass AND results include first passes.
+CRITICAL DISTINCTION - This pattern ONLY applies to BENCHMARK code:
+- BENCHMARK code: Measures model inference speed for performance comparison or reporting
+- OPERATIONAL code: Measures total pipeline time, training progress, or wall-clock duration
 
-NOT a bug (answer NO):
-- Warmup loop runs BEFORE timing starts
-- First N iterations discarded from results
-- Code uses `with profile(` or `torch.profiler` (profiler handles overhead internally)
-- CPU-only code (no .cuda(), no CUDA tensors) - CPU doesn't need GPU warmup
+FIRST: Is this BENCHMARK code? Look for these indicators:
+- Function/variable names: benchmark, latency, throughput, fps, inference_time, profile
+- Purpose: Comparing model speed, reporting performance numbers, measuring per-iteration time
+- Output: Reports ms/iter, samples/sec, or similar performance metrics
 
-YES = Bug: GPU benchmark times all iterations including first, no warmup or discard
-NO = Clean: has warmup, uses torch.profiler, or CPU-only code
+If NOT benchmark code (answer NO immediately):
+- Training progress monitoring (epoch timing, batch timing for logging)
+- End-to-end pipeline timing (total script duration)
+- Wall-clock measurements where startup costs ARE part of what's being measured
+- Inference scripts that just run predictions (not measuring performance)
+
+SECOND: For BENCHMARK code only, check for warmup:
+- Uses torch.profiler or `with profile(` → NO (profiler handles warmup)
+- Warmup loop runs BEFORE timing starts → NO
+- First N iterations discarded from results → NO
+- CPU-only code (no .cuda(), no CUDA tensors) → NO
+
+YES = GPU BENCHMARK timing from first iteration without warmup
+NO = Not benchmark code, OR has warmup, OR CPU-only, OR uses profiler
 """
 
 warning_message = """
@@ -52,9 +65,10 @@ expected_issue = "Timing starts from first forward pass without warmup"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
-name = "benchmark_model"
-snippet = "time.perf_counter()"
+type = "module"
+name = ""
+snippet = "start = time"
+lines = [12, 25]
 
 [[tests.negative]]
 file = "test_negative/profiler_benchmark.py"
@@ -68,6 +82,10 @@ description = "CPU-only timing without GPU warmup needs"
 file = "test_negative/warmup_benchmark.py"
 description = "Proper benchmarking with warmup iterations"
 
+[[tests.negative]]
+file = "test_negative/training_timing.py"
+description = "Training progress timing - operational monitoring, not benchmarking"
+
 [[tests.positive]]
 file = "test_positive/profile_model.py"
 description = "Profiling inference timing without warmup iterations before measurement loop"
@@ -75,9 +93,10 @@ expected_issue = "Timing includes overhead from first inference pass, producing 
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
-name = "profile_inference"
-snippet = "times.append(time.perf_counter()"
+type = "module"
+name = ""
+snippet = "start = time"
+lines = [14, 26]
 
 [[tests.positive]]
 file = "test_positive/throughput_test.py"
@@ -86,6 +105,7 @@ expected_issue = "First batch includes JIT compilation and cuDNN autotuning over
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
-name = "measure_throughput"
-snippet = "start = time.time()"
+type = "module"
+name = ""
+snippet = "start = time"
+lines = [13, 27]

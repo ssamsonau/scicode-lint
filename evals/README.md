@@ -2,36 +2,31 @@
 
 Quality validation for scicode-lint pattern detection.
 
-## Three Evaluation Types (TL;DR)
+## Two Evaluation Types (TL;DR)
 
 | Type | What it tests | Test data | Use for |
 |------|---------------|-----------|---------|
 | **Pattern-Specific** | 1 pattern in isolation | Static files per pattern | Iteration on individual patterns |
-| **Static Integration** | Multiple patterns together | Pre-written scenarios | Holdout - test generalization |
-| **Dynamic Integration** | Multiple patterns together | Fresh generated code | Holdout - test on fresh code |
+| **Integration** | Multiple patterns together | LLM-generated scenarios | Holdout - test generalization |
 
 ```bash
-# Pattern-specific (static)
+# Pattern-specific
 python evals/run_eval.py
 
-# Static integration
-python evals/integration/run_integration_eval.py
-
-# Dynamic integration (recommended for release)
-python evals/integration/dynamic_eval.py --scenarios 10
+# Integration (full pipeline: Generate → Verify → Lint → Judge)
+python evals/integration/integration_eval.py --generate-count 10
 ```
 
 ---
 
-## Why Three Types?
+## Why Two Types?
 
 Pattern-specific tests are for iteration. Integration tests are the **holdout set** - they test if patterns generalize beyond the specific test files we tuned on.
 
 | Evaluation | Role |
 |------------|------|
 | Pattern-specific | Iterate on individual patterns |
-| Static integration | Holdout - different files, realistic code |
-| **Dynamic integration** | Holdout - fresh code generated each run |
+| **Integration** | Holdout - fresh LLM-generated code |
 
 ---
 
@@ -52,22 +47,22 @@ Test individual patterns in isolation using:
 - **`run_eval.py`** - Comprehensive evaluation (LLM judge + direct metrics + alignment)
 - **`run_eval.py --skip-judge`** - Fast deterministic evaluation (no judge LLM)
 
-### 2. Static Integration Evaluations (`integration/`)
+### 2. Integration Evaluations (`integration/`)
 
-Test multiple patterns on realistic code with multiple bugs using:
-- **`run_integration_eval.py`** - Hardcoded ground truth (exact pattern ID matching)
-- **`run_integration_eval_llm_judge.py`** - LLM-as-judge (semantic bug detection)
+Full pipeline using LLM-generated scenarios:
+- **`integration_eval.py`** - Generate → Verify → Lint → Judge
 
-### 3. Dynamic Integration Evaluations (`integration/`)
+**Pipeline:**
+1. **GENERATE (Sonnet)** - Select patterns, generate code with bugs
+2. **VERIFY (Sonnet)** - Confirm manifest is accurate
+3. **LINT (vLLM)** - Run scicode-lint on generated code
+4. **JUDGE (Sonnet)** - Categorize findings
 
-Generate fresh test code and use LLM-as-judge:
-- **`dynamic_eval.py`** - Claude generates code with bugs, judges results
-
-**Categories:**
-- TP-intended: Encoded bug detected
-- TP-bonus: Real bug found (not intentionally encoded)
-- FP: Non-existent bug reported
-- FN: Encoded bug missed
+**Categories (Sonnet-judged):**
+- TP-intended: Finding matches manifest bug
+- TP-bonus: Verified extra bug (not in manifest)
+- FP: Rejected (not a real bug)
+- FN: Manifest bug missed
 
 ## What's in This Directory
 
@@ -87,25 +82,13 @@ Generate fresh test code and use LLM-as-judge:
 
 ### Supporting Modules
 
-**`metrics.py`** - Precision, recall, F1 calculation
-- TP, FP, FN counting
-- Aggregation by category and severity
-- Threshold checking
+**`judge_models.py`** - Pydantic models for judge verdicts
+- `PatternJudgeMetrics` - Per-pattern evaluation results
+- `OverallJudgeMetrics` - Aggregated metrics across all patterns
+- `TestEvaluation` - Individual test case evaluation
 
-**`validators.py`** - Finding validation logic
-- Location matching (function/class/method names)
-- Snippet comparison
-- False positive detection
-
-**`report_generator.py`** - Report generation
-- JSON format (machine-readable)
-- Markdown format (human-readable)
-- Summary statistics
-
-**`test_all_patterns.py`** - Pytest integration
-- Parametrized tests for each pattern
-- Validates overall metrics
-- Checks critical severity precision
+**`prompts/judge_system_prompt.py`** - LLM judge system prompts
+- Separate prompt templates for positive, negative, and context-dependent tests
 
 ### Configuration
 
@@ -251,7 +234,6 @@ Aggregated across all patterns:
 
 - ai-training
 - ai-inference
-- ai-data
 - scientific-numerical
 - scientific-performance
 - scientific-reproducibility
@@ -264,8 +246,7 @@ Understanding what each component sees is critical for evaluation integrity:
 |------------|-------------|---------------------|---------------------|
 | **Direct Metrics** | Code only | Linter output + expected from TOML | `pattern.toml` |
 | **LLM Judge** | Code only | Linter output + expected from TOML | `pattern.toml` |
-| **Integration Static** | Code only | Pattern IDs + counts | `expected_findings.yaml` |
-| **Integration Dynamic** | Generated code only | Code + manifest + detections | Generated manifest |
+| **Integration** | Generated code only | Code + manifest + detections | Generated manifest |
 
 **Key principle:** The linter NEVER sees expected outputs or ground truth. It analyzes code blind.
 
@@ -341,7 +322,7 @@ python evals/run_eval.py --pattern ml-001
 ## See Also
 
 - [integration/](integration/) - Multi-pattern integration tests
-- [patterns/](../patterns/) - Pattern definitions and test data
+- [patterns/](../src/scicode_lint/patterns/) - Pattern definitions and test data
 - [tests/](../tests/) - Deterministic unit tests
 - [benchmarks/](../benchmarks/) - Performance benchmarks
 - [ARCHITECTURE.md](../docs_dev_genai/ARCHITECTURE.md) - System design
@@ -359,4 +340,4 @@ python evals/run_eval.py --pattern ml-001
 1. Run `run_eval.py` during development (comprehensive feedback)
 2. Review alignment metrics to identify quality issues or overly strict ground truth
 3. Use `run_eval.py --skip-judge` for fast regression checks
-4. Run dynamic integration before release
+4. Run integration eval before release: `python evals/integration/integration_eval.py --generate-count 10`

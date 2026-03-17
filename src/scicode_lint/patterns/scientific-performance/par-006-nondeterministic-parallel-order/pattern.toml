@@ -22,25 +22,27 @@ Non-deterministic parallel output: parallel tasks complete in arbitrary order. I
 
 tags = []
 related_patterns = []
-references = []
+references = [
+    "https://docs.python.org/3/library/multiprocessing.html#multiprocessing.pool.Pool.imap_unordered",
+    "https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.as_completed",
+]
 
 [detection]
 question = """
 Analyze parallel result collection for determinism.
 
-Using imap_unordered or as_completed() produces results in non-deterministic order based on completion time. If results must be in specific order for reproducibility, this causes issues.
+Using imap_unordered or as_completed() produces results in non-deterministic order based on completion time. This is only a bug when downstream use is order-sensitive (e.g., building arrays where row position matters, creating sequences, indexing by position). It is NOT a bug when results are used in order-independent ways (sums, counts, histograms, set operations).
 
 Correct approach: Use ordered map(), or track indices and sort after collection.
 
-Does this code collect parallel results without preserving order?
+Does this code collect parallel results in arbitrary order AND use them in an order-sensitive way?
 
 Look for:
-- pool.imap_unordered() appending results without sorting
-- as_completed(futures) without index tracking
-- Results depending on order but collected arbitrarily
+- pool.imap_unordered() or as_completed() collecting results without sorting
+- Downstream use that depends on element position (array construction, sequential processing, indexing)
 
-YES = Bug found: non-deterministic result order without sorting
-NO = Correct: uses ordered map(), or sorts results by index
+YES = Bug found: results collected in arbitrary order AND downstream use is order-sensitive
+NO = Correct: uses ordered map(), sorts results by index, OR downstream use is order-independent (sums, histograms, aggregations)
 """
 
 warning_message = """
@@ -55,25 +57,27 @@ false_positive_risks = []
 
 [[tests.positive]]
 file = "test_positive/unordered_results.py"
-description = "Using imap_unordered and appending results without sorting - output order is non-deterministic"
-expected_issue = "Results collected from imap_unordered without preserving order"
+description = "Using imap_unordered for EEG channel filtering - results collected in completion order, not channel order"
+expected_issue = "Results from imap_unordered appended without tracking channel indices"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "parallel_compute"
-snippet = "for result in pool.imap_unordered(process_sample, data):"
+name = "parallel_filter_channels"
+snippet = "pool.imap_unordered(bandpass_filter, channels)"
+lines = [17]
 
 [[tests.positive]]
 file = "test_positive/concurrent_futures_unordered.py"
-description = "Using as_completed to collect results without tracking indices - non-deterministic output order"
-expected_issue = "Results from as_completed appended without index sorting"
+description = "ThreadPoolExecutor with as_completed building sensor matrix - row order in np.vstack depends on completion order, corrupting sensor-to-row mapping"
+expected_issue = "Sensor readings stacked in arbitrary completion order, breaking row-to-sensor correspondence"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "batch_process"
+name = "build_sensor_matrix"
 snippet = "for future in as_completed(futures):"
+lines = [16]
 
 [[tests.negative]]
 file = "test_negative/sorted_results.py"
@@ -87,15 +91,16 @@ description = "Using executor.map which preserves input order - deterministic re
 # === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/async_gather.py"
-description = "Using imap_unordered and apply_async with callbacks - results collected without order preservation"
-expected_issue = "Results collected from imap_unordered and apply_async callbacks without index tracking"
+description = "Using imap_unordered and apply_async with callbacks - results collected without order preservation for order-sensitive array construction"
+expected_issue = "Results collected from imap_unordered and apply_async callbacks without index tracking, then used to build positional arrays"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
 name = "process_items"
-snippet = "results = list(pool.imap_unordered(process, items))"
+snippet = "pool.imap_unordered(process, items)"
+lines = [11]
 
 [[tests.negative]]
 file = "test_negative/ordered_results.py"
-description = "Using pool.map which maintains input order - results are deterministic and reproducible"
+description = "Uses as_completed but tracks indices via dict and sorts afterward - preserves deterministic order"

@@ -1,50 +1,46 @@
-import json
+"""Configuration-driven experiment using YAML config files."""
+
+from dataclasses import dataclass, field
 from pathlib import Path
 
-import numpy as np
-
-DATA_DIR = Path("/data/experiments")
-OUTPUT_DIR = Path("/output")
-EXPERIMENT_ID = "trial_042"
-
-AMPLITUDE_THRESHOLD = 0.75
-NORMALIZATION_FACTOR = 127.5
-SMOOTHING_WINDOW = 5
-PEAK_THRESHOLD = 2.3
-MIN_PEAK_COUNT = 15
-SCALING_FACTOR = 1.42
+import yaml
 
 
-def load_data():
-    data_path = DATA_DIR / EXPERIMENT_ID / "results.json"
-    with open(data_path) as f:
-        data = json.load(f)
-    return data
+@dataclass
+class ExperimentConfig:
+    """Configuration loaded from external YAML file."""
+
+    data_path: Path
+    output_path: Path
+    learning_rate: float = 0.001
+    batch_size: int = 32
+    epochs: int = 100
+    hidden_dims: list[int] = field(default_factory=lambda: [64, 128, 64])
+    dropout_rate: float = 0.5
+
+    @classmethod
+    def from_yaml(cls, config_path: Path) -> "ExperimentConfig":
+        with open(config_path) as f:
+            config_dict = yaml.safe_load(f)
+        config_dict["data_path"] = Path(config_dict["data_path"])
+        config_dict["output_path"] = Path(config_dict["output_path"])
+        return cls(**config_dict)
 
 
-def process_signals(raw_data):
-    filtered = []
-    for signal in raw_data:
-        if signal["amplitude"] > AMPLITUDE_THRESHOLD:
-            normalized = signal["values"] / NORMALIZATION_FACTOR - 1.0
-            kernel = np.ones(SMOOTHING_WINDOW) / SMOOTHING_WINDOW
-            smoothed = np.convolve(normalized, kernel, mode="valid")
-            filtered.append(smoothed)
-    return filtered
+def run_experiment(config: ExperimentConfig):
+    """Run experiment using external configuration."""
+    print(f"Loading data from {config.data_path}")
+    print(f"Training with lr={config.learning_rate}, batch_size={config.batch_size}")
+    print(f"Model architecture: {config.hidden_dims}")
+    print(f"Results will be saved to {config.output_path}")
 
 
-def apply_threshold(signals):
-    results = []
-    for sig in signals:
-        peaks = sig[sig > PEAK_THRESHOLD]
-        if len(peaks) > MIN_PEAK_COUNT:
-            results.append(peaks.mean() * SCALING_FACTOR)
-    return np.array(results)
+if __name__ == "__main__":
+    import argparse
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", required=True, help="Path to config YAML")
+    args = parser.parse_args()
 
-raw = load_data()
-processed = process_signals(raw)
-final = apply_threshold(processed)
-
-output_path = OUTPUT_DIR / f"experiment_results_{EXPERIMENT_ID}.npy"
-np.save(output_path, final)
+    config = ExperimentConfig.from_yaml(Path(args.config))
+    run_experiment(config)

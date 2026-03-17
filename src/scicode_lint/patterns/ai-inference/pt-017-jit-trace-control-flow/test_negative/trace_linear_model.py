@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 
-class LinearRegressor(nn.Module):
+class OutputPredictor(nn.Module):
     def __init__(self, input_dim, output_dim):
         super().__init__()
         self.linear = nn.Linear(input_dim, output_dim)
@@ -11,7 +11,7 @@ class LinearRegressor(nn.Module):
         return self.linear(x)
 
 
-class FixedMLP(nn.Module):
+class SimpleMLP(nn.Module):
     def __init__(self, in_features, hidden_dim, out_features):
         super().__init__()
         self.layers = nn.Sequential(

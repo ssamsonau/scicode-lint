@@ -1,28 +1,34 @@
 import torch
-import torch.backends.cudnn as cudnn
+import torch.nn as nn
 
 
-def setup_inference():
-    cudnn.benchmark = True
-    torch.backends.cudnn.benchmark = True
+class VideoFrameAnalyzer(nn.Module):
+    def __init__(self, num_classes):
+        super().__init__()
+        self.backbone = nn.Sequential(
+            nn.Conv2d(3, 32, 3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, 3, padding=1),
+            nn.ReLU(),
+        )
+        self.pool = nn.AdaptiveAvgPool2d(1)
+        self.head = nn.Linear(64, num_classes)
+
+    def forward(self, x):
+        features = self.backbone(x)
+        pooled = self.pool(features).flatten(1)
+        return self.head(pooled)
 
 
-def run_variable_batch_inference(model, images):
+def analyze_video_frames(model, frames_by_resolution):
     torch.backends.cudnn.benchmark = True
     model.cuda()
     model.eval()
 
-    results = []
-    for batch in images:
-        with torch.no_grad():
-            output = model(batch.cuda())
-            results.append(output)
-    return results
-
-
-def serve_requests(model, request_queue, response_queue):
-    cudnn.benchmark = True
-    while True:
-        request = request_queue.get()
-        result = model(request)
-        response_queue.put(result)
+    all_predictions = {}
+    with torch.no_grad():
+        for resolution, frames in frames_by_resolution.items():
+            batch = frames.cuda()
+            preds = model(batch)
+            all_predictions[resolution] = preds.cpu()
+    return all_predictions

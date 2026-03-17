@@ -50,7 +50,6 @@ from datetime import UTC
 from typing import Any
 
 import httpx
-import requests
 
 # Fallback model name (used only if model not specified in config)
 _DEFAULT_MODEL_FALLBACK = "RedHatAI/Qwen3-8B-FP8-dynamic"
@@ -117,9 +116,9 @@ def is_running(base_url: str = "http://localhost:5001") -> bool:
         ...     print("Server is ready")
     """
     try:
-        response = requests.get(f"{base_url}/health", timeout=2)
+        response = httpx.get(f"{base_url}/health", timeout=2)
         return response.status_code == 200
-    except (requests.RequestException, ConnectionError):
+    except (httpx.HTTPError, ConnectionError):
         return False
 
 
@@ -234,7 +233,7 @@ def start_server(
     gpu_memory_utilization: float | None = None,
     wait: bool = False,
     wait_timeout: int = 60,
-) -> subprocess.Popen[str]:
+) -> subprocess.Popen[bytes]:
     """Start vLLM server as a subprocess.
 
     Args:
@@ -308,13 +307,12 @@ def start_server(
         str(max_model_len),
     ]
 
-    # Start process
+    # Start process (output goes to /dev/null — use vLLM's own logging)
     try:
         proc = subprocess.Popen(
             cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
     except FileNotFoundError:
         raise FileNotFoundError(
@@ -330,7 +328,7 @@ def start_server(
     return proc
 
 
-def stop_server(process: subprocess.Popen[str], timeout: int = 10) -> None:
+def stop_server(process: subprocess.Popen[bytes], timeout: int = 10) -> None:
     """Stop vLLM server process gracefully.
 
     Args:
@@ -424,7 +422,7 @@ class VLLMServer:
             )
 
         self.wait_timeout = wait_timeout
-        self.process: subprocess.Popen[str] | None = None
+        self.process: subprocess.Popen[bytes] | None = None
         self.was_already_running = False
         self.is_remote = base_url is not None
 
@@ -439,7 +437,7 @@ class VLLMServer:
             # Warn if running model differs from requested (local only)
             if not self.is_remote:
                 try:
-                    response = requests.get(f"{server_url}/v1/models", timeout=5)
+                    response = httpx.get(f"{server_url}/v1/models", timeout=5)
                     if response.status_code == 200:
                         data = response.json()
                         if "data" in data and len(data["data"]) > 0:
@@ -455,7 +453,7 @@ class VLLMServer:
                                     f"stop the server first: pkill -f 'vllm serve'"
                                 )
                                 warnings.warn(msg, RuntimeWarning)
-                except (requests.RequestException, KeyError, IndexError):
+                except (httpx.HTTPError, KeyError, IndexError):
                     pass  # Can't verify model, proceed anyway
 
             return self
@@ -605,14 +603,14 @@ def get_server_info(base_url: str = "http://localhost:5001") -> ServerInfo:
     if running:
         try:
             # Try to get model info from /v1/models endpoint
-            response = requests.get(f"{base_url}/v1/models", timeout=5)
+            response = httpx.get(f"{base_url}/v1/models", timeout=5)
             if response.status_code == 200:
                 data = response.json()
                 if "data" in data and len(data["data"]) > 0:
                     model_info = data["data"][0]
                     model_name = model_info.get("id")
                     max_model_len = model_info.get("max_model_len")
-        except (requests.RequestException, KeyError, IndexError):
+        except (httpx.HTTPError, KeyError, IndexError):
             pass
 
     return ServerInfo(
@@ -663,7 +661,6 @@ class VLLMMetricsMonitor:
         self._task: asyncio.Task[Any] | None = None
         self._stop = False
         self._start_time = 0.0
-        self._file = None
         self._peak_running = 0
         self._peak_waiting = 0
         self._total_requests = 0

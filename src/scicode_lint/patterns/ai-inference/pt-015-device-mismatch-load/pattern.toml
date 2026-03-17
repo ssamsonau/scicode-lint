@@ -27,18 +27,23 @@ references = [
 question = """
 Analyze model loading for device compatibility.
 
-torch.load() without map_location will attempt to load tensors onto the device they were saved from. If a model was saved on GPU but loaded on a CPU-only machine, this causes a runtime error.
+torch.load() without map_location attempts to load to the original save device.
+This fails on CPU-only machines if saved on GPU.
 
-Correct approach: Always use map_location parameter - torch.load(path, map_location='cpu') or map_location=device.
-
-Does this code load models without specifying map_location?
+Does this code use torch.load() without map_location?
 
 Look for:
 - torch.load(path) without map_location parameter
-- Model loading that will fail on CPU-only systems
 
-YES = Bug found: torch.load() without map_location
-NO = Correct: map_location specified for portable loading
+NOT a bug (answer NO):
+- PyTorch Lightning: load_from_checkpoint() handles device mapping internally
+- torch.jit.load() - different API, handles device mapping
+- safetensors.torch.load_file() - no device encoding in format
+- torch.load(..., map_location=...) - explicitly specified
+- CUDA-only scripts: if code explicitly requires CUDA (assert cuda.is_available), map_location doesn't help
+
+YES = Bug: torch.load() without map_location in general-purpose code
+NO = Clean: Lightning load_from_checkpoint, jit.load, safetensors, map_location specified, or CUDA-only
 """
 
 warning_message = """
@@ -60,6 +65,7 @@ min_confidence = 0.85
 type = "function"
 name = "load_model"
 snippet = "torch.load(path)"
+lines = [16]
 
 [[tests.positive]]
 file = "test_positive/load_without_map_location.py"
@@ -71,6 +77,7 @@ min_confidence = 0.85
 type = "function"
 name = "load_checkpoint"
 snippet = "torch.load(checkpoint_path)"
+lines = [22]
 
 [[tests.negative]]
 file = "test_negative/jit_load_model.py"
@@ -78,7 +85,7 @@ description = "Using torch.jit.load with map_location"
 
 [[tests.negative]]
 file = "test_negative/model_from_scratch.py"
-description = "Creating model from scratch without loading"
+description = "Loading checkpoints with map_location using a class-based loader and helper functions"
 
 [[tests.negative]]
 file = "test_negative/safetensors_load.py"
@@ -87,6 +94,10 @@ description = "Loading with safetensors (no device mismatch)"
 [[tests.negative]]
 file = "test_negative/load_with_map_location.py"
 description = "Using torch.load with map_location parameter for portable loading"
+
+[[tests.negative]]
+file = "test_negative/lightning_load.py"
+description = "PyTorch Lightning load_from_checkpoint handles device mapping internally - no map_location needed"
 
 [[tests.positive]]
 file = "test_positive/load_ensemble.py"
@@ -98,6 +109,7 @@ min_confidence = 0.85
 type = "function"
 name = "load_ensemble"
 snippet = "torch.load(path)"
+lines = [7]
 
 [[tests.positive]]
 file = "test_positive/load_ensemble.py"
@@ -109,6 +121,7 @@ min_confidence = 0.85
 type = "function"
 name = "restore_optimizer"
 snippet = "torch.load(checkpoint_path)"
+lines = [13]
 
 [[tests.positive]]
 file = "test_positive/restore_training.py"
@@ -120,6 +133,7 @@ min_confidence = 0.85
 type = "function"
 name = "restore_from_checkpoint"
 snippet = "torch.load(path)"
+lines = [18]
 
 [[tests.positive]]
 file = "test_positive/restore_training.py"
@@ -131,3 +145,4 @@ min_confidence = 0.85
 type = "function"
 name = "load_pretrained_weights"
 snippet = "torch.load(weights_path)"
+lines = [27]

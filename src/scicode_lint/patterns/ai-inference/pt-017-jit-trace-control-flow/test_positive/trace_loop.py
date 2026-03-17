@@ -9,7 +9,6 @@ class RecurrentProcessor(nn.Module):
         self.threshold = 0.1
 
     def forward(self, x):
-        # Loop count depends on input data - tracing captures only one path
         num_iterations = int(x.abs().sum().item()) % 5 + 1
         for _ in range(num_iterations):
             x = self.transform(x)

@@ -24,7 +24,6 @@ def train_rnn(model, sequences, labels, epochs):
 
         optimizer.step()
 
-        # Then gradients cleared and computed
         model.zero_grad()
         loss.backward()
 

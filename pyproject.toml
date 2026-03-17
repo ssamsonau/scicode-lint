@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "scicode-lint"
-version = "0.2.0"
+version = "0.2.1"
 description = "AI-powered linter for scientific ML code. Detects methodology bugs such as data leakage, incorrect cross-validation, numerical instability, and reproducibility issues that produce plausible but wrong results. 66 detection patterns across 5 categories. Runs via local or institutional vLLM server, no cloud APIs."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -26,14 +26,11 @@ classifiers = [
 ]
 
 dependencies = [
-    "pyyaml>=6.0",
-    "requests>=2.31.0",
     "loguru>=0.7.0",
     "httpx>=0.24.0",
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
     "openai>=1.0.0",
-    "aiofiles>=24.0.0",
 ]
 
 [project.urls]
@@ -58,12 +55,12 @@ dev = [
     "ruff>=0.15.5",
     "mypy>=1.19.1",
     "types-PyYAML>=6.0",
-    "types-requests>=2.31.0",
-    "types-aiofiles>=24.0.0",
     "pytest>=7.0",
+    "pytest-asyncio>=1.0.0",
     "pip-audit>=2.7.0",
     "bandit>=1.7.0",
     "safety>=3.0.0",
+    "aiolimiter>=1.1.0",
 ]
 dashboard = [
     "streamlit>=1.30.0",
@@ -86,6 +83,8 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 # Exclude pattern test files (they contain intentional bugs for evaluation)
 norecursedirs = ["src/scicode_lint/patterns", "evals"]
+# Auto-detect async test functions (no @pytest.mark.asyncio needed)
+asyncio_mode = "auto"
 # Custom markers
 markers = [
     "vllm: tests that require a running vLLM server (deselected by default, run with: pytest -m vllm)",
@@ -105,10 +104,12 @@ select = ["E", "F", "I", "UP"]
 [tool.ruff.lint.per-file-ignores]
 # Prompts contain long strings that shouldn't be wrapped
 "src/scicode_lint/detectors/prompts.py" = ["E501"]
-"evals/integration/run_integration_eval_llm_judge.py" = ["E501"]
-"evals/integration/dynamic_eval.py" = ["E501"]
+"src/scicode_lint/repo_filter/classify.py" = ["E501"]
+"evals/integration/integration_eval.py" = ["E501"]
 "pattern_verification/deterministic/validate.py" = ["E501"]
 "real_world_demo/sources/papers_with_code/filter_abstracts.py" = ["E501"]
+"real_world_demo/analyze_errors.py" = ["E501"]
+"evals/integration/generated/**" = ["E501"]
 
 [tool.mypy]
 python_version = "3.13"
@@ -120,6 +121,9 @@ disallow_untyped_defs = true
 exclude = [
     "src/scicode_lint/patterns/",
     "evals/integration/scenarios/",
+    "evals/integration/curated/",
+    "evals/integration/combinatorial/",
+    "evals/integration/generated/",
     "real_world_demo/collected_code/",
     "real_world_demo/cloned_repos/",
 ]

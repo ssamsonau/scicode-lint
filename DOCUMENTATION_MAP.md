@@ -56,7 +56,7 @@ Quick guide to find the right documentation for your needs.
 
 **Pattern verification:**
 - **[pattern_verification/](pattern_verification/)** - Deterministic and semantic quality checks
-  - `deterministic/validate.py` - 9 automated checks (no LLM needed)
+  - `deterministic/validate.py` - 18 automated checks (no LLM needed)
   - `semantic/semantic_validate.py` - LLM-based consistency checking
 
 **Pattern reviewer agent:**
@@ -84,17 +84,23 @@ Quick guide to find the right documentation for your needs.
 ├── docs_use_genai/               # GenAI agents USING scicode-lint
 │   ├── README.md
 │   ├── GENAI_AGENT_GUIDE.md       ⭐ Main guide
-│   └── INTERFACE_ANALYSIS.md
+│   ├── API_REFERENCE.md
+│   ├── INTERFACE_ANALYSIS.md
+│   ├── VLLM_UTILITIES.md
+│   └── PATTERN_LOOKUP_EXAMPLE.md
 │
 ├── docs_dev_genai/                 # GenAI agents WORKING ON scicode-lint
 │   ├── README.md
 │   ├── ARCHITECTURE.md
+│   ├── DETECTION_ARCHITECTURE.md
 │   ├── IMPLEMENTATION.md
 │   ├── CONTINUOUS_IMPROVEMENT.md
+│   ├── META_IMPROVEMENT_LOOP.md
+│   ├── MODEL_USAGE.md
 │   └── QUALITY_GATES.md
 │
 ├── pattern_verification/           # Pattern quality verification
-│   ├── deterministic/validate.py   # 9 automated checks
+│   ├── deterministic/validate.py   # 18 automated checks
 │   ├── semantic/semantic_validate.py  # Batch validation script
 │   └── pattern-reviewer/           # Read-only analysis agent
 │
@@ -107,8 +113,7 @@ Quick guide to find the right documentation for your needs.
 │   ├── run_eval.py                 # Eval runner (use --skip-judge for fast mode)
 │   └── integration/                # Multi-pattern integration tests
 │       ├── README.md
-│       ├── run_integration_eval.py # Hardcoded ground truth
-│       └── run_integration_eval_llm_judge.py  # LLM-as-judge
+│       └── integration_eval.py     # Full pipeline (Generate → Verify → Lint → Judge)
 │
 ├── benchmarks/                     # Performance benchmarks
 │   └── max_tokens_experiment.py    # Token limit tuning
@@ -155,6 +160,9 @@ Quick guide to find the right documentation for your needs.
 
 ### "I want to review or improve pattern definitions"
 → [pattern_verification/README.md](pattern_verification/README.md) → [docs_dev_genai/CONTINUOUS_IMPROVEMENT.md](docs_dev_genai/CONTINUOUS_IMPROVEMENT.md)
+
+### "I want to validate patterns on real-world code"
+→ [docs_dev_genai/META_IMPROVEMENT_LOOP.md](docs_dev_genai/META_IMPROVEMENT_LOOP.md) → [real_world_demo/README.md](real_world_demo/README.md)
 
 ### "I want to understand validation layers and their tensions"
 → [docs_dev_genai/QUALITY_GATES.md](docs_dev_genai/QUALITY_GATES.md)

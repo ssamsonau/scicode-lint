@@ -1,3 +1,6 @@
+import numpy as np
+
+
 def normalize_features(data):
     normalized = data[:, :10]
     mean = normalized.mean(axis=0)

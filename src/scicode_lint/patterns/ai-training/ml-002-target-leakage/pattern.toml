@@ -65,6 +65,7 @@ min_confidence = 0.85
 type = "function"
 name = "create_target_derived_feature"
 snippet = "df.groupby(\"category\")[\"target\"].transform(\"mean\")"
+lines = [5, 15]
 
 [[tests.negative]]
 file = "test_negative/no_target_derived_features.py"
@@ -77,6 +78,12 @@ context_notes = "Debatable: uses target info but only from training set after sp
 allow_detection = true
 allow_skip = true
 
+[tests.context_dependent.expected_location]
+type = "function"
+name = "target_encoding_on_train_only"
+snippet = "category_means = train_df.groupby(\"category\")[\"target\"].mean()"
+lines = [11]
+
 
 [[tests.positive]]
 file = "test_positive/future_aggregate.py"
@@ -88,6 +95,7 @@ min_confidence = 0.85
 type = "function"
 name = "create_sales_features"
 snippet = "df[\"weekly_avg\"] = df.groupby(\"store_id\")[\"sales\"].transform(\"mean\")"
+lines = [2]
 
 [[tests.positive]]
 file = "test_positive/future_value_feature.py"
@@ -99,6 +107,7 @@ min_confidence = 0.85
 type = "function"
 name = "add_target_stats"
 snippet = "X[\"target_mean\"] = y.mean()"
+lines = [8]
 
 [[tests.negative]]
 file = "test_negative/future_aggregate_fixed.py"

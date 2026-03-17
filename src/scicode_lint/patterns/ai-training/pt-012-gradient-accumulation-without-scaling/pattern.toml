@@ -52,25 +52,27 @@ false_positive_risks = ["Intentional unscaled accumulation with adjusted learnin
 
 [[tests.positive]]
 file = "test_positive/unscaled_accumulation.py"
-description = "Gradient accumulation loop calling backward() multiple times before optimizer.step() without dividing loss"
+description = "Distributed and sequence model training with gradient accumulation but missing loss scaling"
 expected_issue = "Gradient accumulation without loss scaling causes N times larger gradients"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "train_with_accumulation"
+name = "train_ddp_unscaled"
 snippet = "loss.backward()"
+lines = [24, 46]
 
 [[tests.positive]]
 file = "test_positive/accumulate_without_division.py"
-description = "Training loop with modulo condition for optimizer.step() but loss not scaled by accumulation factor"
+description = "Multi-task training and standard loop with gradient accumulation but loss not scaled by accumulation factor"
 expected_issue = "Loss not divided by accumulation_steps before backward"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "training_loop"
-snippet = "if (step + 1) % accumulation_steps == 0:"
+name = "train_multitask"
+snippet = "total.backward()"
+lines = [25, 41]
 
 [[tests.negative]]
 file = "test_negative/scaled_accumulation.py"
@@ -83,14 +85,15 @@ description = "Standard training loop without gradient accumulation - single bac
 
 [[tests.positive]]
 file = "test_positive/accumulate_unscaled.py"
-description = "Gradient accumulation with modulo-based optimizer.step() pattern but loss not divided by accumulation factor in multiple functions"
+description = "VAE trainer and finetuning function with gradient accumulation but loss not scaled before backward"
 expected_issue = "Loss not divided by accumulation_steps before backward, causing N times larger gradients"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
-name = "train_with_accumulation"
+type = "class"
+name = "VAETrainer"
 snippet = "loss.backward()"
+lines = [25, 54]
 
 [[tests.negative]]
 file = "test_negative/accumulate_scaled.py"

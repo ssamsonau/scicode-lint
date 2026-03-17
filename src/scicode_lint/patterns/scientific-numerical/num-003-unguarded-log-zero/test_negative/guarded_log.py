@@ -1,27 +1,29 @@
 import numpy as np
 
 
-def compute_entropy(probabilities):
-    eps = 1e-10
-    log_probs = np.log(probabilities + eps)
-    entropy = -np.sum(probabilities * log_probs)
-    return entropy
+def richter_magnitude(seismic_amplitude, reference_amplitude=1e-6):
+    amplitude = np.maximum(seismic_amplitude, 1e-12)
+    return np.log10(amplitude / reference_amplitude)
 
 
-def log_transform(data):
-    safe_data = np.maximum(data, 1e-8)
-    transformed = np.log(safe_data)
-    return transformed
+def permeability_from_porosity(porosity):
+    valid = porosity > 0
+    result = np.zeros_like(porosity)
+    result[valid] = np.log(porosity[valid] / (1 - porosity[valid] + 1e-9))
+    return result
 
 
-def compute_log_likelihood(observations):
-    log_obs = np.log(np.clip(observations, 1e-10, None))
-    likelihood = np.sum(log_obs)
-    return likelihood
+def acoustic_impedance_log(impedance_series):
+    clipped = np.clip(impedance_series, 1.0, None)
+    return np.log(clipped)
 
 
-probs = np.array([0.5, 0.3, 0.2, 0.0])
-ent = compute_entropy(probs)
+def radioactive_decay_constant(half_life_years):
+    return np.log(2) / half_life_years
 
-values = np.array([1.0, 2.0, 0.0, 3.0])
-result = log_transform(values)
+
+amplitudes = np.array([1e-4, 5e-3, 2e-2, 1e-6])
+magnitudes = richter_magnitude(amplitudes)
+
+porosity = np.array([0.1, 0.25, 0.4, 0.0, 0.15])
+perm = permeability_from_porosity(porosity)

@@ -62,9 +62,16 @@ def count_lines_in_path(path: str, pattern: str = "*.py") -> int:
         f"-exec wc -l {{}} + 2>/dev/null | tail -1"
     )
     output = run_command(cmd)
-    if output and "total" in output:
+    if not output:
+        return 0
+    # wc -l prints "total" only for multiple files; single file has just "N filename"
+    if "total" in output:
         return int(output.split()[0])
-    return 0
+    # Single file: parse the line count
+    try:
+        return int(output.split()[0])
+    except (ValueError, IndexError):
+        return 0
 
 
 def count_files(path: str, pattern: str = "*.py") -> int:
@@ -87,7 +94,7 @@ def count_pattern_dirs(category_path: Path) -> int:
 
 def get_pattern_stats() -> dict[str, Any]:
     """Get statistics for pattern files by category."""
-    pattern_dir = Path("./patterns")
+    pattern_dir = Path("./src/scicode_lint/patterns")
     categories = {}
 
     for category_path in sorted(pattern_dir.glob("*/")):
@@ -109,12 +116,19 @@ def get_pattern_stats() -> dict[str, Any]:
 
 
 def get_module_stats() -> dict[str, int]:
-    """Get line counts for main modules."""
+    """Get line counts for main modules (excludes patterns/)."""
     modules = {}
     src_path = Path("./src/scicode_lint")
 
+    # Count root-level .py files (e.g., __init__.py, config.py)
+    root_lines = 0
+    for py_file in src_path.glob("*.py"):
+        root_lines += len(py_file.read_text().splitlines())
+    if root_lines > 0:
+        modules["(root)"] = root_lines
+
     for module_path in sorted(src_path.glob("*/")):
-        if module_path.name.startswith(".") or module_path.name == "__pycache__":
+        if module_path.name.startswith(".") or module_path.name in ("__pycache__", "patterns"):
             continue
 
         module_name = module_path.name
@@ -264,13 +278,11 @@ def collect_stats() -> dict[str, Any]:
         "tech_stack": get_tech_stack(),
         "python_code": {
             "implementation": {
-                "total_lines": count_lines_in_path("./src", "*.py"),
-                "total_files": count_files("./src", "*.py"),
                 "modules": get_module_stats(),
             },
             "patterns": {
-                "total_lines": count_lines_in_path("./patterns", "*.py"),
-                "total_test_files": count_files("./patterns", "*.py"),
+                "total_lines": count_lines_in_path("./src/scicode_lint/patterns", "*.py"),
+                "total_test_files": count_files("./src/scicode_lint/patterns", "*.py"),
                 "categories": get_pattern_stats(),
             },
             "tests": {
@@ -278,8 +290,27 @@ def collect_stats() -> dict[str, Any]:
                 "total_files": count_files("./tests", "*.py"),
             },
             "evaluations": {
-                "total_lines": count_lines_in_path("./evals", "*.py"),
-                "total_files": count_files("./evals", "*.py"),
+                # Subtracted below after generated tests are counted
+                "total_lines": 0,
+                "total_files": 0,
+            },
+            "generated_integration_tests": {
+                "total_lines": count_lines_in_path("./evals/integration/generated", "*.py"),
+                "total_files": count_files("./evals/integration/generated", "*.py"),
+            },
+            "dev_tools": {
+                "total_lines": (
+                    count_lines_in_path("./pattern_verification", "*.py")
+                    + count_lines_in_path("./real_world_demo", "*.py")
+                    + count_lines_in_path("./dev_lib", "*.py")
+                    + count_lines_in_path("./scripts", "*.py")
+                ),
+                "total_files": (
+                    count_files("./pattern_verification", "*.py")
+                    + count_files("./real_world_demo", "*.py")
+                    + count_files("./dev_lib", "*.py")
+                    + count_files("./scripts", "*.py")
+                ),
             },
         },
         "documentation": {
@@ -288,21 +319,44 @@ def collect_stats() -> dict[str, Any]:
         },
     }
 
-    # Calculate total patterns from categories
+    # Eval lines/files exclude generated integration tests
+    python_code_raw = cast(dict[str, Any], stats["python_code"])
+    evals_total_lines = count_lines_in_path("./evals", "*.py")
+    evals_total_files = count_files("./evals", "*.py")
+    gen = python_code_raw["generated_integration_tests"]
+    python_code_raw["evaluations"]["total_lines"] = evals_total_lines - gen["total_lines"]
+    python_code_raw["evaluations"]["total_files"] = evals_total_files - gen["total_files"]
+
+    # Calculate implementation totals from modules (excludes patterns)
     python_code = cast(dict[str, Any], stats["python_code"])
+    modules = python_code["implementation"]["modules"]
+    impl_lines = sum(modules.values())
+    # Count files: root-level files + submodule files (skip patterns/)
+    root_py_count = len(list(Path("./src/scicode_lint").glob("*.py")))
+    submodule_files = sum(
+        count_files(f"./src/scicode_lint/{m}", "*.py") for m in modules if m != "(root)"
+    )
+    impl_files = root_py_count + submodule_files
+    python_code["implementation"]["total_lines"] = impl_lines
+    python_code["implementation"]["total_files"] = impl_files
+
+    # Calculate total patterns from categories
     categories = python_code["patterns"]["categories"]
     total_patterns = sum(cat["patterns"] for cat in categories.values())
     python_code["patterns"]["total_patterns"] = total_patterns
 
     # Calculate totals
-    impl_lines: int = python_code["implementation"]["total_lines"]
     pattern_lines: int = python_code["patterns"]["total_lines"]
     test_lines: int = python_code["tests"]["total_lines"]
     eval_lines: int = python_code["evaluations"]["total_lines"]
+    generated_lines: int = python_code["generated_integration_tests"]["total_lines"]
+    dev_tools_lines: int = python_code["dev_tools"]["total_lines"]
     documentation = cast(dict[str, Any], stats["documentation"])
     doc_lines: int = documentation["total_lines"]
 
-    python_total = impl_lines + pattern_lines + test_lines + eval_lines
+    python_total = (
+        impl_lines + pattern_lines + test_lines + eval_lines + generated_lines + dev_tools_lines
+    )
     stats["totals"] = {
         "python_lines": python_total,
         "documentation_lines": doc_lines,
@@ -443,6 +497,21 @@ def format_markdown(stats: dict[str, Any]) -> str:
             "",
             f"- **Total Lines:** {stats['python_code']['evaluations']['total_lines']:,}",
             f"- **Files:** {stats['python_code']['evaluations']['total_files']}",
+            "",
+            "### Generated Integration Tests (evals/integration/generated/)",
+            "",
+        ]
+    )
+    gen_tests = stats["python_code"]["generated_integration_tests"]
+    md.extend(
+        [
+            f"- **Total Lines:** {gen_tests['total_lines']:,}",
+            f"- **Files:** {gen_tests['total_files']}",
+            "",
+            "### Dev Tools (pattern_verification/, real_world_demo/, dev_lib/, scripts/)",
+            "",
+            f"- **Total Lines:** {stats['python_code']['dev_tools']['total_lines']:,}",
+            f"- **Files:** {stats['python_code']['dev_tools']['total_files']}",
             "",
             "## Documentation",
             "",

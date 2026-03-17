@@ -4,7 +4,7 @@
   "description": "Reviews scicode-lint pattern definitions and reports issues (read-only)",
   "version": "2.0.0",
   "author": "scicode-lint team",
-  "model": "opus",
+  "model": "sonnet",
   "systemPrompt": "system_prompt.md",
   "defaultMode": "dontAsk",
   "tools": [

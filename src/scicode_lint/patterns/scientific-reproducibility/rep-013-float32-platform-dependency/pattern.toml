@@ -66,6 +66,7 @@ min_confidence = 0.85
 type = "function"
 name = "validate_results"
 snippet = "return np.array_equal(expected_arr, actual_arr)"
+lines = [13]
 
 [[tests.negative]]
 file = "test_negative/integer_operations.py"
@@ -94,6 +95,7 @@ min_confidence = 0.85
 type = "function"
 name = "check_convergence"
 snippet = "return loss == threshold"
+lines = [5]
 
 [[tests.positive]]
 file = "test_positive/float32_exact_comparison.py"
@@ -105,3 +107,4 @@ min_confidence = 0.85
 type = "function"
 name = "verify_computation"
 snippet = "return result == expected"
+lines = [7]

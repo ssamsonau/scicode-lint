@@ -28,6 +28,7 @@ AI-powered linter for scientific Python code using local LLM (Qwen3 via vLLM).
 - [DOCUMENTATION_MAP.md](./DOCUMENTATION_MAP.md) - Navigation guide to all documentation
 - [CLAUDE.md](./CLAUDE.md) - This file, main instructions for AI agents working on the codebase
 - [src/scicode_lint/patterns/](./src/scicode_lint/patterns/) - Detection patterns (66 patterns across 5 categories)
+- [src/scicode_lint/patterns/ROADMAP.md](./src/scicode_lint/patterns/ROADMAP.md) - Pattern coverage roadmap and future priorities
 
 **For humans (docs_use_human/):**
 - [README.md](docs_use_human/README.md) - Documentation index
@@ -41,16 +42,29 @@ AI-powered linter for scientific Python code using local LLM (Qwen3 via vLLM).
 
 **For AI agents WORKING ON scicode-lint (docs_dev_genai/):**
 - [ARCHITECTURE.md](docs_dev_genai/ARCHITECTURE.md) - Core design principles (READ THIS FIRST)
-- [CONTINUOUS_IMPROVEMENT.md](docs_dev_genai/CONTINUOUS_IMPROVEMENT.md) - Evaluation → improvement workflow
+- [CONTINUOUS_IMPROVEMENT.md](docs_dev_genai/CONTINUOUS_IMPROVEMENT.md) - Fast evaluation → improvement workflow
+- [META_IMPROVEMENT_LOOP.md](docs_dev_genai/META_IMPROVEMENT_LOOP.md) - Real-world validation with Claude verification
 - [IMPLEMENTATION.md](docs_dev_genai/IMPLEMENTATION.md) - Technical implementation details
+- [MODEL_USAGE.md](docs_dev_genai/MODEL_USAGE.md) - SOTA model usage (Opus 4.6 for dev, Sonnet 4.6 for automation, local LLM for runtime)
+
+**Dev-only shared utilities (dev_lib/):**
+- [dev_lib/claude_cli.py](dev_lib/claude_cli.py) - Unified async Claude CLI wrapper (ClaudeCLI class)
+- [dev_lib/config.py](dev_lib/config.py) - Shared config.toml loading for dev tools
 
 **Pattern verification (pattern_verification/):**
 - [pattern_verification/](pattern_verification/) - Deterministic + semantic pattern quality checks
 
+**Repository filter (src/scicode_lint/repo_filter/):**
+- `classify.py` - LLM-based file classification (self-contained vs fragment)
+- `scan.py` - Repository scanner with two-stage filtering
+- ML import keywords configurable in `config.toml` → `[preprocessing]` section
+
 **Real-world validation (real_world_demo/):**
 - [real_world_demo/README.md](real_world_demo/README.md) - Run scicode-lint on real scientific ML code
 - Data sources: `sources/papers_with_code/` (PapersWithCode repos), `sources/leakage_paper/` (Yang et al. ASE'22)
+- Paper set references: `real_world_demo/paper_sets/` (git-tracked `.md` + `.json` for each data pool)
 - Uses Claude CLI for finding verification (`verify_findings.py`)
+- Database stores scan results: `repo_scans` table, `files.self_contained_class`
 
 ---
 
@@ -94,7 +108,7 @@ scicode-lint uses a small local model (fits in 16GB VRAM) - a deliberate choice 
 ```bash
 pip install scicode-lint[vllm-server]
 bash src/scicode_lint/vllm/start_vllm.sh   # Auto-detects GPU, validates FP8 support (default port: 5001)
-python -m scicode_lint check myfile.py
+python -m scicode_lint lint myfile.py
 ```
 
 **📖 Complete setup:** [INSTALLATION.md](INSTALLATION.md)
@@ -146,7 +160,20 @@ class FilterResult(BaseModel):
 - **No API keys needed** — if you have Claude Code subscription, you're set
 - **NOT compatible with:** `anthropic.Client()` or `ANTHROPIC_API_KEY` (separate billing)
 
-All agent-based tooling (`semantic_validate.py`, future improvement loop) spawns `claude --agent` as async subprocesses.
+All Claude CLI calls go through the shared **`dev_lib.ClaudeCLI`** wrapper (`dev_lib/claude_cli.py`):
+- Async-only API: `await cli.arun(prompt)` (text) or `await cli.arun_json(prompt)` (parsed JSON)
+- **Global rate limiting**: Built-in semaphore + RPM limiter shared across ALL instances (configured in `[claude_cli]` section of config.toml). Callers do NOT need their own semaphores.
+- Typed errors: `ClaudeCLITimeoutError`, `ClaudeCLIProcessError`, `ClaudeCLIParseError`
+- Tool blocking constants: `DEFAULT_DISALLOWED_TOOLS`, `DISALLOWED_TOOLS_ALL`
+- Shared config loading: `dev_lib.config.load_project_config()`
+- **Logging**: Every call logs via loguru — model, label, elapsed time, estimated input/output tokens
+
+**Disk streaming** via `dev_lib.run_output`:
+- `RunOutput.create(reports_dir, scope, items_dirname)` — timestamped output directory
+- `write_worker(queue)` — async queue worker serializing disk writes (prevents I/O contention)
+- Used by: `semantic_validate.py`, `diversity_check.py`, `integration_eval.py`
+
+**`dev_lib/` is dev-only** — NOT part of the installed package. Used by `pattern_verification/`, `evals/`, `real_world_demo/`.
 
 ---
 
@@ -158,19 +185,23 @@ All agent-based tooling (`semantic_validate.py`, future improvement loop) spawns
 
 **📖 Full guide:** [pattern_verification/README.md](pattern_verification/README.md)
 
-Two-step verification (does NOT run evals):
+Three-step verification (does NOT run evals):
 
 ```bash
 # 1. Deterministic checks (fast, no LLM)
 python pattern_verification/deterministic/validate.py
 python pattern_verification/deterministic/validate.py --fix  # auto-fix
 
-# 2. Semantic review (uses pattern-reviewer agent - read-only)
+# 2. Diversity check (Claude CLI) - detects redundant/non-diverse test files
+python pattern_verification/deterministic/diversity_check.py  # all patterns
+python pattern_verification/deterministic/diversity_check.py ml-001  # single pattern
+
+# 3. Semantic review (uses pattern-reviewer agent - read-only)
 python pattern_verification/semantic/semantic_validate.py --all  # All patterns (recommended)
 python pattern_verification/semantic/semantic_validate.py pt-001  # Single pattern
 python pattern_verification/semantic/semantic_validate.py --category ai-training  # Category
 
-# 3. Fix issues directly in Claude Code session
+# 4. Fix issues directly in Claude Code session
 # Claude Code has write permissions - no separate agent needed
 ```
 
@@ -228,7 +259,6 @@ Files that must have matching versions:
 - `pyproject.toml` - `version = "X.Y.Z"`
 - `src/scicode_lint/__init__.py` - `__version__ = "X.Y.Z"`
 - `evals/__init__.py` - `__version__ = "X.Y.Z"`
-- `evals/report_generator.py` - `"version": "X.Y.Z"`
 - `README.md` - version in Project Status section
 
 Also check:
@@ -300,18 +330,22 @@ After writing code, **always** run:
 
 **Quick start:**
 ```bash
-# 1. Full validation (structural checks)
+# 1. Full validation (structural + diversity + semantic)
 python pattern_verification/deterministic/validate.py
+python pattern_verification/deterministic/diversity_check.py  # ~5-10 min
 python pattern_verification/semantic/semantic_validate.py --all
 
 # 2. Full evals (detection accuracy)
 python evals/run_eval.py
 
 # 3. If patterns fail: per-pattern fix cycle
+python pattern_verification/deterministic/diversity_check.py <pattern-id>
 python pattern_verification/semantic/semantic_validate.py <pattern-id>
 python evals/run_eval.py -p <pattern-name>
 # Fix, repeat until pass
 
 # 4. When all pass: update README stats, run integration tests
-python evals/integration/run_integration_eval.py
+python evals/integration/integration_eval.py --generate-count 10
+# Save baseline for regression
+python evals/integration/integration_eval.py --generate-count 50 --save --id baseline_v1
 ```

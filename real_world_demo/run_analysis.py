@@ -31,6 +31,8 @@ from real_world_demo.database import (
     get_analyzed_file_ids,
     get_incomplete_run,
     get_or_create_repo,
+    get_prefilter_run,
+    get_prefilter_run_files,
     get_timed_out_patterns,
     init_db,
     insert_file,
@@ -116,6 +118,7 @@ async def run_scicode_lint(
         # Convert findings to dict format
         findings = []
         for finding in lint_result.findings:
+            loc = finding.location
             findings.append(
                 {
                     "pattern_id": finding.id,
@@ -126,8 +129,11 @@ async def run_scicode_lint(
                     "explanation": finding.explanation,
                     "suggestion": finding.suggestion,
                     "reasoning": finding.reasoning,
-                    "lines": finding.location.lines if finding.location else [],
-                    "snippet": finding.location.snippet if finding.location else "",
+                    "location_name": loc.name if loc else None,
+                    "location_type": loc.location_type if loc else None,
+                    "lines": loc.lines if loc else [],
+                    "focus_line": loc.focus_line if loc else None,
+                    "snippet": loc.snippet if loc else "",
                 }
             )
 
@@ -784,6 +790,12 @@ def main() -> None:
         metavar="RUN_ID",
         help="Retry timed-out patterns from a previous run with larger timeout",
     )
+    parser.add_argument(
+        "--from-prefilter-run",
+        type=int,
+        metavar="RUN_ID",
+        help="Use files from a specific prefilter run instead of manifest.csv",
+    )
     args = parser.parse_args()
 
     # Apply --source config if provided
@@ -823,14 +835,48 @@ def main() -> None:
         conn.close()
         return
 
-    # Auto-detect data source from manifest path
-    # e.g., "leakage_paper" from ".../leakage_paper/manifest.csv"
-    manifest_parent = args.manifest.parent.name
-    if manifest_parent in ("data", "collected_code"):
-        # Fallback: use grandparent if parent is generic
-        data_source = args.manifest.parent.parent.name
+    # Handle --from-prefilter-run: get files from prefilter run instead of manifest
+    from real_world_demo.models import PrefilterFileResult
+
+    prefilter_run_id: int | None = None
+    prefilter_files: list[PrefilterFileResult] | None = None
+
+    if args.from_prefilter_run:
+        conn = init_db()
+        prefilter_run = get_prefilter_run(conn, args.from_prefilter_run)
+        if not prefilter_run:
+            logger.error(f"Prefilter run {args.from_prefilter_run} not found")
+            conn.close()
+            return
+
+        # Get self-contained files from the prefilter run
+        prefilter_files = get_prefilter_run_files(
+            conn, args.from_prefilter_run, classification="self_contained"
+        )
+        if not prefilter_files:
+            logger.error(
+                f"No self-contained files found in prefilter run {args.from_prefilter_run}"
+            )
+            conn.close()
+            return
+
+        prefilter_run_id = args.from_prefilter_run
+        logger.info(
+            f"Using {len(prefilter_files)} self-contained files from "
+            f"prefilter run {args.from_prefilter_run}"
+        )
+        data_source = prefilter_run.data_source
+        conn.close()
     else:
-        data_source = manifest_parent
+        # Auto-detect data source from manifest path
+        # e.g., "leakage_paper" from ".../leakage_paper/manifest.csv"
+        manifest_parent = args.manifest.parent.name
+        if manifest_parent in ("data", "collected_code"):
+            # Fallback: use grandparent if parent is generic
+            data_source = args.manifest.parent.parent.name
+        else:
+            data_source = manifest_parent
+
     logger.info(f"Data source: {data_source}")
 
     # Set output directory based on data source
@@ -849,9 +895,24 @@ def main() -> None:
         logger.info("Use --force to re-analyze")
         return
 
-    # Load manifest
-    manifest = load_manifest(args.manifest)
-    logger.info(f"Loaded {len(manifest):,} files from manifest")
+    # Load manifest or use prefilter files
+    if prefilter_files:
+        # Convert prefilter files (Pydantic models) to manifest format (dicts)
+        manifest = []
+        for pf in prefilter_files:
+            manifest.append(
+                {
+                    "file_path": pf.file_path,
+                    "file_id": pf.file_id,
+                    "repo_id": pf.repo_id,
+                    "classification": pf.classification,
+                    "confidence": pf.confidence,
+                }
+            )
+        logger.info(f"Using {len(manifest):,} files from prefilter run {prefilter_run_id}")
+    else:
+        manifest = load_manifest(args.manifest)
+        logger.info(f"Loaded {len(manifest):,} files from manifest")
 
     # Create shared linter instance with configured concurrency
     config = get_default_config()
@@ -892,17 +953,28 @@ def main() -> None:
     file_ids: dict[str, int] = {}
 
     for record in files_to_analyze:
-        # Insert repo
-        repo_id = get_or_create_repo(conn, record)
+        # If from prefilter run, file_id is already available
+        record_file_id = record.get("file_id")
+        if prefilter_files and record_file_id is not None:
+            file_path = str(args.base_dir / record["file_path"])
+            file_ids[file_path] = int(str(record_file_id))
+        else:
+            # Insert repo
+            repo_id = get_or_create_repo(conn, record)
 
-        # Insert file
-        file_id = insert_file(conn, repo_id, record)
-        file_path = str(args.base_dir / record["file_path"])
-        file_ids[file_path] = file_id
+            # Insert file
+            file_id = insert_file(conn, repo_id, record)
+            file_path = str(args.base_dir / record["file_path"])
+            file_ids[file_path] = file_id
 
     # Start new run if not resuming
     if run_id is None:
-        run_id = start_analysis_run(conn, len(files_to_analyze), data_source=data_source)
+        run_id = start_analysis_run(
+            conn,
+            len(files_to_analyze),
+            data_source=data_source,
+            prefilter_run_id=prefilter_run_id,
+        )
         logger.info(f"Started analysis run {run_id} (data_source={data_source})")
 
     # Filter out already-analyzed files when resuming

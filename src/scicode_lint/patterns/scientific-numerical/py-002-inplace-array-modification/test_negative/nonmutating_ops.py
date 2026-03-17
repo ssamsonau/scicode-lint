@@ -1,36 +1,42 @@
 import numpy as np
 
 
-def normalize_weights(weights):
-    total = weights.sum()
-    normalized = weights / total
-    return normalized
+def softmax(logits):
+    shifted = logits - logits.max()
+    exp_vals = np.exp(shifted)
+    return exp_vals / exp_vals.sum()
 
 
-def remove_outliers(measurements):
-    mean = measurements.mean()
-    std = measurements.std()
-    lower = mean - 3 * std
-    upper = mean + 3 * std
-    mask = (measurements >= lower) & (measurements <= upper)
-    cleaned = np.where(mask, measurements, mean)
-    return cleaned
+def one_hot_encode(labels, num_classes):
+    n = len(labels)
+    encoded = np.zeros((n, num_classes))
+    encoded[np.arange(n), labels] = 1.0
+    return encoded
 
 
-def augment_features(features):
-    augmented = features.copy()
-    augmented[:, 0] = features[:, 0] * 2
-    augmented[:, 1] = features[:, 1] + 1
-    return augmented
+def cosine_similarity(a, b):
+    dot = np.dot(a, b)
+    norm_a = np.linalg.norm(a)
+    norm_b = np.linalg.norm(b)
+    return dot / (norm_a * norm_b + 1e-8)
 
 
-def apply_activation(outputs):
-    activated = np.maximum(outputs, 0)
-    return activated
+def batch_zscore(matrix):
+    means = matrix.mean(axis=0)
+    stds = matrix.std(axis=0) + 1e-8
+    return (matrix - means) / stds
 
 
-w = np.array([1.0, 2.0, 3.0])
-normalized = normalize_weights(w)
+def moving_window_variance(data, window):
+    n = len(data)
+    result = np.zeros(n - window + 1)
+    for i in range(len(result)):
+        result[i] = data[i : i + window].var()
+    return result
 
-data = np.random.rand(100, 3)
-augmented = augment_features(data)
+
+logits = np.array([2.0, 1.0, 0.5, -1.0])
+probs = softmax(logits)
+
+features = np.random.randn(50, 8)
+normalized = batch_zscore(features)

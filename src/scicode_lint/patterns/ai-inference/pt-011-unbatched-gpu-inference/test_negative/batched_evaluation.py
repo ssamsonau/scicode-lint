@@ -2,60 +2,46 @@ import torch
 import torch.nn as nn
 
 
-class ResNetClassifier(nn.Module):
-    def __init__(self, num_classes):
+class SegmentationNet(nn.Module):
+    def __init__(self, in_channels, num_classes):
         super().__init__()
-        self.conv_layers = nn.Sequential(
-            nn.Conv2d(3, 64, 7, stride=2, padding=3),
-            nn.BatchNorm2d(64),
+        self.encoder = nn.Sequential(
+            nn.Conv2d(in_channels, 64, 3, padding=1),
             nn.ReLU(),
-            nn.MaxPool2d(3, stride=2, padding=1),
             nn.Conv2d(64, 128, 3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.Conv2d(128, 256, 3, padding=1),
-            nn.BatchNorm2d(256),
             nn.ReLU(),
         )
-        self.fc = nn.Linear(256 * 7 * 7, num_classes)
+        self.decoder = nn.Sequential(
+            nn.ConvTranspose2d(128, 64, 2, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(64, num_classes, 1),
+        )
 
     def forward(self, x):
-        features = self.conv_layers(x)
-        features = features.view(features.size(0), -1)
-        return self.fc(features)
+        features = self.encoder(x)
+        return self.decoder(features)
 
 
-def evaluate_on_test_set(model, test_loader):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = model.to(device)
-    model.eval()
-
-    correct = 0
-    total = 0
-
-    with torch.no_grad():
-        for images, labels in test_loader:
-            images = images.to(device)
-            labels = labels.to(device)
-            predictions = model(images)
-            correct += (predictions.argmax(dim=1) == labels).sum().item()
-            total += labels.size(0)
-
-    accuracy = correct / total
-    return accuracy
-
-
-def run_inference(model, data_loader):
+def evaluate_segmentation(model, image_paths, preprocess_fn, batch_size=8):
     device = torch.device("cuda")
     model.to(device)
     model.eval()
 
-    all_outputs = []
+    all_masks = []
+    batch = []
 
     with torch.no_grad():
-        for batch in data_loader:
-            batch = batch.to(device)
-            outputs = model(batch)
-            all_outputs.append(outputs.cpu())
+        for path in image_paths:
+            batch.append(preprocess_fn(path))
+            if len(batch) == batch_size:
+                tensor = torch.stack(batch).to(device)
+                masks = model(tensor).argmax(dim=1)
+                all_masks.append(masks.cpu())
+                batch = []
 
-    return torch.cat(all_outputs, dim=0).numpy()
+        if batch:
+            tensor = torch.stack(batch).to(device)
+            masks = model(tensor).argmax(dim=1)
+            all_masks.append(masks.cpu())
+
+    return torch.cat(all_masks, dim=0)

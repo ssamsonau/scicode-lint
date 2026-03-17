@@ -1,17 +1,21 @@
-def normalize_data(arr):
-    data = arr.copy()
-    data -= data.mean()
-    data /= data.std()
-    return data
+import numpy as np
 
 
-def zero_negative_values(arr):
-    result = arr.copy()
-    result[result < 0] = 0
-    return result
+def apply_bandpass_filter(signal, sample_rate, low_freq, high_freq):
+    filtered = signal.copy()
+    freqs = np.fft.rfftfreq(len(filtered), d=1.0 / sample_rate)
+    spectrum = np.fft.rfft(filtered)
+    spectrum[freqs < low_freq] = 0
+    spectrum[freqs > high_freq] = 0
+    filtered[:] = np.fft.irfft(spectrum, n=len(filtered))
+    filtered -= filtered.mean()
+    return filtered
 
 
-def scale_array(arr, factor):
-    scaled = arr.copy()
-    scaled *= factor
-    return scaled
+def clip_outliers_inplace(measurements, n_sigma=3):
+    cleaned = measurements.copy()
+    mu = cleaned.mean()
+    sigma = cleaned.std()
+    cleaned[cleaned > mu + n_sigma * sigma] = mu + n_sigma * sigma
+    cleaned[cleaned < mu - n_sigma * sigma] = mu - n_sigma * sigma
+    return cleaned

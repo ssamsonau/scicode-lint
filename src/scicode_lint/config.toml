@@ -5,8 +5,8 @@
 #
 # Override order (highest priority first):
 # 1. Environment variables (SCICODE_LINT_*)
-# 2. User config: ~/.config/scicode-lint/config.toml
-# 3. Local config: ./config.toml
+# 2. Local config: ./config.toml
+# 3. User config: ~/.config/scicode-lint/config.toml
 # 4. This bundled default (lowest priority)
 
 [llm]
@@ -75,23 +75,71 @@ enabled_severities = ["critical", "high", "medium"]
 # Process multiple files in parallel (not yet implemented)
 max_concurrent_files = 1
 
-# Max concurrent LLM requests during eval (asyncio semaphore limit)
-# Controls how many requests client sends in parallel
+# Max concurrent pattern checks per file (--lint-concurrency)
+# Controls how many LLM requests client sends in parallel
 # Reduced from 200 to 150 based on speed benchmark showing 100% KV cache
 # utilization and 527 preemptions - see benchmarks/reports/speed/
-max_concurrent_evals = 150
+lint_concurrency = 150
 
 # vLLM --max-num-seqs: Max sequences vLLM server can batch
 # This is vLLM's internal limit, passed to start_vllm.sh
 # Default 256 is vLLM's default; reduce if OOM during high concurrency
 vllm_max_num_seqs = 256
 
-[pattern_verification]
-# Max concurrent Claude CLI processes for semantic validation
-# Observed: ~450MB per process (same for haiku/sonnet/opus)
-# Formula: parallel_count × 500MB (e.g., 32 parallel ≈ 16GB RAM)
-semantic_parallel = 16
+[claude_cli]
+# Global rate limiting for all Claude CLI calls (shared across ALL callers)
+# Prevents API rate limit errors (HTTP 429) when multiple tools run simultaneously
 
-# Model for semantic validation: "haiku", "sonnet", or "opus"
-# Opus recommended for thorough pattern review (all models use same RAM)
-semantic_model = "opus"
+# Max parallel Claude CLI subprocesses (asyncio.Semaphore)
+# Memory-bound: ~500MB per process. 32 × 500MB = 16GB, fits in 20GB with headroom
+claude_max_parallel_processes = 32
+
+# Max requests per minute (token bucket via aiolimiter)
+# Tier 1 API limit is 50 RPM; 40 gives safe margin
+# Increase if on higher tier (Tier 4 = 4000 RPM)
+claude_max_requests_per_minute = 40
+
+[pattern_verification]
+# Model for semantic validation: "sonnet" or "opus"
+# Sonnet recommended for batch tasks; Opus for development only
+semantic_model = "sonnet"
+
+# Model for diversity check: "sonnet" or "opus"
+# Sonnet with low effort recommended for batch pairwise comparisons
+diversity_model = "sonnet"
+
+[preprocessing]
+# Strip # comments before LLM analysis
+# Prevents intention leakage, removes misleading comments, reduces tokens
+strip_comments = true
+
+# Keywords for ML import filter (deterministic, no LLM)
+# Files containing any of these are sent to LLM for classification
+# Files without any of these are skipped (fast path)
+ml_import_keywords = [
+    # ML frameworks
+    "sklearn",
+    "torch",
+    "tensorflow",
+    "keras",
+    "xgboost",
+    "lightgbm",
+    "catboost",
+    # Data processing
+    "pandas",
+    "numpy",
+    # Common ML operations (found in code, not just imports)
+    "train_test_split",
+    "cross_val",
+    "fit",
+    "predict",
+    "model",
+    "classifier",
+    "regressor",
+    "neural",
+    "dataset",
+    "dataloader",
+]
+
+# Max concurrent LLM requests for file classification (--filter-concurrency)
+filter_concurrency = 50

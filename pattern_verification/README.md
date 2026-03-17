@@ -20,13 +20,55 @@ python pattern_verification/deterministic/validate.py --fix
 python pattern_verification/deterministic/validate.py --strict
 ```
 
-**9 checks performed:**
+### Semantic Diversity Check (uses Claude CLI)
+
+Detects conceptually similar test files **within each pattern** that AST hash check misses. Requires Claude CLI (`claude login`).
+
+Uses Sonnet with low thinking effort — one Claude call per pattern (all pairs batched).
+
+```bash
+# Check all patterns (66 Claude calls)
+python pattern_verification/deterministic/diversity_check.py
+
+# Check specific pattern (1 Claude call)
+python pattern_verification/deterministic/diversity_check.py ml-001
+
+# Check category
+python pattern_verification/deterministic/diversity_check.py --category ai-training
+
+# Override model or parallelism
+python pattern_verification/deterministic/diversity_check.py --model opus
+```
+
+**What it detects:**
+- **Redundant pairs**: Two positive (or two negative) tests that demonstrate the same concept
+- **Non-diverse negatives**: Negative test is just positive test with bug removed (same structure)
+
+**Output example:**
+```
+[diversity] ai-training/ml-004-imbalanced-accuracy-metric
+
+   Redundant positive pairs:
+   - src/scicode_lint/patterns/.../test_positive/accuracy_on_imbalanced.py
+     src/scicode_lint/patterns/.../test_positive/binary_accuracy.py
+
+[diversity] ai-training/ml-007-test-set-preprocessing
+
+   Non-diverse negatives (same code as positive, with bug removed):
+   - src/scicode_lint/patterns/.../test_negative/transform_train_first.py
+     (same structure as src/scicode_lint/patterns/.../test_positive/transform_test_first.py)
+```
+
+**Configuration:** `diversity_model` in `config.toml` under `[pattern_verification]`. Rate limiting: `[claude_cli]` section.
+
+**18 checks performed (key checks shown):**
 
 | Check | Type | Description |
 |-------|------|-------------|
 | TOML/file sync | error | Every test file has TOML entry and vice versa |
 | Schema validation | error | pattern.toml matches Pydantic model |
-| Data leakage hints | error | No `# BUG:`, `# CORRECT:` comments in test files |
+| Intent hints | error | No docstrings/names revealing answers (`buggy_function`, etc.) |
+| No comments | error | All `#` comments forbidden in test files |
 | Test file count | warning | Minimum 3 positive, 3 negative recommended |
 | TODO markers | error | No unfinished placeholders in TOML |
 | Detection format | error | Question ends with YES/NO conditions |
@@ -43,13 +85,13 @@ python pattern_verification/deterministic/validate.py --strict
 
 Deep review that catches consistency issues scripts can't detect.
 
-**Requires:** Claude CLI (`claude login`) with Claude Code subscription. No API keys needed.
+**Requires:** Claude CLI (`claude login`) with Claude Code subscription. No API keys needed. Uses `dev_lib.ClaudeCLI` wrapper.
 
 ### ⚠️ COST WARNING
 
 **THIS USES CLAUDE CODE AGENTS AND CONSUMES YOUR TOKENS QUICKLY!**
 
-Each pattern review spawns a Claude Code agent (Opus model) that reads and analyzes files. This costs tokens from your Claude Code subscription.
+Each pattern review spawns a Claude Code agent (Sonnet model) that reads and analyzes files. This costs tokens from your Claude Code subscription.
 
 Before running semantic validation, CONFIRM with user:
 - **Single pattern?** OK to proceed.
@@ -58,7 +100,7 @@ Before running semantic validation, CONFIRM with user:
 
 When asked to review patterns:
 1. Always run deterministic checks first (free, no tokens)
-2. Ask user: "Run semantic validation on selected patterns or all 64?"
+2. Ask user: "Run semantic validation on selected patterns or all 66?"
 3. Only proceed with bulk review after explicit user confirmation
 
 **Token costs:**
@@ -85,14 +127,14 @@ python pattern_verification/semantic/semantic_validate.py --all
 #   └── patterns/*.log   # Raw Claude output per pattern
 
 # Increase parallelism (default: 16)
-python pattern_verification/semantic/semantic_validate.py --all --parallel 8
+python pattern_verification/semantic/semantic_validate.py --all
 
 # Background execution with real-time monitoring
 python pattern_verification/semantic/semantic_validate.py --all &
 tail -f pattern_verification/semantic/reports/*/progress.log
 ```
 
-**Note:** Uses Opus model via Claude CLI. Agent definition at `pattern_verification/pattern-reviewer/`.
+**Note:** Uses Sonnet model via Claude CLI. Agent definition at `pattern_verification/pattern-reviewer/`.
 
 ### What it checks
 
@@ -150,7 +192,7 @@ When running batch validation (66 patterns), each Claude process may try to spaw
 
 If you modify the agent or script, ensure Task tool remains blocked.
 
-**RAM requirements (same for haiku/sonnet/opus):**
+**RAM requirements (same for sonnet/opus):**
 - ~450MB per Claude process (model choice doesn't affect RAM)
 - 32 parallel processes ≈ 16GB RAM
 - Formula: `parallel_count × 500MB` (use 500MB for safety margin)
@@ -185,20 +227,26 @@ The validator warns about:
 - **Doc too large** (>1000 lines after cleanup) - find more specific page or use anchor link
 - **Useless docs** flagged by semantic reviewer - thin API pages that don't explain the concept
 
-See "Choosing good reference URLs" in [patterns/README.md](../patterns/README.md) for URL selection guidance.
+See "Choosing good reference URLs" in [patterns/README.md](../src/scicode_lint/patterns/README.md) for URL selection guidance.
 
 ## Directory Structure
 
 ```
 pattern_verification/
 ├── deterministic/
-│   ├── validate.py          # Automated checks
-│   └── doc_cache/           # Cached reference documentation
-│       ├── raw/             # Unprocessed fetched docs
-│       └── clean/           # Cleaned docs (nav stripped)
+│   ├── validate.py          # Structural checks (no LLM)
+│   ├── diversity_check.py   # Semantic diversity check (Claude CLI)
+│   ├── doc_cache/           # Cached reference documentation
+│   │   ├── raw/             # Unprocessed fetched docs
+│   │   └── clean/           # Cleaned docs (nav stripped)
+│   └── reports/             # Diversity check output (gitignored)
+│       └── YYYYMMDD_HHMMSS_<scope>/
+│           ├── summary.md
+│           ├── progress.log
+│           └── patterns/*.log
 ├── semantic/
 │   ├── semantic_validate.py # Batch semantic validation script
-│   └── reports/             # Output directory (gitignored)
+│   └── reports/             # Semantic validation output (gitignored)
 │       └── YYYYMMDD_HHMMSS_<scope>/
 │           ├── summary.md   # Overall summary
 │           ├── progress.log # One line per pattern completion

@@ -1,57 +1,34 @@
-import torch.nn as nn
+import torch
 
 
-class ResidualBlock(nn.Module):
-    def __init__(self, channels):
-        super().__init__()
-        self.conv1 = nn.Conv2d(channels, channels, 3, padding=1)
-        self.bn1 = nn.BatchNorm2d(channels)
-        self.conv2 = nn.Conv2d(channels, channels, 3, padding=1)
-        self.bn2 = nn.BatchNorm2d(channels)
-        self.relu = nn.ReLU()
+class CheckpointLoader:
+    def __init__(self, checkpoint_dir, device="cuda"):
+        self.checkpoint_dir = checkpoint_dir
+        self.device = torch.device(device)
 
-    def forward(self, x):
-        residual = x
-        x = self.relu(self.bn1(self.conv1(x)))
-        x = self.bn2(self.conv2(x))
-        return self.relu(x + residual)
+    def load_latest(self, model):
+        checkpoint_path = f"{self.checkpoint_dir}/latest.pt"
+        checkpoint = torch.load(checkpoint_path, map_location=self.device)
+        model.load_state_dict(checkpoint["model_state"])
+        model.to(self.device)
+        return model, checkpoint.get("epoch", 0)
 
 
-class ImageClassifier(nn.Module):
-    def __init__(self, num_classes=10):
-        super().__init__()
-        self.conv1 = nn.Conv2d(3, 64, 7, stride=2, padding=3)
-        self.bn1 = nn.BatchNorm2d(64)
-        self.relu = nn.ReLU()
-        self.pool = nn.MaxPool2d(3, stride=2, padding=1)
-        self.block1 = ResidualBlock(64)
-        self.block2 = ResidualBlock(64)
-        self.avgpool = nn.AdaptiveAvgPool2d(1)
-        self.fc = nn.Linear(64, num_classes)
-
-    def forward(self, x):
-        x = self.relu(self.bn1(self.conv1(x)))
-        x = self.pool(x)
-        x = self.block1(x)
-        x = self.block2(x)
-        x = self.avgpool(x)
-        x = x.view(x.size(0), -1)
-        return self.fc(x)
-
-
-def create_model(num_classes, device="cpu"):
-    model = ImageClassifier(num_classes)
-    model = model.to(device)
+def load_checkpoint_to_device(path, model, target_device):
+    device = torch.device(target_device)
+    state = torch.load(path, map_location=device, weights_only=True)
+    model.load_state_dict(state)
+    model.to(device)
     model.eval()
     return model
 
 
-def initialize_pretrained_weights(model, pretrained_config):
-    for name, param in model.named_parameters():
-        if "conv" in name and "weight" in name:
-            nn.init.kaiming_normal_(param)
-        elif "bn" in name and "weight" in name:
-            nn.init.ones_(param)
-        elif "bn" in name and "bias" in name:
-            nn.init.zeros_(param)
-    return model
+def resume_training(model, optimizer, checkpoint_path, device="cuda"):
+    target_device = torch.device(device)
+    checkpoint = torch.load(checkpoint_path, map_location=target_device)
+
+    model.load_state_dict(checkpoint["model"])
+    optimizer.load_state_dict(checkpoint["optimizer"])
+
+    model.to(target_device)
+    return checkpoint["epoch"], checkpoint.get("best_loss", float("inf"))

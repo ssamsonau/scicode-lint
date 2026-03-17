@@ -64,6 +64,7 @@ min_confidence = 0.85
 type = "function"
 name = "normalize_with_test_stats"
 snippet = "full_dataset = torch.vstack([train_data, test_data])"
+lines = [8]
 
 [[tests.negative]]
 file = "test_negative/scaler_after_split.py"
@@ -76,6 +77,12 @@ context_notes = "Pattern checks for test data inclusion only. train+val combined
 allow_detection = false
 allow_skip = true
 
+[tests.context_dependent.expected_location]
+type = "function"
+name = "normalize_train_val_combined"
+snippet = "train_val_combined = torch.cat([train_data, val_data])"
+lines = [5]
+
 
 [[tests.positive]]
 file = "test_positive/quantile_transform_leak.py"
@@ -87,6 +94,7 @@ min_confidence = 0.85
 type = "function"
 name = "build_regression_model"
 snippet = "X_scaled = scaler.fit_transform(X)"
+lines = [8]
 
 [[tests.positive]]
 file = "test_positive/robust_scaler_leakage.py"
@@ -98,6 +106,7 @@ min_confidence = 0.85
 type = "function"
 name = "preprocess_features"
 snippet = "X_scaled = scaler.fit_transform(X)"
+lines = [8]
 
 [[tests.negative]]
 file = "test_negative/robust_scaler_correct.py"

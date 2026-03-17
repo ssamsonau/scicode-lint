@@ -22,29 +22,31 @@ Materializing large intermediate arrays wastes memory. Use np.linalg.norm or in-
 
 tags = []
 related_patterns = []
-references = []
+references = [
+    "https://numpy.org/doc/stable/reference/generated/numpy.linalg.norm.html",
+    "https://numpy.org/doc/stable/reference/ufuncs.html#ufuncs-output-type",
+]
 
 [detection]
 question = """
-Analyze computations for unnecessary temporary arrays.
+Analyze computations for unnecessary intermediate arrays that are each used only once.
 
-Creating multiple intermediate arrays wastes memory. Two common patterns:
+Creating named intermediate arrays that are each used only once wastes memory. The key indicator is a chain of assignments where each variable is consumed by exactly one subsequent operation and never referenced again.
 
-1. Manual norm computation: diff = a - b; squared = diff ** 2; norm = np.sqrt(np.sum(squared))
-   Fix: Use np.linalg.norm() which computes norms without materializing intermediates.
+Example of the problem:
+  diff = vectors - mean
+  squared = diff ** 2
+  summed = np.sum(squared, axis=1)
+  distances = np.sqrt(summed)
 
-2. Chained operations creating temporaries: temp1 = data * 2; temp2 = temp1 + 10; temp3 = np.sqrt(temp2)
-   Fix: Use in-place operations (+=, -=, *=, /=) or out= parameter.
+Each intermediate (diff, squared, summed) is used exactly once, so the entire chain could be replaced by np.linalg.norm(vectors - mean, axis=1).
 
-Does this code create unnecessary large intermediate arrays?
+Does this code create multiple named intermediate arrays where each is used only once and could be eliminated?
 
-Look for:
-- Manual norm/distance computation with squared, summed variables
-- Multiple named temporaries (temp1, temp2, ...) for sequential operations
-- Operations that could use in-place modification instead
+Important: An intermediate that is reused in multiple expressions is NOT unnecessary - it avoids redundant recomputation. Only flag intermediates that are consumed exactly once.
 
-YES = Bug found: multiple intermediate arrays where optimized approach exists
-NO = Correct: uses np.linalg.norm(), in-place operations (+=, *=, out=), or single expressions
+YES = Bug found: multiple named variables each used only once in a chain of operations
+NO = Correct: intermediates are reused multiple times, or code uses single expressions, in-place operations, or optimized functions like np.linalg.norm
 """
 
 warning_message = """
@@ -53,7 +55,9 @@ Materializing large intermediate arrays wastes memory. Use np.linalg.norm or in-
 """
 
 min_confidence = 0.85
-false_positive_risks = []
+false_positive_risks = [
+    "Intermediates that are reused multiple times are efficient, not unnecessary",
+]
 
 [tests]
 
@@ -67,26 +71,27 @@ min_confidence = 0.85
 type = "function"
 name = "compute_normalized_distance"
 snippet = "squared = diff**2"
+lines = [6]
 
 [[tests.positive]]
 file = "test_positive/manual_norm_computation.py"
-description = "Manually computes norms with squared_matrix and row_sums intermediates - wastes memory on large arrays"
-expected_issue = "Large intermediate arrays for manual norm calculation"
+description = "Signal processing pipeline with multiple named intermediates (windowed, filtered, amplitudes, normalized, clipped) each used only once"
+expected_issue = "Multiple intermediate arrays created in signal processing pipeline"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "calculate_vector_norms"
-snippet = "squared_matrix = matrix**2"
+name = "apply_bandpass_filter"
+snippet = "windowed = spectrum * mask"
+lines = [9]
 
 [[tests.negative]]
 file = "test_negative/linalg_norm.py"
-description = "Uses np.linalg.norm which avoids materializing intermediate arrays - memory efficient"
+description = "Weighted covariance and PCA projection using single-expression NumPy operations without named intermediates"
 
 [[tests.negative]]
 file = "test_negative/inplace_operations_opt.py"
 description = "Uses in-place operations with -= and /= to avoid creating temporary arrays"
-
 
 [[tests.positive]]
 file = "test_positive/chained_ops.py"
@@ -98,7 +103,8 @@ min_confidence = 0.85
 type = "function"
 name = "process_data"
 snippet = "temp1 = data * 2"
+lines = [5]
 
 [[tests.negative]]
 file = "test_negative/chained_ops_inplace.py"
-description = "Uses in-place operations (+=, /=) and out parameter in np.sqrt to avoid creating temporary arrays"
+description = "Uses in-place operations (+=, *=, np.clip with out=) and single-expression computations to avoid unnecessary intermediates"

@@ -1,53 +1,39 @@
 import torch
 import torch.nn as nn
-import torch.optim as optim
 
 
-class ConvNet(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.conv1 = nn.Conv2d(3, 32, 3)
-        self.bn1 = nn.BatchNorm2d(32)
-        self.dropout = nn.Dropout2d(0.3)
-        self.fc = nn.Linear(32 * 30 * 30, 10)
+class MetaLearner:
+    def __init__(self, feature_extractor, classifier, inner_lr=0.01):
+        self.feature_extractor = feature_extractor
+        self.classifier = classifier
+        self.meta_optimizer = torch.optim.Adam(
+            list(feature_extractor.parameters()) + list(classifier.parameters()),
+            lr=1e-3,
+        )
+        self.inner_lr = inner_lr
 
-    def forward(self, x):
-        x = torch.relu(self.bn1(self.conv1(x)))
-        x = self.dropout(x)
-        x = x.view(x.size(0), -1)
-        x = self.fc(x)
-        return x
+    def meta_train_step(self, support_set, query_set):
+        self.meta_optimizer.zero_grad()
+
+        self.feature_extractor.eval()
+        self.classifier.eval()
+        with torch.no_grad():
+            support_features = self.feature_extractor(support_set[0])
+            proto = support_features.mean(dim=0, keepdim=True)
+
+        query_x, query_y = query_set
+        query_features = self.feature_extractor(query_x)
+        logits = self.classifier(query_features - proto)
+        loss = nn.functional.cross_entropy(logits, query_y)
+        loss.backward()
+        self.meta_optimizer.step()
+        return loss.item()
 
 
-def training_loop(model, train_loader, val_loader, epochs=20):
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
-
-    model.train()
-
-    for epoch in range(epochs):
-        running_loss = 0.0
-        for inputs, labels in train_loader:
-            optimizer.zero_grad()
-            outputs = model(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item()
-
-        if epoch % 5 == 0:
-            model.eval()
-            val_loss = 0.0
-            with torch.no_grad():
-                for val_inputs, val_labels in val_loader:
-                    val_outputs = model(val_inputs)
-                    val_loss += criterion(val_outputs, val_labels).item()
-
-        for inputs, labels in train_loader:
-            optimizer.zero_grad()
-            outputs = model(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
-
-    return model
+def training_loop(learner, episodes, n_epochs=100):
+    losses = []
+    for epoch in range(n_epochs):
+        for support, query in episodes:
+            loss = learner.meta_train_step(support, query)
+            losses.append(loss)
+    return losses

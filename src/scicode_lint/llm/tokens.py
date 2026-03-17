@@ -25,36 +25,32 @@ def estimate_tokens(text: str) -> int:
 
 
 def estimate_prompt_tokens(
-    code: str,
     system_prompt: str,
-    user_prompt_template: str,
+    user_prompt: str,
 ) -> int:
     """Estimate total token count for a complete prompt.
 
     Accounts for:
     - System prompt
-    - User prompt (including code)
+    - User prompt (already includes code)
     - Structured output overhead (~200 tokens for JSON schema)
-    - Output token buffer (~200 tokens for response)
     - Safety margin (10% buffer)
 
     Args:
-        code: Source code being analyzed
         system_prompt: System message text
-        user_prompt_template: User prompt template (includes code)
+        user_prompt: User prompt (includes code)
 
     Returns:
         Estimated total token count including overhead
 
     Example:
-        >>> code = "def foo(): pass"
         >>> system = "You are a code analyzer"
-        >>> user = "Code:\\n" + code + "\\nQuestion: Is this good?"
-        >>> tokens = estimate_prompt_tokens(code, system, user)
+        >>> user = "Code:\\ndef foo(): pass\\nQuestion: Is this good?"
+        >>> tokens = estimate_prompt_tokens(system, user)
     """
     # Estimate base tokens
     system_tokens = estimate_tokens(system_prompt)
-    user_tokens = estimate_tokens(user_prompt_template)
+    user_tokens = estimate_tokens(user_prompt)
 
     # Add structured output overhead
     # JSON schema adds ~100-300 tokens depending on complexity
@@ -70,7 +66,6 @@ def estimate_prompt_tokens(
 
 
 def check_context_length(
-    code: str,
     system_prompt: str,
     user_prompt: str,
     max_tokens: int,
@@ -83,7 +78,6 @@ def check_context_length(
     Uses conservative buffer to account for tokenizer estimation errors.
 
     Args:
-        code: Source code being analyzed
         system_prompt: System message
         user_prompt: User prompt (includes code)
         max_tokens: Maximum context length (total input + output)
@@ -97,16 +91,15 @@ def check_context_length(
         ContextLengthError: If input exceeds max_tokens - output_buffer
 
     Example:
-        >>> code = "def hello(): pass"
         >>> fits, tokens = check_context_length(
-        ...     code, "system", "user: " + code, 8000, "test.py"
+        ...     "system", "user: def hello(): pass", 8000, "test.py"
         ... )
         >>> fits
         True
     """
     from scicode_lint.llm.exceptions import ContextLengthError
 
-    estimated = estimate_prompt_tokens(code, system_prompt, user_prompt)
+    estimated = estimate_prompt_tokens(system_prompt, user_prompt)
 
     # Reserve space for output by checking against reduced limit
     max_input_tokens = max_tokens - output_buffer

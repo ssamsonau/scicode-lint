@@ -50,6 +50,7 @@ min_confidence = 0.85
 type = "function"
 name = "process_batches"
 snippet = "result = np.zeros(batch_size)"
+lines = [8]
 
 [[tests.positive]]
 file = "test_positive/append_arrays.py"
@@ -61,6 +62,7 @@ min_confidence = 0.85
 type = "function"
 name = "compute_features"
 snippet = "features.append(np.array(row_features))"
+lines = [8, 15, 24]
 
 [[tests.positive]]
 file = "test_positive/concatenate_in_loop.py"
@@ -69,9 +71,10 @@ expected_issue = "np.concatenate called inside loop to grow array"
 min_confidence = 0.90
 
 [tests.positive.expected_location]
-type = "function"
-name = "accumulate_results"
+type = "module"
+name = "concatenate_in_loop"
 snippet = "all_results = np.concatenate([all_results, new_result])"
+lines = [8, 15, 16, 23]
 
 [[tests.negative]]
 file = "test_negative/preallocated_array.py"
@@ -88,8 +91,14 @@ context_notes = "When output size is truly unknown, appending may be the only op
 allow_detection = true
 allow_skip = true
 
+[tests.context_dependent.expected_location]
+type = "function"
+name = "process_stream"
+snippet = "processed = np.array(data)"
+lines = [9]
+
 
 # === Auto-generated entries (review and update) ===
 [[tests.negative]]
 file = "test_negative/preallocated_loop.py"
-description = "Arrays pre-allocated outside loops and filled via indexing - efficient pattern that avoids repeated memory allocation"
+description = "Multiple clean patterns: pre-allocated arrays filled via indexing, scalars appended to list then converted once, and list comprehension with single np.array call"

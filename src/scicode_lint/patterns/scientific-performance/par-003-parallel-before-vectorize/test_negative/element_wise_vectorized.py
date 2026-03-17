@@ -2,8 +2,8 @@ import numpy as np
 
 
 def vectorized_square(arr):
-    return arr**2
+    return np.square(arr)
 
 
 def vectorized_normalize(data):
-    return (data - data.mean()) / data.std()
+    return (data - np.mean(data)) / np.std(data)

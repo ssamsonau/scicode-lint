@@ -20,7 +20,11 @@ from .models import (
     CategoryStats,
     DomainStats,
     PatternStats,
+    PrefilterFileResult,
+    PrefilterRun,
+    RepoScan,
     RunStatus,
+    ScanStats,
 )
 
 
@@ -88,6 +92,11 @@ def init_db(db_path: Path | None = None) -> sqlite3.Connection:
             scientific_imports TEXT,  -- comma-separated
             prefilter_passed BOOLEAN DEFAULT TRUE,
             prefilter_response TEXT,
+            has_ml_imports BOOLEAN,           -- deterministic ML check result
+            self_contained_class TEXT,           -- self_contained, fragment, uncertain
+            self_contained_confidence REAL,      -- LLM confidence in classification
+            self_contained_reasoning TEXT,       -- LLM reasoning for classification
+            scan_id INTEGER,                     -- scan that classified this file
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (repo_id) REFERENCES repos(id),
             UNIQUE(repo_id, file_path)
@@ -136,7 +145,10 @@ def init_db(db_path: Path | None = None) -> sqlite3.Connection:
             explanation TEXT,
             suggestion TEXT,
             reasoning TEXT,
+            location_name TEXT,       -- Function/class/method name
+            location_type TEXT,       -- function, method, class, module
             lines TEXT,               -- JSON array of line numbers
+            focus_line INTEGER,       -- Specific line with the issue
             snippet TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (file_analysis_id) REFERENCES file_analyses(id)
@@ -169,6 +181,58 @@ def init_db(db_path: Path | None = None) -> sqlite3.Connection:
             UNIQUE(file_analysis_id, pattern_id)
         );
 
+        -- Repository scans (for finding self-contained ML files)
+        CREATE TABLE IF NOT EXISTS repo_scans (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            repo_id INTEGER NOT NULL,
+            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP,
+            status TEXT DEFAULT 'running',
+            total_files INTEGER DEFAULT 0,
+            passed_ml_import_filter INTEGER DEFAULT 0,
+            self_contained INTEGER DEFAULT 0,
+            fragments INTEGER DEFAULT 0,
+            uncertain INTEGER DEFAULT 0,
+            skipped INTEGER DEFAULT 0,
+            duration_seconds REAL,
+            model_name TEXT,
+            git_commit TEXT,
+            FOREIGN KEY (repo_id) REFERENCES repos(id)
+        );
+
+        -- Prefilter runs (for classifying files as self-contained vs fragments)
+        CREATE TABLE IF NOT EXISTS prefilter_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP,
+            status TEXT DEFAULT 'running',
+            data_source TEXT DEFAULT 'papers_with_code',
+            total_files INTEGER DEFAULT 0,
+            self_contained INTEGER DEFAULT 0,
+            fragments INTEGER DEFAULT 0,
+            uncertain INTEGER DEFAULT 0,
+            errors INTEGER DEFAULT 0,
+            seed INTEGER,
+            config TEXT,
+            model_name TEXT,
+            git_commit TEXT,
+            parent_run_id INTEGER
+        );
+
+        -- Prefilter file results (per-file classification)
+        CREATE TABLE IF NOT EXISTS prefilter_file_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            prefilter_run_id INTEGER NOT NULL,
+            file_id INTEGER NOT NULL,
+            classification TEXT NOT NULL,
+            confidence REAL,
+            reasoning TEXT,
+            classified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (prefilter_run_id) REFERENCES prefilter_runs(id),
+            FOREIGN KEY (file_id) REFERENCES files(id),
+            UNIQUE(prefilter_run_id, file_id)
+        );
+
         -- Indexes for common queries
         CREATE INDEX IF NOT EXISTS idx_pattern_runs_analysis ON pattern_runs(file_analysis_id);
         CREATE INDEX IF NOT EXISTS idx_pattern_runs_pattern ON pattern_runs(pattern_id);
@@ -185,6 +249,14 @@ def init_db(db_path: Path | None = None) -> sqlite3.Connection:
         CREATE INDEX IF NOT EXISTS idx_findings_category ON findings(category);
         CREATE INDEX IF NOT EXISTS idx_findings_severity ON findings(severity);
         CREATE INDEX IF NOT EXISTS idx_analysis_runs_date ON analysis_runs(started_at);
+        CREATE INDEX IF NOT EXISTS idx_repo_scans_repo ON repo_scans(repo_id);
+        CREATE INDEX IF NOT EXISTS idx_files_classification ON files(self_contained_class);
+        CREATE INDEX IF NOT EXISTS idx_prefilter_results_run
+            ON prefilter_file_results(prefilter_run_id);
+        CREATE INDEX IF NOT EXISTS idx_prefilter_results_file
+            ON prefilter_file_results(file_id);
+        CREATE INDEX IF NOT EXISTS idx_prefilter_results_class
+            ON prefilter_file_results(classification);
     """)
 
     # Migration: Add data_source column if missing (for existing databases)
@@ -202,6 +274,45 @@ def init_db(db_path: Path | None = None) -> sqlite3.Connection:
     if "authors" not in paper_columns:
         conn.execute("ALTER TABLE papers ADD COLUMN authors TEXT")
         logger.info("Migrated papers: added authors column")
+
+    # Migration: Add self-contained classification columns to files if missing
+    cursor = conn.execute("PRAGMA table_info(files)")
+    file_columns = {row[1] for row in cursor.fetchall()}
+    if "has_ml_imports" not in file_columns:
+        conn.execute("ALTER TABLE files ADD COLUMN has_ml_imports BOOLEAN")
+        logger.info("Migrated files: added has_ml_imports column")
+    if "self_contained_class" not in file_columns:
+        conn.execute("ALTER TABLE files ADD COLUMN self_contained_class TEXT")
+        logger.info("Migrated files: added self_contained_class column")
+    if "self_contained_confidence" not in file_columns:
+        conn.execute("ALTER TABLE files ADD COLUMN self_contained_confidence REAL")
+        logger.info("Migrated files: added self_contained_confidence column")
+    if "self_contained_reasoning" not in file_columns:
+        conn.execute("ALTER TABLE files ADD COLUMN self_contained_reasoning TEXT")
+        logger.info("Migrated files: added self_contained_reasoning column")
+    if "scan_id" not in file_columns:
+        conn.execute("ALTER TABLE files ADD COLUMN scan_id INTEGER")
+        logger.info("Migrated files: added scan_id column")
+
+    # Migration: Add prefilter_run_id column to analysis_runs if missing
+    cursor = conn.execute("PRAGMA table_info(analysis_runs)")
+    run_columns = {row[1] for row in cursor.fetchall()}
+    if "prefilter_run_id" not in run_columns:
+        conn.execute("ALTER TABLE analysis_runs ADD COLUMN prefilter_run_id INTEGER")
+        logger.info("Migrated analysis_runs: added prefilter_run_id column")
+
+    # Migration: Add name-based location columns to findings if missing
+    cursor = conn.execute("PRAGMA table_info(findings)")
+    finding_columns = {row[1] for row in cursor.fetchall()}
+    if "location_name" not in finding_columns:
+        conn.execute("ALTER TABLE findings ADD COLUMN location_name TEXT")
+        logger.info("Migrated findings: added location_name column")
+    if "location_type" not in finding_columns:
+        conn.execute("ALTER TABLE findings ADD COLUMN location_type TEXT")
+        logger.info("Migrated findings: added location_type column")
+    if "focus_line" not in finding_columns:
+        conn.execute("ALTER TABLE findings ADD COLUMN focus_line INTEGER")
+        logger.info("Migrated findings: added focus_line column")
 
     conn.commit()
     return conn
@@ -417,6 +528,7 @@ def start_analysis_run(
     config: dict[str, Any] | None = None,
     model_name: str = "",
     notes: str = "",
+    prefilter_run_id: int | None = None,
 ) -> int:
     """Start a new analysis run.
 
@@ -427,14 +539,16 @@ def start_analysis_run(
         config: Run configuration dict.
         model_name: LLM model being used.
         notes: Optional run notes.
+        prefilter_run_id: Optional ID of prefilter run that selected these files.
 
     Returns:
         Run ID.
     """
     cursor = conn.execute(
         """
-        INSERT INTO analysis_runs (total_files, data_source, config, git_commit, model_name, notes)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO analysis_runs
+        (total_files, data_source, config, git_commit, model_name, notes, prefilter_run_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
         (
             total_files,
@@ -443,6 +557,7 @@ def start_analysis_run(
             get_current_git_commit(),
             model_name,
             notes,
+            prefilter_run_id,
         ),
     )
     conn.commit()
@@ -683,15 +798,22 @@ def insert_findings(
     """
     count = 0
     for finding in findings:
+        # Location fields can be at top level or nested in location dict
+        # run_analysis.py puts them at top level, other code may nest them
         location = finding.get("location", {})
-        lines = location.get("lines", [])
+        location_name = finding.get("location_name") or location.get("name")
+        location_type = finding.get("location_type") or location.get("location_type")
+        lines = finding.get("lines") or location.get("lines", [])
+        focus_line = finding.get("focus_line") or location.get("focus_line")
+        snippet = finding.get("snippet") or location.get("snippet", "")
 
         conn.execute(
             """
             INSERT INTO findings
             (file_analysis_id, pattern_id, category, severity, confidence,
-             issue, explanation, suggestion, reasoning, lines, snippet)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             issue, explanation, suggestion, reasoning,
+             location_name, location_type, lines, focus_line, snippet)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 file_analysis_id,
@@ -703,8 +825,11 @@ def insert_findings(
                 finding.get("explanation", ""),
                 finding.get("suggestion", ""),
                 finding.get("reasoning", ""),
+                location_name,
+                location_type,
                 json.dumps(lines),
-                location.get("snippet", ""),
+                focus_line,
+                snippet,
             ),
         )
         count += 1
@@ -1155,3 +1280,790 @@ def print_stats(conn: sqlite3.Connection, run_id: int | None = None) -> None:
                 f"    {domain.domain}: {domain.files_with_findings}/{domain.analyzed_files} "
                 f"({domain.finding_rate:.1f}%)"
             )
+
+
+# ============================================================================
+# Repository scan operations
+# ============================================================================
+
+
+def start_repo_scan(
+    conn: sqlite3.Connection,
+    repo_id: int,
+    total_files: int,
+    model_name: str = "",
+) -> int:
+    """Start a new repository scan.
+
+    Args:
+        conn: Database connection.
+        repo_id: Repository being scanned.
+        total_files: Total Python files found.
+        model_name: LLM model used for classification.
+
+    Returns:
+        Scan ID.
+    """
+    cursor = conn.execute(
+        """
+        INSERT INTO repo_scans (repo_id, total_files, model_name, git_commit)
+        VALUES (?, ?, ?, ?)
+        """,
+        (repo_id, total_files, model_name, get_current_git_commit()),
+    )
+    conn.commit()
+    return int(cursor.lastrowid) if cursor.lastrowid else 0
+
+
+def complete_repo_scan(
+    conn: sqlite3.Connection,
+    scan_id: int,
+    passed_ml_import_filter: int,
+    self_contained: int,
+    fragments: int,
+    uncertain: int,
+    skipped: int,
+    duration_seconds: float,
+    status: str = "completed",
+) -> None:
+    """Complete a repository scan.
+
+    Args:
+        conn: Database connection.
+        scan_id: Scan ID.
+        passed_ml_import_filter: Files passing deterministic ML filter.
+        self_contained: Files classified as self-contained.
+        fragments: Files classified as fragments.
+        uncertain: Files with uncertain classification.
+        skipped: Files skipped (no ML indicators).
+        duration_seconds: Total scan duration.
+        status: Final status.
+    """
+    conn.execute(
+        """
+        UPDATE repo_scans
+        SET completed_at = ?, status = ?, passed_ml_import_filter = ?,
+            self_contained = ?, fragments = ?, uncertain = ?, skipped = ?,
+            duration_seconds = ?
+        WHERE id = ?
+        """,
+        (
+            datetime.now().isoformat(),
+            status,
+            passed_ml_import_filter,
+            self_contained,
+            fragments,
+            uncertain,
+            skipped,
+            duration_seconds,
+            scan_id,
+        ),
+    )
+    conn.commit()
+
+
+def update_file_classification(
+    conn: sqlite3.Connection,
+    file_id: int,
+    scan_id: int,
+    has_ml_imports: bool,
+    classification: str | None = None,
+    confidence: float | None = None,
+    reasoning: str | None = None,
+) -> None:
+    """Update file with classification results.
+
+    Args:
+        conn: Database connection.
+        file_id: File ID.
+        scan_id: Scan ID that classified this file.
+        has_ml_imports: Whether file has ML indicators.
+        classification: Classification result (self_contained, fragment, uncertain).
+        confidence: Classification confidence.
+        reasoning: LLM reasoning for classification.
+    """
+    conn.execute(
+        """
+        UPDATE files
+        SET scan_id = ?, has_ml_imports = ?, self_contained_class = ?,
+            self_contained_confidence = ?, self_contained_reasoning = ?
+        WHERE id = ?
+        """,
+        (scan_id, has_ml_imports, classification, confidence, reasoning, file_id),
+    )
+    conn.commit()
+
+
+def get_self_contained_files_for_repo(
+    conn: sqlite3.Connection,
+    repo_id: int,
+) -> list[dict[str, Any]]:
+    """Get self-contained files for a repository.
+
+    Args:
+        conn: Database connection.
+        repo_id: Repository ID.
+
+    Returns:
+        List of file dicts with path, confidence, and reasoning.
+    """
+    cursor = conn.execute(
+        """
+        SELECT id, file_path, original_path, self_contained_confidence, self_contained_reasoning
+        FROM files
+        WHERE repo_id = ? AND self_contained_class = 'self_contained'
+        ORDER BY self_contained_confidence DESC
+        """,
+        (repo_id,),
+    )
+    return [
+        {
+            "id": row["id"],
+            "file_path": row["file_path"],
+            "original_path": row["original_path"],
+            "confidence": row["self_contained_confidence"],
+            "reasoning": row["self_contained_reasoning"],
+        }
+        for row in cursor.fetchall()
+    ]
+
+
+def get_scan_stats(conn: sqlite3.Connection) -> ScanStats:
+    """Get aggregated scan statistics.
+
+    Args:
+        conn: Database connection.
+
+    Returns:
+        ScanStats with aggregated data.
+    """
+    cursor = conn.execute(
+        """
+        SELECT
+            COUNT(*) as total_scans,
+            COUNT(DISTINCT repo_id) as total_repos,
+            SUM(total_files) as total_files,
+            SUM(self_contained) as total_self_contained,
+            SUM(fragments) as total_fragments,
+            SUM(skipped) as total_skipped,
+            AVG(duration_seconds) as avg_duration
+        FROM repo_scans
+        WHERE status = 'completed'
+        """
+    )
+    row = cursor.fetchone()
+    if not row or row["total_scans"] == 0:
+        return ScanStats()
+
+    total_repos = row["total_repos"] or 1
+    return ScanStats(
+        total_scans=row["total_scans"] or 0,
+        total_repos_scanned=total_repos,
+        total_files_scanned=row["total_files"] or 0,
+        total_self_contained=row["total_self_contained"] or 0,
+        total_fragments=row["total_fragments"] or 0,
+        total_skipped=row["total_skipped"] or 0,
+        avg_self_contained_per_repo=(row["total_self_contained"] or 0) / total_repos,
+        avg_scan_duration=row["avg_duration"] or 0,
+    )
+
+
+def get_latest_scan_for_repo(conn: sqlite3.Connection, repo_id: int) -> RepoScan | None:
+    """Get the latest scan for a repository.
+
+    Args:
+        conn: Database connection.
+        repo_id: Repository ID.
+
+    Returns:
+        RepoScan or None if no scans found.
+    """
+    cursor = conn.execute(
+        """
+        SELECT * FROM repo_scans
+        WHERE repo_id = ?
+        ORDER BY started_at DESC
+        LIMIT 1
+        """,
+        (repo_id,),
+    )
+    row = cursor.fetchone()
+    if not row:
+        return None
+
+    return RepoScan(
+        scan_id=row["id"],
+        repo_id=row["repo_id"],
+        started_at=datetime.fromisoformat(row["started_at"]),
+        completed_at=(datetime.fromisoformat(row["completed_at"]) if row["completed_at"] else None),
+        status=RunStatus(row["status"]) if row["status"] else RunStatus.RUNNING,
+        total_files=row["total_files"] or 0,
+        passed_ml_import_filter=row["passed_ml_import_filter"] or 0,
+        self_contained=row["self_contained"] or 0,
+        fragments=row["fragments"] or 0,
+        uncertain=row["uncertain"] or 0,
+        skipped=row["skipped"] or 0,
+        duration_seconds=row["duration_seconds"] or 0,
+        model_name=row["model_name"] or "",
+    )
+
+
+# ============================================================================
+# Prefilter run operations
+# ============================================================================
+
+
+def start_prefilter_run(
+    conn: sqlite3.Connection,
+    total_files: int,
+    data_source: str = "papers_with_code",
+    seed: int | None = None,
+    config: dict[str, Any] | None = None,
+    model_name: str = "",
+    parent_run_id: int | None = None,
+) -> int:
+    """Start a new prefilter run.
+
+    Args:
+        conn: Database connection.
+        total_files: Total files to classify.
+        data_source: Data source identifier.
+        seed: Random seed for reproducibility.
+        config: Run configuration dict.
+        model_name: LLM model being used.
+        parent_run_id: ID of parent run if reusing files.
+
+    Returns:
+        Run ID.
+    """
+    cursor = conn.execute(
+        """
+        INSERT INTO prefilter_runs
+        (total_files, data_source, seed, config, model_name, git_commit, parent_run_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            total_files,
+            data_source,
+            seed,
+            json.dumps(config or {}),
+            model_name,
+            get_current_git_commit(),
+            parent_run_id,
+        ),
+    )
+    conn.commit()
+    return int(cursor.lastrowid) if cursor.lastrowid else 0
+
+
+def complete_prefilter_run(
+    conn: sqlite3.Connection,
+    run_id: int,
+    self_contained: int,
+    fragments: int,
+    uncertain: int,
+    errors: int,
+    status: str = "completed",
+) -> None:
+    """Complete a prefilter run.
+
+    Args:
+        conn: Database connection.
+        run_id: Run ID.
+        self_contained: Files classified as self-contained.
+        fragments: Files classified as fragments.
+        uncertain: Files with uncertain classification.
+        errors: Files that errored during classification.
+        status: Final status.
+    """
+    conn.execute(
+        """
+        UPDATE prefilter_runs
+        SET completed_at = ?, status = ?, self_contained = ?,
+            fragments = ?, uncertain = ?, errors = ?
+        WHERE id = ?
+        """,
+        (
+            datetime.now().isoformat(),
+            status,
+            self_contained,
+            fragments,
+            uncertain,
+            errors,
+            run_id,
+        ),
+    )
+    conn.commit()
+
+
+def insert_prefilter_result(
+    conn: sqlite3.Connection,
+    run_id: int,
+    file_id: int,
+    classification: str,
+    confidence: float | None = None,
+    reasoning: str | None = None,
+) -> int:
+    """Insert a single prefilter classification result.
+
+    Args:
+        conn: Database connection.
+        run_id: Prefilter run ID.
+        file_id: File ID.
+        classification: Classification result (self_contained, fragment, uncertain, error).
+        confidence: Classification confidence.
+        reasoning: LLM reasoning for classification.
+
+    Returns:
+        Result ID.
+    """
+    cursor = conn.execute(
+        """
+        INSERT OR REPLACE INTO prefilter_file_results
+        (prefilter_run_id, file_id, classification, confidence, reasoning)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (run_id, file_id, classification, confidence, reasoning),
+    )
+    conn.commit()
+    return int(cursor.lastrowid) if cursor.lastrowid else 0
+
+
+def get_paper_ids_from_prefilter_runs(
+    conn: sqlite3.Connection,
+    run_ids: list[int],
+) -> set[int]:
+    """Get all paper IDs that had files in the given prefilter runs.
+
+    Traces: prefilter_file_results → files → repos → papers.
+
+    Args:
+        conn: Database connection.
+        run_ids: List of prefilter run IDs to get papers from.
+
+    Returns:
+        Set of paper IDs.
+    """
+    if not run_ids:
+        return set()
+    placeholders = ",".join("?" * len(run_ids))
+    cursor = conn.execute(
+        f"""
+        SELECT DISTINCT r.paper_id
+        FROM prefilter_file_results pfr
+        JOIN files f ON f.id = pfr.file_id
+        JOIN repos r ON r.id = f.repo_id
+        WHERE pfr.prefilter_run_id IN ({placeholders})
+          AND r.paper_id IS NOT NULL
+        """,
+        run_ids,
+    )
+    return {row["paper_id"] for row in cursor.fetchall()}
+
+
+def get_paper_urls_from_prefilter_runs(
+    conn: sqlite3.Connection,
+    run_ids: list[int],
+) -> set[str]:
+    """Get paper URLs that had files in the given prefilter runs.
+
+    Traces: prefilter_file_results → files → repos → papers.
+
+    Args:
+        conn: Database connection.
+        run_ids: List of prefilter run IDs to get papers from.
+
+    Returns:
+        Set of paper URL strings.
+    """
+    paper_ids = get_paper_ids_from_prefilter_runs(conn, run_ids)
+    if not paper_ids:
+        return set()
+    placeholders = ",".join("?" * len(paper_ids))
+    cursor = conn.execute(
+        f"SELECT paper_url FROM papers WHERE id IN ({placeholders})",
+        list(paper_ids),
+    )
+    return {row["paper_url"] for row in cursor.fetchall()}
+
+
+def get_prefilter_run_files(
+    conn: sqlite3.Connection,
+    run_id: int,
+    classification: str | None = None,
+) -> list[PrefilterFileResult]:
+    """Get files from a specific prefilter run.
+
+    Args:
+        conn: Database connection.
+        run_id: Prefilter run ID.
+        classification: Optional filter by classification (e.g., 'self_contained').
+
+    Returns:
+        List of PrefilterFileResult models.
+    """
+    if classification:
+        cursor = conn.execute(
+            """
+            SELECT f.id, f.file_path, f.repo_id, pfr.classification,
+                   pfr.confidence, pfr.reasoning
+            FROM prefilter_file_results pfr
+            JOIN files f ON f.id = pfr.file_id
+            WHERE pfr.prefilter_run_id = ? AND pfr.classification = ?
+            ORDER BY pfr.confidence DESC
+            """,
+            (run_id, classification),
+        )
+    else:
+        cursor = conn.execute(
+            """
+            SELECT f.id, f.file_path, f.repo_id, pfr.classification,
+                   pfr.confidence, pfr.reasoning
+            FROM prefilter_file_results pfr
+            JOIN files f ON f.id = pfr.file_id
+            WHERE pfr.prefilter_run_id = ?
+            ORDER BY pfr.classification, pfr.confidence DESC
+            """,
+            (run_id,),
+        )
+    return [
+        PrefilterFileResult(
+            file_id=row["id"],
+            file_path=row["file_path"],
+            repo_id=row["repo_id"],
+            classification=row["classification"],
+            confidence=row["confidence"],
+            reasoning=row["reasoning"],
+        )
+        for row in cursor.fetchall()
+    ]
+
+
+def get_incomplete_prefilter_run(
+    conn: sqlite3.Connection,
+    data_source: str | None = None,
+) -> int | None:
+    """Get the latest incomplete (running) prefilter run.
+
+    Args:
+        conn: Database connection.
+        data_source: Optional filter by data source.
+
+    Returns:
+        Run ID if there's an incomplete run, None otherwise.
+    """
+    if data_source:
+        cursor = conn.execute(
+            """
+            SELECT id FROM prefilter_runs
+            WHERE status = 'running' AND data_source = ?
+            ORDER BY started_at DESC
+            LIMIT 1
+            """,
+            (data_source,),
+        )
+    else:
+        cursor = conn.execute(
+            """
+            SELECT id FROM prefilter_runs
+            WHERE status = 'running'
+            ORDER BY started_at DESC
+            LIMIT 1
+            """
+        )
+    row = cursor.fetchone()
+    return row["id"] if row else None
+
+
+def get_classified_file_ids(conn: sqlite3.Connection, run_id: int) -> set[int]:
+    """Get set of file IDs already classified in a prefilter run.
+
+    Args:
+        conn: Database connection.
+        run_id: Prefilter run ID.
+
+    Returns:
+        Set of file IDs that have been classified.
+    """
+    cursor = conn.execute(
+        "SELECT file_id FROM prefilter_file_results WHERE prefilter_run_id = ?",
+        (run_id,),
+    )
+    return {row["file_id"] for row in cursor.fetchall()}
+
+
+def get_prefilter_run(conn: sqlite3.Connection, run_id: int) -> PrefilterRun | None:
+    """Get a prefilter run by ID.
+
+    Args:
+        conn: Database connection.
+        run_id: Prefilter run ID.
+
+    Returns:
+        PrefilterRun or None if not found.
+    """
+    cursor = conn.execute(
+        "SELECT * FROM prefilter_runs WHERE id = ?",
+        (run_id,),
+    )
+    row = cursor.fetchone()
+    if not row:
+        return None
+
+    return PrefilterRun(
+        run_id=row["id"],
+        started_at=datetime.fromisoformat(row["started_at"]),
+        completed_at=(datetime.fromisoformat(row["completed_at"]) if row["completed_at"] else None),
+        status=RunStatus(row["status"]) if row["status"] else RunStatus.RUNNING,
+        data_source=row["data_source"] or "papers_with_code",
+        total_files=row["total_files"] or 0,
+        self_contained=row["self_contained"] or 0,
+        fragments=row["fragments"] or 0,
+        uncertain=row["uncertain"] or 0,
+        errors=row["errors"] or 0,
+        seed=row["seed"],
+        config=json.loads(row["config"]) if row["config"] else {},
+        model_name=row["model_name"] or "",
+        git_commit=row["git_commit"] or "",
+        parent_run_id=row["parent_run_id"],
+    )
+
+
+def list_prefilter_runs(
+    conn: sqlite3.Connection,
+    limit: int = 10,
+    data_source: str | None = None,
+) -> list[PrefilterRun]:
+    """List recent prefilter runs.
+
+    Args:
+        conn: Database connection.
+        limit: Maximum runs to return.
+        data_source: Optional filter by data source.
+
+    Returns:
+        List of PrefilterRun models.
+    """
+    if data_source:
+        cursor = conn.execute(
+            """
+            SELECT * FROM prefilter_runs
+            WHERE data_source = ?
+            ORDER BY started_at DESC
+            LIMIT ?
+            """,
+            (data_source, limit),
+        )
+    else:
+        cursor = conn.execute(
+            """
+            SELECT * FROM prefilter_runs
+            ORDER BY started_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+    runs = []
+    for row in cursor.fetchall():
+        runs.append(
+            PrefilterRun(
+                run_id=row["id"],
+                started_at=datetime.fromisoformat(row["started_at"]),
+                completed_at=(
+                    datetime.fromisoformat(row["completed_at"]) if row["completed_at"] else None
+                ),
+                status=RunStatus(row["status"]) if row["status"] else RunStatus.RUNNING,
+                data_source=row["data_source"] or "papers_with_code",
+                total_files=row["total_files"] or 0,
+                self_contained=row["self_contained"] or 0,
+                fragments=row["fragments"] or 0,
+                uncertain=row["uncertain"] or 0,
+                errors=row["errors"] or 0,
+                seed=row["seed"],
+                config=json.loads(row["config"]) if row["config"] else {},
+                model_name=row["model_name"] or "",
+                git_commit=row["git_commit"] or "",
+                parent_run_id=row["parent_run_id"],
+            )
+        )
+    return runs
+
+
+def get_files_from_analysis_run_repos(
+    conn: sqlite3.Connection,
+    analysis_run_id: int,
+) -> list[PrefilterFileResult]:
+    """Get all files from repos that were used in an analysis run.
+
+    This allows reusing the same paper/repo selection while re-running
+    the prefilter classification with vLLM.
+
+    Args:
+        conn: Database connection.
+        analysis_run_id: ID of the analysis run to get repos from.
+
+    Returns:
+        List of PrefilterFileResult models (without classification - to be filled).
+    """
+    # Get all files from repos that had files in the analysis run
+    cursor = conn.execute(
+        """
+        SELECT DISTINCT f.id, f.file_path, f.repo_id
+        FROM files f
+        WHERE f.repo_id IN (
+            SELECT DISTINCT f2.repo_id
+            FROM file_analyses fa
+            JOIN files f2 ON f2.id = fa.file_id
+            WHERE fa.run_id = ?
+        )
+        ORDER BY f.repo_id, f.file_path
+        """,
+        (analysis_run_id,),
+    )
+
+    return [
+        PrefilterFileResult(
+            file_id=row["id"],
+            file_path=row["file_path"],
+            repo_id=row["repo_id"],
+            classification="pending",  # Will be filled by prefilter
+            confidence=None,
+            reasoning=None,
+        )
+        for row in cursor.fetchall()
+    ]
+
+
+def get_analysis_run_data_source(
+    conn: sqlite3.Connection,
+    analysis_run_id: int,
+) -> str | None:
+    """Get data source for an analysis run.
+
+    Args:
+        conn: Database connection.
+        analysis_run_id: Analysis run ID.
+
+    Returns:
+        Data source string or None if not found.
+    """
+    cursor = conn.execute(
+        "SELECT data_source FROM analysis_runs WHERE id = ?",
+        (analysis_run_id,),
+    )
+    row = cursor.fetchone()
+    return row["data_source"] if row else None
+
+
+def get_prefilter_summary(
+    conn: sqlite3.Connection,
+    analysis_run_id: int,
+) -> dict[str, Any] | None:
+    """Get prefilter summary for an analysis run.
+
+    Returns stats about original vs filtered papers/repos/files.
+
+    Args:
+        conn: Database connection.
+        analysis_run_id: Analysis run ID.
+
+    Returns:
+        Dict with prefilter stats, or None if no prefilter was used.
+    """
+    # Check if analysis run has a prefilter_run_id
+    cursor = conn.execute(
+        "SELECT prefilter_run_id FROM analysis_runs WHERE id = ?",
+        (analysis_run_id,),
+    )
+    row = cursor.fetchone()
+    if not row or not row["prefilter_run_id"]:
+        return None
+
+    prefilter_run_id = row["prefilter_run_id"]
+
+    # Get prefilter run stats
+    prefilter_run = get_prefilter_run(conn, prefilter_run_id)
+    if not prefilter_run:
+        return None
+
+    # Get original counts (all files in prefilter run)
+    cursor = conn.execute(
+        """
+        SELECT
+            COUNT(DISTINCT f.repo_id) as original_repos,
+            COUNT(DISTINCT r.paper_id) as original_papers
+        FROM prefilter_file_results pfr
+        JOIN files f ON f.id = pfr.file_id
+        JOIN repos r ON r.id = f.repo_id
+        WHERE pfr.prefilter_run_id = ?
+        """,
+        (prefilter_run_id,),
+    )
+    original = cursor.fetchone()
+
+    # Get filtered counts (self-contained only)
+    cursor = conn.execute(
+        """
+        SELECT
+            COUNT(DISTINCT f.repo_id) as filtered_repos,
+            COUNT(DISTINCT r.paper_id) as filtered_papers
+        FROM prefilter_file_results pfr
+        JOIN files f ON f.id = pfr.file_id
+        JOIN repos r ON r.id = f.repo_id
+        WHERE pfr.prefilter_run_id = ? AND pfr.classification = 'self_contained'
+        """,
+        (prefilter_run_id,),
+    )
+    filtered = cursor.fetchone()
+
+    # Get dropped repos (all files were fragments)
+    cursor = conn.execute(
+        """
+        SELECT r.repo_name
+        FROM repos r
+        WHERE r.id IN (
+            SELECT DISTINCT f.repo_id
+            FROM prefilter_file_results pfr
+            JOIN files f ON f.id = pfr.file_id
+            WHERE pfr.prefilter_run_id = ?
+        )
+        AND r.id NOT IN (
+            SELECT DISTINCT f.repo_id
+            FROM prefilter_file_results pfr
+            JOIN files f ON f.id = pfr.file_id
+            WHERE pfr.prefilter_run_id = ? AND pfr.classification = 'self_contained'
+        )
+        ORDER BY r.repo_name
+        """,
+        (prefilter_run_id, prefilter_run_id),
+    )
+    dropped_repos = [row["repo_name"] for row in cursor.fetchall()]
+
+    return {
+        "prefilter_run_id": prefilter_run_id,
+        "total_files": prefilter_run.total_files,
+        "self_contained": prefilter_run.self_contained,
+        "fragments": prefilter_run.fragments,
+        "uncertain": prefilter_run.uncertain,
+        "errors": prefilter_run.errors,
+        "original_repos": original["original_repos"] or 0,
+        "original_papers": original["original_papers"] or 0,
+        "filtered_repos": filtered["filtered_repos"] or 0,
+        "filtered_papers": filtered["filtered_papers"] or 0,
+        "dropped_repos": dropped_repos,
+        "model_name": prefilter_run.model_name,
+    }
+
+
+def _get_git_commit() -> str:
+    """Get current git commit hash."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip()
+    except Exception:
+        return ""

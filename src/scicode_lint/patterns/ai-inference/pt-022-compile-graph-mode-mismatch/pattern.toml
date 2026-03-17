@@ -59,7 +59,8 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "train_and_eval"
-snippet = "torch.compile"
+snippet = "compiled_model.train()"
+lines = [19]
 
 [[tests.negative]]
 file = "test_negative/uncompiled_model.py"
@@ -75,7 +76,7 @@ description = "Separate compiled models for train/eval modes"
 
 [[tests.positive]]
 file = "test_positive/compiled_mode_switch.py"
-description = "Compiled model switches between training and evaluation modes in validation loop. Calls train() then eval() on the same compiled model without fullgraph=False."
+description = "Compiled model switches between training and evaluation modes in validation loop"
 expected_issue = "torch.compile() model reuses cached graph across train/eval modes"
 min_confidence = 0.85
 
@@ -83,14 +84,17 @@ min_confidence = 0.85
 type = "function"
 name = "train_and_validate"
 snippet = "compiled_model = torch.compile(model)"
+lines = [27]
 
 [[tests.positive]]
-file = "test_positive/train_eval_compile.py"
-description = "Compiled model used in both training (with gradients) and evaluation (with no_grad) modes. Same compiled instance transitions from train() to eval() without fullgraph=False."
-expected_issue = "torch.compile() model reuses cached graph across train/eval modes"
+file = "test_positive/finetune_then_serve.py"
+description = "Online learning system that finetunes compiled model then serves predictions, switching between train and eval modes"
+expected_issue = "torch.compile() model switches between train() for finetuning and eval() for serving"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "train_and_eval"
-snippet = "compiled = torch.compile(model)"
+name = "online_learning_loop"
+snippet = "compiled_model.train()"
+lines = [23]
+

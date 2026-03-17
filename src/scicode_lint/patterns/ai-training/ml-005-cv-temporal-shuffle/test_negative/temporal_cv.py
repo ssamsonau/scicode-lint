@@ -1,20 +1,38 @@
-from sklearn.model_selection import TimeSeriesSplit
+import numpy as np
+from sklearn.linear_model import Ridge
 
 
-def time_series_cv(X, y, n_splits=5):
-    tscv = TimeSeriesSplit(n_splits=n_splits)
-    scores = []
-    for train_idx, val_idx in tscv.split(X):
-        scores.append(train_idx.mean())
-    return scores
+class ExpandingWindowEvaluator:
+    def __init__(self, min_train_size=100, step_size=50):
+        self.min_train_size = min_train_size
+        self.step_size = step_size
+
+    def evaluate(self, X, y):
+        n = len(X)
+        scores = []
+        model = Ridge(alpha=1.0)
+
+        for end in range(self.min_train_size, n - self.step_size, self.step_size):
+            X_train, y_train = X[:end], y[:end]
+            X_val, y_val = X[end : end + self.step_size], y[end : end + self.step_size]
+
+            model.fit(X_train, y_train)
+            scores.append(model.score(X_val, y_val))
+
+        return np.array(scores)
 
 
-def validate_temporal(df, target_col):
-    from sklearn.ensemble import RandomForestRegressor
-    from sklearn.model_selection import cross_val_score
+def walk_forward_backtest(prices, features, window=252):
+    from sklearn.ensemble import GradientBoostingRegressor
 
-    X = df.drop(columns=[target_col, "date"])
-    y = df[target_col]
-    model = RandomForestRegressor()
-    tscv = TimeSeriesSplit(n_splits=5)
-    return cross_val_score(model, X, y, cv=tscv)
+    predictions = []
+    for i in range(window, len(prices) - 1):
+        X_train = features[i - window : i]
+        y_train = prices[i - window : i]
+        X_pred = features[i : i + 1]
+
+        model = GradientBoostingRegressor(n_estimators=50, max_depth=3)
+        model.fit(X_train, y_train)
+        predictions.append(model.predict(X_pred)[0])
+
+    return np.array(predictions)

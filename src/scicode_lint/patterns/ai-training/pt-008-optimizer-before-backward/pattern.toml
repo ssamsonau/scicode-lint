@@ -56,8 +56,9 @@ min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "incorrect_training_order"
+name = "train_feedforward"
 snippet = "optimizer.step()"
+lines = [28]
 
 [[tests.positive]]
 file = "test_positive/update_without_gradients.py"
@@ -69,6 +70,7 @@ min_confidence = 0.85
 type = "function"
 name = "train_rnn"
 snippet = "optimizer.step()"
+lines = [25]
 
 [[tests.negative]]
 file = "test_negative/correct_optimization_order.py"
@@ -89,6 +91,7 @@ min_confidence = 0.85
 type = "function"
 name = "train_gan_wrong"
 snippet = "opt_d.step()"
+lines = [9]
 
 [[tests.negative]]
 file = "test_negative/alternating_update_correct.py"

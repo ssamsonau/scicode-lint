@@ -26,6 +26,12 @@
 
 - **[QUALITY_GATES.md](QUALITY_GATES.md)** - Validation layers and tensions between forces
 
+- **[MODEL_USAGE.md](MODEL_USAGE.md)** - SOTA model usage
+  - Opus 4.6 for interactive development (Claude Code)
+  - Sonnet 4.6 for all automated tasks (verification, judging, pattern review)
+  - Thinking effort levels per component
+  - Local LLM for runtime detection
+
 - **[../pattern_verification/README.md](../pattern_verification/README.md)** - Pattern quality verification
   - Deterministic checks (9 automated checks, no LLM)
   - Semantic checks (LLM-based consistency review)

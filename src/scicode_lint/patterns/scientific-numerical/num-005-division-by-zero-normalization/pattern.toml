@@ -31,19 +31,25 @@ references = [
 question = """
 Analyze normalization operations for division by zero.
 
-Standard deviation or range can be zero for constant features, causing inf or NaN. This commonly occurs in z-score normalization (x - mean) / std when a feature has no variance.
+Standard deviation or range can be zero for constant features, causing inf or NaN.
 
-Correct approach: Add epsilon to denominator: (x - mean) / (std + 1e-8).
-
-Does this code divide by std/range without zero protection?
+Does this code divide by COMPUTED std/range without zero protection?
 
 Look for:
-- (data - mean) / std without epsilon
-- (x - min) / (max - min) where max could equal min
-- Any normalization where denominator could be zero
+- (data - mean) / std where std is computed from data
+- (x - min) / (max - min) where range is computed from data
+- Division by values that could be zero if data is constant
 
-YES = Bug found: division by std/range without epsilon guard
-NO = Correct: denominator has + epsilon, np.maximum, or explicit zero check
+NOT a bug (answer NO):
+- Pre-computed constants: ImageNet stats [0.229, 0.224, 0.225], known non-zero values
+- sklearn.preprocessing.StandardScaler - handles zero std internally (replaces with 1.0)
+- sklearn.preprocessing.MinMaxScaler - handles zero range internally
+- torchvision.transforms.Normalize - uses pre-computed dataset statistics
+- Epsilon guards: (std + 1e-8), np.maximum(std, eps)
+- Explicit zero checks before division
+
+YES = Bug: Division by COMPUTED std/range from data without epsilon/check
+NO = Clean: Pre-computed constants, library implementations, or guarded division
 """
 
 warning_message = """
@@ -66,17 +72,19 @@ min_confidence = 0.85
 type = "function"
 name = "normalize_features"
 snippet = "normalized = (data - mean) / std"
+lines = [7]
 
 [[tests.positive]]
 file = "test_positive/normalization_bug.py"
-description = "Feature standardization or coefficient of variation calculations where denominator could be zero for constant data"
-expected_issue = "Normalization divides by value that could be zero"
+description = "Batch normalization and layer normalization implementations dividing by computed std without epsilon guard, causing NaN for constant activation channels"
+expected_issue = "Division by computed std without epsilon guard in normalization layer"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "min_max_normalize"
-snippet = "normalized = (data - data_min) / range_val"
+name = "batch_norm_forward"
+snippet = "x_hat = (x - batch_mean) / batch_std"
+lines = [8]
 
 [[tests.negative]]
 file = "test_negative/safe_normalization.py"
@@ -87,18 +95,22 @@ file = "test_negative/checked_division.py"
 description = "Explicit if/else handling for zero denominators using np.maximum(), np.isclose(), or conditional returns"
 
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/feature_norm.py"
-description = "Z-score normalization, unit norm scaling, and percentage change without epsilon protection or zero checks"
-expected_issue = "Division by std, norm magnitude, or old value without safeguarding against zero"
+description = "Cosine similarity and embedding normalization dividing by L2 norm without epsilon, producing NaN or inf for zero vectors"
+expected_issue = "Division by L2 norm without epsilon guard in similarity/embedding computation"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "normalize_features"
-snippet = "return (X - mean) / std"
+name = "normalize_embedding_matrix"
+snippet = "return embeddings / norms"
+lines = [13]
 
 [[tests.negative]]
 file = "test_negative/feature_norm_safe.py"
-description = "Safe normalization using epsilon guards (std + eps, np.maximum) and parameter-based epsilon values"
+description = "Safe normalization using epsilon guards: (std + eps), np.maximum(std, eps), and (norm + eps) patterns preventing division by zero"
+
+[[tests.negative]]
+file = "test_negative/precomputed_constants.py"
+description = "Pre-computed constants (ImageNet/CIFAR stats) and sklearn StandardScaler/MinMaxScaler - values are never zero or handled internally"

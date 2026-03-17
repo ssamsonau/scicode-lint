@@ -1,45 +1,75 @@
+import torch
 import torch.nn as nn
-import torch.optim as optim
+from torch.optim import Optimizer
+from torch.optim.lr_scheduler import OneCycleLR
 
 
-class AutoEncoder(nn.Module):
-    def __init__(self, input_dim, hidden_dim):
-        super().__init__()
-        self.encoder = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim * 2),
-            nn.ReLU(),
-            nn.Linear(hidden_dim * 2, hidden_dim),
-            nn.ReLU(),
-        )
-        self.decoder = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim * 2),
-            nn.ReLU(),
-            nn.Linear(hidden_dim * 2, input_dim),
-            nn.Sigmoid(),
-        )
+class TrainingStep:
+    """Encapsulates a single training step with proper gradient management."""
 
-    def forward(self, x):
-        encoded = self.encoder(x)
-        decoded = self.decoder(encoded)
-        return decoded
+    def __init__(
+        self,
+        model: nn.Module,
+        optimizer: Optimizer,
+        criterion: nn.Module,
+        scheduler: OneCycleLR | None = None,
+    ):
+        self.model = model
+        self.optimizer = optimizer
+        self.criterion = criterion
+        self.scheduler = scheduler
+
+    def __call__(self, inputs: torch.Tensor, targets: torch.Tensor) -> float:
+        self.optimizer.zero_grad()
+
+        outputs = self.model(inputs)
+        loss = self.criterion(outputs, targets)
+
+        loss.backward()
+        self.optimizer.step()
+
+        if self.scheduler:
+            self.scheduler.step()
+
+        return loss.item()
 
 
-def train_autoencoder(model, data_loader, num_epochs):
-    optimizer = optim.AdamW(model.parameters(), lr=0.001)
-    criterion = nn.MSELoss()
+def train_with_closure(model: nn.Module, loader, optimizer: Optimizer):
+    """Training using optimizer closure pattern with zero_grad inside."""
+    criterion = nn.CrossEntropyLoss()
 
-    model.train()
+    for inputs, targets in loader:
 
-    for epoch in range(num_epochs):
-        for data in data_loader:
-            inputs = data[0]
-
+        def closure():
             optimizer.zero_grad()
-
-            reconstructed = model(inputs)
-            loss = criterion(reconstructed, inputs)
-
+            outputs = model(inputs)
+            loss = criterion(outputs, targets)
             loss.backward()
-            optimizer.step()
+            return loss
 
-    return model
+        optimizer.step(closure)
+
+
+class AccumulatingTrainer:
+    """Gradient accumulation with proper zero_grad timing."""
+
+    def __init__(self, model: nn.Module, accumulation_steps: int = 4):
+        self.model = model
+        self.accumulation_steps = accumulation_steps
+        self.optimizer = torch.optim.Adam(model.parameters())
+        self.criterion = nn.MSELoss()
+        self._step = 0
+
+    def train_batch(self, inputs: torch.Tensor, targets: torch.Tensor):
+        if self._step % self.accumulation_steps == 0:
+            self.optimizer.zero_grad()
+
+        outputs = self.model(inputs)
+        loss = self.criterion(outputs, targets) / self.accumulation_steps
+        loss.backward()
+
+        self._step += 1
+        if self._step % self.accumulation_steps == 0:
+            self.optimizer.step()
+
+        return loss.item() * self.accumulation_steps

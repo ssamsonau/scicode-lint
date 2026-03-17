@@ -1,0 +1,1057 @@
+metadata:
+  created_at: '2026-03-16T17:58:08.041673'
+  seed: 42
+  total_scenarios: 50
+  verified_scenarios: 50
+  unverified_scenarios: 0
+scenarios:
+  gen_20260316_173015_PyTorch_neural_network_trainin:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_173015_PyTorch_neural_network_trainin.py
+    expected_patterns:
+      pt-004: 1
+      pt-009: 1
+      pt-010: 1
+    bugs:
+    - pattern_id: pt-004
+      line: 34
+      description: optimizer.zero_grad() is never called before loss.backward(), so
+        gradients accumulate across batches
+    - pattern_id: pt-009
+      line: 36
+      description: loss tensor accumulated directly into epoch_loss instead of loss.item(),
+        retaining computation graphs
+    - pattern_id: pt-010
+      line: 23
+      description: DataLoader created with num_workers=0, forcing single-process data
+        loading
+    verified: true
+  gen_20260316_173029_PyTorch_inference_script__load:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_173029_PyTorch_inference_script__load.py
+    expected_patterns:
+      pt-015: 1
+      pt-007: 1
+      pt-006: 1
+    bugs:
+    - pattern_id: pt-015
+      line: 23
+      description: torch.load() called without map_location, will fail when loading
+        GPU checkpoint on CPU-only system
+    - pattern_id: pt-007
+      line: 31
+      description: model.eval() never called before inference; dropout remains active
+        and batchnorm uses batch statistics
+    - pattern_id: pt-006
+      line: 32
+      description: Raw logits compared directly against threshold=0.5 without applying
+        torch.sigmoid() first
+    verified: true
+  gen_20260316_173050_PyTorch_training_loop_with_val:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_173050_PyTorch_training_loop_with_val.py
+    expected_patterns:
+      pt-004: 1
+      pt-009: 1
+      pt-001: 1
+    bugs:
+    - pattern_id: pt-004
+      line: 27
+      description: optimizer.zero_grad() is never called before loss.backward(), so
+        gradients accumulate across batches
+    - pattern_id: pt-009
+      line: 29
+      description: loss tensor (with attached computation graph) is added directly
+        to total_loss instead of loss.item()
+    - pattern_id: pt-001
+      line: 34
+      description: model.eval() is called inside validate() but model.train() is never
+        called after returning, so subsequent training epochs run in eval mode
+    verified: true
+  gen_20260316_173057_PyTorch_model_inference_script:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_173057_PyTorch_model_inference_script.py
+    expected_patterns:
+      pt-015: 1
+      pt-007: 1
+      pt-006: 1
+    bugs:
+    - pattern_id: pt-015
+      line: 28
+      description: torch.load() called without map_location, will fail when loading
+        GPU checkpoint on CPU-only system
+    - pattern_id: pt-007
+      line: 41
+      description: model.eval() never called; dropout remains active and batchnorm
+        uses batch statistics during inference
+    - pattern_id: pt-006
+      line: 45
+      description: Raw logits compared against 0.5 threshold without applying torch.sigmoid()
+        first; logits are unbounded and comparison is meaningless
+    verified: true
+  gen_20260316_173131_PyTorch_model_inference_script:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_173131_PyTorch_model_inference_script.py
+    expected_patterns:
+      pt-007: 1
+      pt-015: 1
+      pt-006: 1
+    bugs:
+    - pattern_id: pt-007
+      line: 30
+      description: load_model returns model without calling model.eval(), leaving
+        dropout and batchnorm in training mode during inference
+    - pattern_id: pt-015
+      line: 28
+      description: torch.load() called without map_location, will fail on CPU-only
+        systems when checkpoint was saved on GPU
+    - pattern_id: pt-006
+      line: 39
+      description: Raw logits thresholded at 0.5 without applying torch.sigmoid()
+        first; logits are unbounded so this comparison is meaningless
+    verified: true
+  gen_20260316_173245_PyTorch_model_inference_script:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_173245_PyTorch_model_inference_script.py
+    expected_patterns:
+      pt-015: 1
+      pt-007: 1
+      pt-006: 1
+    bugs:
+    - pattern_id: pt-015
+      line: 25
+      description: torch.load() called without map_location, will fail on CPU-only
+        systems
+    - pattern_id: pt-007
+      line: 44
+      description: model.eval() never called before inference; dropout active and
+        batchnorm uses batch stats
+    - pattern_id: pt-006
+      line: 33
+      description: Raw logits thresholded directly without applying torch.sigmoid()
+        first
+    verified: true
+  gen_20260316_173254_PyTorch_neural_network_trainin:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_173254_PyTorch_neural_network_trainin.py
+    expected_patterns:
+      pt-004: 1
+      pt-009: 1
+      pt-010: 1
+    bugs:
+    - pattern_id: pt-004
+      line: 29
+      description: optimizer.zero_grad() is never called before loss.backward(), so
+        gradients accumulate across batches
+    - pattern_id: pt-009
+      line: 31
+      description: loss tensor (with attached computation graph) is added directly
+        to total_loss instead of using loss.item()
+    - pattern_id: pt-010
+      line: 44
+      description: DataLoader created with num_workers=0, forcing single-process data
+        loading and GPU stalls
+    verified: true
+  gen_20260316_173255_PyTorch_model_inference_benchm:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_173255_PyTorch_model_inference_benchm.py
+    expected_patterns:
+      pt-007: 1
+      pt-021: 1
+      pt-014: 1
+    bugs:
+    - pattern_id: pt-007
+      line: 63
+      description: model passed directly to benchmark_model without calling model.eval(),
+        leaving dropout active and batchnorm in training mode
+    - pattern_id: pt-021
+      line: 46
+      description: benchmark loop starts timing immediately with no warmup iterations,
+        first iterations include CUDA JIT and memory allocation overhead
+    - pattern_id: pt-014
+      line: 49
+      description: end time captured without torch.cuda.synchronize(), GPU kernels
+        may still be running when time.perf_counter() is called
+    verified: true
+  gen_20260316_173321_PyTorch_binary_classifier_infe:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_173321_PyTorch_binary_classifier_infe.py
+    expected_patterns:
+      pt-015: 1
+      pt-007: 1
+      pt-006: 1
+    bugs:
+    - pattern_id: pt-015
+      line: 26
+      description: torch.load() called without map_location, will fail when loading
+        GPU checkpoint on CPU-only system
+    - pattern_id: pt-007
+      line: 28
+      description: model.eval() never called after loading; dropout remains active
+        and batchnorm uses batch stats during inference
+    - pattern_id: pt-006
+      line: 35
+      description: logits thresholded directly against 0.5 without applying torch.sigmoid()
+        first; logits are unbounded and comparison is meaningless
+    verified: true
+  gen_20260316_173325_PyTorch_neural_network_trainin:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_173325_PyTorch_neural_network_trainin.py
+    expected_patterns:
+      pt-004: 1
+      pt-009: 1
+      rep-002: 1
+    bugs:
+    - pattern_id: pt-004
+      line: 26
+      description: optimizer.zero_grad() is never called; gradients accumulate across
+        batches
+    - pattern_id: pt-009
+      line: 30
+      description: loss tensor accumulated directly into epoch_loss, retaining computation
+        graphs
+    - pattern_id: rep-002
+      line: 6
+      description: torch.backends.cudnn.deterministic=True without torch.use_deterministic_algorithms(True)
+        and benchmark=False still left unset
+    verified: true
+  gen_20260316_173446_PyTorch_binary_classification_:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_173446_PyTorch_binary_classification_.py
+    expected_patterns:
+      pt-015: 1
+      pt-007: 1
+      pt-006: 1
+    bugs:
+    - pattern_id: pt-015
+      line: 28
+      description: torch.load() called without map_location, will fail on CPU-only
+        systems when checkpoint was saved on GPU
+    - pattern_id: pt-007
+      line: 30
+      description: load_model returns model without calling model.eval(), leaving
+        dropout active and batchnorm using batch statistics during inference
+    - pattern_id: pt-006
+      line: 41
+      description: Raw logits compared against threshold 0.5 without first applying
+        torch.sigmoid(); logits are unbounded so thresholding is meaningless
+    verified: true
+  gen_20260316_173621_PyTorch_training_loop_script:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_173621_PyTorch_training_loop_script.py
+    expected_patterns:
+      pt-004: 1
+      pt-009: 1
+      pt-010: 1
+    bugs:
+    - pattern_id: pt-004
+      line: 38
+      description: "Missing optimizer.zero_grad() before loss.backward() \u2014 gradients\
+        \ accumulate across batches"
+    - pattern_id: pt-009
+      line: 41
+      description: Accumulating loss tensor directly (epoch_loss += loss) keeps computation
+        graphs in memory
+    - pattern_id: pt-010
+      line: 23
+      description: DataLoader created with num_workers=0, forcing single-process data
+        loading
+    verified: true
+  gen_20260316_173658_PyTorch_training_loop_with_val:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_173658_PyTorch_training_loop_with_val.py
+    expected_patterns:
+      pt-004: 1
+      pt-009: 1
+      pt-001: 1
+    bugs:
+    - pattern_id: pt-004
+      line: 42
+      description: loss.backward() called without optimizer.zero_grad() before it;
+        gradients accumulate across all batches
+    - pattern_id: pt-009
+      line: 44
+      description: total_loss += loss accumulates the full tensor with its computation
+        graph instead of a scalar
+    - pattern_id: pt-001
+      line: 48
+      description: model.eval() is called but model.train() is never restored after
+        the validation block; subsequent epochs train in eval mode, disabling Dropout
+        and using frozen BatchNorm statistics
+    verified: true
+  gen_20260316_173705_PyTorch_binary_classifier_infe:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_173705_PyTorch_binary_classifier_infe.py
+    expected_patterns:
+      pt-015: 1
+      pt-007: 1
+      pt-006: 1
+    bugs:
+    - pattern_id: pt-015
+      line: 27
+      description: torch.load() called without map_location, will fail on CPU-only
+        systems
+    - pattern_id: pt-007
+      line: 35
+      description: model.eval() never called; dropout remains active and batchnorm
+        uses batch stats during inference
+    - pattern_id: pt-006
+      line: 36
+      description: Raw logits compared against 0.5 threshold without applying torch.sigmoid()
+        first
+    verified: true
+  gen_20260316_173707_PyTorch_model_inference_benchm:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_173707_PyTorch_model_inference_benchm.py
+    expected_patterns:
+      pt-015: 1
+      pt-021: 1
+      pt-014: 1
+    bugs:
+    - pattern_id: pt-015
+      line: 17
+      description: torch.load() called without map_location, will fail if checkpoint
+        was saved on GPU and loaded on CPU-only system
+    - pattern_id: pt-021
+      line: 29
+      description: Benchmark loop starts timing immediately with no warmup iterations,
+        so first iterations include JIT compilation and CUDA kernel launch overhead
+    - pattern_id: pt-014
+      line: 33
+      description: CUDA timing uses perf_counter without torch.cuda.synchronize()
+        before t1, so GPU ops may not be complete when end time is recorded
+    verified: true
+  gen_20260316_173725_PyTorch_training_loop_with_val:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_173725_PyTorch_training_loop_with_val.py
+    expected_patterns:
+      pt-004: 1
+      pt-009: 1
+      pt-001: 1
+    bugs:
+    - pattern_id: pt-004
+      line: 32
+      description: optimizer.step() called without optimizer.zero_grad() before loss.backward(),
+        causing gradient accumulation across batches
+    - pattern_id: pt-009
+      line: 33
+      description: loss tensor accumulated directly into total_loss without calling
+        .item(), retaining the full computation graph each iteration
+    - pattern_id: pt-001
+      line: 38
+      description: model.eval() called in validate() but model.train() is never called
+        before resuming training in the next epoch
+    verified: true
+  gen_20260316_173811_sklearn_cross_validation_evalu:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_173811_sklearn_cross_validation_evalu.py
+    expected_patterns:
+      ml-001: 1
+      rep-009: 1
+      ml-004: 1
+    bugs:
+    - pattern_id: ml-001
+      line: 20
+      description: StandardScaler fit_transform applied to the entire dataset before
+        cross-validation, leaking test fold statistics into training
+    - pattern_id: rep-009
+      line: 22
+      description: StratifiedKFold uses shuffle=True without random_state, producing
+        different fold splits on each run
+    - pattern_id: ml-004
+      line: 25
+      description: cross_val_score uses scoring='accuracy' on a heavily imbalanced
+        dataset (93/7 split), masking poor minority-class detection
+    verified: true
+  gen_20260316_173813_PyTorch_training_loop:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_173813_PyTorch_training_loop.py
+    expected_patterns:
+      pt-004: 1
+      pt-009: 1
+      pt-010: 1
+    bugs:
+    - pattern_id: pt-004
+      line: 34
+      description: optimizer.zero_grad() is never called; gradients accumulate across
+        batches
+    - pattern_id: pt-009
+      line: 36
+      description: loss tensor (with full computation graph) accumulated directly
+        into total_loss instead of loss.item()
+    - pattern_id: pt-010
+      line: 23
+      description: DataLoader created with num_workers=0, forcing single-process data
+        loading
+    verified: true
+  gen_20260316_173813_PyTorch_training_loop_with_val:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_173813_PyTorch_training_loop_with_val.py
+    expected_patterns:
+      pt-004: 1
+      pt-009: 1
+      pt-001: 1
+    bugs:
+    - pattern_id: pt-004
+      line: 40
+      description: optimizer.zero_grad() is never called before loss.backward(), so
+        gradients accumulate across batches
+    - pattern_id: pt-009
+      line: 42
+      description: loss tensor (with attached computation graph) is added directly
+        to total_loss instead of loss.item()
+    - pattern_id: pt-001
+      line: 47
+      description: validate() sets model.eval() but never restores model.train();
+        training in main() resumes with eval-mode dropout/batchnorm after first validation
+    verified: true
+  gen_20260316_173850_PyTorch_training_loop:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_173850_PyTorch_training_loop.py
+    expected_patterns:
+      pt-004: 1
+      pt-009: 1
+      pt-010: 1
+    bugs:
+    - pattern_id: pt-004
+      line: 24
+      description: optimizer.zero_grad() is never called; gradients accumulate across
+        batches
+    - pattern_id: pt-009
+      line: 28
+      description: loss tensor accumulated directly into epoch_loss without .item(),
+        retaining computation graph
+    - pattern_id: pt-010
+      line: 37
+      description: DataLoader created with num_workers=0, disabling parallel data
+        loading
+    verified: true
+  gen_20260316_173856_PyTorch_neural_network_trainin:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_173856_PyTorch_neural_network_trainin.py
+    expected_patterns:
+      pt-004: 1
+      pt-009: 1
+      pt-010: 1
+    bugs:
+    - pattern_id: pt-004
+      line: 36
+      description: optimizer.zero_grad() is never called; gradients accumulate across
+        batches
+    - pattern_id: pt-009
+      line: 39
+      description: loss tensor (with attached computation graph) is added directly
+        to total_loss instead of loss.item()
+    - pattern_id: pt-010
+      line: 23
+      description: DataLoader created with num_workers=0, forcing single-process data
+        loading
+    verified: true
+  gen_20260316_174013_PyTorch_neural_network_trainin:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_174013_PyTorch_neural_network_trainin.py
+    expected_patterns:
+      pt-004: 1
+      pt-009: 1
+      rep-004: 1
+    bugs:
+    - pattern_id: pt-004
+      line: 30
+      description: optimizer.zero_grad() is never called before loss.backward(), so
+        gradients accumulate across batches
+    - pattern_id: pt-009
+      line: 32
+      description: loss tensor (with computation graph) is added directly to epoch_loss
+        instead of loss.item()
+    - pattern_id: rep-004
+      line: 7
+      description: No random seeds set for torch, numpy, or random before data generation
+        or model initialization
+    verified: true
+  gen_20260316_174030_PyTorch_binary_classifier_infe:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_174030_PyTorch_binary_classifier_infe.py
+    expected_patterns:
+      pt-015: 1
+      pt-007: 1
+      pt-006: 1
+    bugs:
+    - pattern_id: pt-015
+      line: 27
+      description: torch.load() called without map_location, will fail on CPU-only
+        systems
+    - pattern_id: pt-007
+      line: 28
+      description: model.eval() never called; dropout and batchnorm remain in training
+        mode during inference
+    - pattern_id: pt-006
+      line: 36
+      description: Thresholding raw logits directly without applying torch.sigmoid()
+        first
+    verified: true
+  gen_20260316_174101_PyTorch_training_loop_with_val:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_174101_PyTorch_training_loop_with_val.py
+    expected_patterns:
+      pt-004: 1
+      pt-009: 1
+      pt-001: 1
+    bugs:
+    - pattern_id: pt-004
+      line: 27
+      description: optimizer.zero_grad() is never called before loss.backward(), causing
+        gradients to accumulate across batches
+    - pattern_id: pt-009
+      line: 29
+      description: loss tensor accumulated directly into epoch_loss without calling
+        .item(), retaining computation graph across batches
+    - pattern_id: pt-001
+      line: 41
+      description: Training resumes after validation block without calling model.train(),
+        so subsequent forward passes use eval mode (dropout off, batchnorm frozen)
+    verified: true
+  gen_20260316_174259_PyTorch_neural_network_trainin:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_174259_PyTorch_neural_network_trainin.py
+    expected_patterns:
+      pt-004: 1
+      pt-009: 1
+      pt-001: 1
+    bugs:
+    - pattern_id: pt-004
+      line: 53
+      description: optimizer.step() called without optimizer.zero_grad() before loss.backward(),
+        causing gradient accumulation across batches
+    - pattern_id: pt-009
+      line: 55
+      description: epoch_loss += loss accumulates the raw loss tensor, retaining computation
+        graphs and causing a memory leak instead of using loss.item()
+    - pattern_id: pt-001
+      line: 65
+      description: After the model.eval() validation block, a second training loop
+        begins at line 65 without calling model.train(), so dropout and BatchNorm
+        remain in eval mode during these training steps
+    verified: true
+  gen_20260316_174313_PyTorch_neural_network_trainin:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_174313_PyTorch_neural_network_trainin.py
+    expected_patterns:
+      rep-001: 1
+      pt-004: 1
+      pt-009: 1
+    bugs:
+    - pattern_id: rep-001
+      line: 7
+      description: Only torch.manual_seed is called; np.random.seed() and random.seed()
+        are missing, leaving NumPy and Python RNG states unseeded.
+    - pattern_id: pt-004
+      line: 34
+      description: loss.backward() is called without a preceding optimizer.zero_grad(),
+        so gradients accumulate across batches.
+    - pattern_id: pt-009
+      line: 36
+      description: total_loss += loss accumulates the raw loss tensor, retaining the
+        full computation graph in memory instead of extracting the scalar via loss.item().
+    verified: true
+  gen_20260316_174646_PyTorch_neural_network_trainin:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_174646_PyTorch_neural_network_trainin.py
+    expected_patterns:
+      pt-004: 1
+      pt-009: 1
+      pt-001: 1
+    bugs:
+    - pattern_id: pt-004
+      line: 39
+      description: optimizer.step() called without optimizer.zero_grad(), gradients
+        accumulate across batches
+    - pattern_id: pt-009
+      line: 40
+      description: loss tensor (not loss.item()) accumulated into epoch_loss, retaining
+        computation graph
+    - pattern_id: pt-001
+      line: 53
+      description: model.eval() set for validation at line 43 but model.train() never
+        called before resuming training at line 53
+    verified: true
+  gen_20260316_174654_PyTorch_binary_classification_:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_174654_PyTorch_binary_classification_.py
+    expected_patterns:
+      pt-007: 1
+      pt-013: 1
+      pt-006: 1
+    bugs:
+    - pattern_id: pt-007
+      line: 44
+      description: model.load_state_dict() is called but model.eval() is never called,
+        leaving dropout active and batchnorm using batch statistics during inference
+    - pattern_id: pt-013
+      line: 33
+      description: torch.no_grad() is used instead of torch.inference_mode(), which
+        is faster and more appropriate for production inference
+    - pattern_id: pt-006
+      line: 36
+      description: Raw logits are compared directly against threshold 0.5 without
+        applying torch.sigmoid() first; logits are unbounded and the comparison is
+        meaningless
+    verified: true
+  gen_20260316_174735_PyTorch_model_inference_evalua:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_174735_PyTorch_model_inference_evalua.py
+    expected_patterns:
+      pt-007: 1
+      pt-006: 1
+      pt-011: 1
+    bugs:
+    - pattern_id: pt-007
+      line: 34
+      description: model.eval() is never called before inference; dropout remains
+        active and batchnorm uses batch statistics instead of running statistics
+    - pattern_id: pt-006
+      line: 36
+      description: Logits compared directly against 0.5 threshold without applying
+        torch.sigmoid() first; raw logits are unbounded so the threshold is meaningless
+    - pattern_id: pt-011
+      line: 31
+      description: Entire 50000-sample test set converted to tensor and moved to GPU
+        in one call, causing OOM on large datasets
+    verified: true
+  gen_20260316_174742_PyTorch_training_loop_with_val:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_174742_PyTorch_training_loop_with_val.py
+    expected_patterns:
+      pt-004: 1
+      pt-009: 1
+    bugs:
+    - pattern_id: pt-004
+      line: 46
+      description: optimizer.zero_grad() is never called before loss.backward(), so
+        gradients accumulate across batches
+    - pattern_id: pt-009
+      line: 48
+      description: train_loss += loss accumulates the raw loss tensor, retaining the
+        full computation graph each iteration
+    verified: true
+  gen_20260316_174752_PyTorch_training_loop_with_val:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_174752_PyTorch_training_loop_with_val.py
+    expected_patterns:
+      pt-001: 1
+      pt-009: 1
+      pt-004: 1
+    bugs:
+    - pattern_id: pt-001
+      line: 35
+      description: model.eval() is called before validation but model.train() is never
+        called before the training loop resumes
+    - pattern_id: pt-009
+      line: 47
+      description: loss tensor accumulated directly into epoch_loss, retaining computation
+        graphs across batches
+    - pattern_id: pt-004
+      line: 48
+      description: optimizer.zero_grad() is never called before loss.backward(), causing
+        gradient accumulation
+    verified: true
+  gen_20260316_174809_PyTorch_neural_network_trainin:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_174809_PyTorch_neural_network_trainin.py
+    expected_patterns:
+      pt-004: 1
+      pt-009: 1
+      rep-004: 1
+    bugs:
+    - pattern_id: pt-004
+      line: 31
+      description: optimizer.step() called without preceding optimizer.zero_grad(),
+        so gradients accumulate across batches
+    - pattern_id: pt-009
+      line: 32
+      description: loss tensor added directly to total_loss, retaining computation
+        graph and causing memory leak
+    - pattern_id: rep-004
+      line: 40
+      description: No random seed set for torch, numpy, or random before data generation
+        and model init
+    verified: true
+  gen_20260316_174917_PyTorch_multi_class_classifica:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_174917_PyTorch_multi_class_classifica.py
+    expected_patterns:
+      rep-004: 1
+      pt-020: 1
+      pt-004: 1
+    bugs:
+    - pattern_id: rep-004
+      line: 1
+      description: "No random seed set for numpy, torch, or random \u2014 results\
+        \ are non-reproducible across runs"
+    - pattern_id: pt-020
+      line: 20
+      description: softmax applied in forward() before CrossEntropyLoss, causing double
+        normalization
+    - pattern_id: pt-004
+      line: 34
+      description: "optimizer.zero_grad() is never called \u2014 gradients accumulate\
+        \ across batches"
+    verified: true
+  gen_20260316_174920_PyTorch_training_loop_with_val:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_174920_PyTorch_training_loop_with_val.py
+    expected_patterns:
+      pt-004: 1
+      pt-009: 1
+      pt-001: 1
+    bugs:
+    - pattern_id: pt-004
+      line: 28
+      description: loss.backward() called without optimizer.zero_grad() beforehand;
+        gradients accumulate across batches
+    - pattern_id: pt-009
+      line: 30
+      description: epoch_loss += loss accumulates the raw loss tensor, retaining computation
+        graphs across batches
+    - pattern_id: pt-001
+      line: 32
+      description: model.eval() is called for validation but model.train() is never
+        called after; subsequent epochs train in eval mode
+    verified: true
+  gen_20260316_174924_GPU_inference_benchmarking_scr:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_174924_GPU_inference_benchmarking_scr.py
+    expected_patterns:
+      pt-007: 1
+      pt-014: 1
+      pt-021: 1
+    bugs:
+    - pattern_id: pt-007
+      line: 40
+      description: model created and used for inference without calling model.eval(),
+        leaving dropout active and batchnorm using batch statistics
+    - pattern_id: pt-014
+      line: 45
+      description: torch.cuda.synchronize() is called before end time but missing
+        before start time measurement, so GPU ops from prior iteration bleed into
+        current timing
+    - pattern_id: pt-021
+      line: 44
+      description: timing loop starts immediately at i=0 with no warmup iterations,
+        including first-batch JIT and CUDA kernel launch overhead in measurements
+    verified: true
+  gen_20260316_174943_PyTorch_inference_benchmarking:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_174943_PyTorch_inference_benchmarking.py
+    expected_patterns:
+      pt-007: 1
+      pt-021: 1
+      pt-014: 1
+    bugs:
+    - pattern_id: pt-007
+      line: 51
+      description: model.to(device) is called but model.eval() is never called, leaving
+        dropout active and batchnorm using batch statistics during inference
+    - pattern_id: pt-021
+      line: 56
+      description: Timing loop starts immediately with no warmup iterations, so first
+        iterations include CUDA JIT compilation and memory allocation overhead
+    - pattern_id: pt-014
+      line: 59
+      description: end time is captured with time.perf_counter() immediately after
+        model forward pass without torch.cuda.synchronize(), so GPU kernels may not
+        have completed
+    verified: true
+  gen_20260316_175035_PyTorch_classification_trainin:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_175035_PyTorch_classification_trainin.py
+    expected_patterns:
+      pt-020: 1
+      pt-004: 1
+      pt-012: 1
+    bugs:
+    - pattern_id: pt-020
+      line: 20
+      description: softmax applied in forward() before CrossEntropyLoss, causing double
+        normalization
+    - pattern_id: pt-004
+      line: 30
+      description: loss.backward() called with no optimizer.zero_grad() anywhere in
+        the loop; gradients accumulate indefinitely across all steps
+    - pattern_id: pt-012
+      line: 30
+      description: loss passed directly to backward() without dividing by accumulation_steps=4,
+        making effective gradients 4x larger than intended
+    verified: true
+  gen_20260316_175320_PyTorch_inference_benchmarking:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_175320_PyTorch_inference_benchmarking.py
+    expected_patterns:
+      pt-007: 1
+      pt-006: 1
+      pt-014: 1
+    bugs:
+    - pattern_id: pt-007
+      line: 46
+      description: model is created and passed to benchmark_model without calling
+        model.eval(), so dropout and batchnorm remain in training mode during inference
+    - pattern_id: pt-006
+      line: 41
+      description: raw logits compared directly against 0.5 threshold without applying
+        torch.sigmoid() first; logits are unbounded so this comparison is meaningless
+    - pattern_id: pt-014
+      line: 34
+      description: end = time.perf_counter() measured without a preceding torch.cuda.synchronize(),
+        so GPU ops may still be in-flight and the timing is inaccurate
+    verified: true
+  gen_20260316_175459_PyTorch_model_inference_script:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_175459_PyTorch_model_inference_script.py
+    expected_patterns:
+      pt-015: 1
+      pt-007: 1
+      pt-006: 1
+    bugs:
+    - pattern_id: pt-015
+      line: 26
+      description: torch.load() called without map_location, will fail when loading
+        a GPU checkpoint on a CPU-only machine
+    - pattern_id: pt-007
+      line: 31
+      description: model.eval() is never called; dropout remains active and batchnorm
+        uses batch statistics during inference
+    - pattern_id: pt-006
+      line: 35
+      description: Raw logits compared directly against 0.5 threshold; sigmoid must
+        be applied first since logits are unbounded
+    verified: true
+  gen_20260316_175534_PyTorch_training_loop_with_val:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_175534_PyTorch_training_loop_with_val.py
+    expected_patterns:
+      pt-004: 1
+      pt-001: 1
+    bugs:
+    - pattern_id: pt-004
+      line: 70
+      description: loss.backward() called without optimizer.zero_grad() beforehand;
+        gradients accumulate across batches
+    - pattern_id: pt-001
+      line: 74
+      description: evaluate() sets model.eval() but model.train() is never called
+        afterward; subsequent epochs train in eval mode
+    verified: true
+  gen_20260316_175547_PyTorch_inference_script_loadi:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_175547_PyTorch_inference_script_loadi.py
+    expected_patterns:
+      pt-015: 1
+      pt-007: 1
+      pt-006: 1
+    bugs:
+    - pattern_id: pt-015
+      line: 30
+      description: torch.load() called without map_location, will fail on CPU-only
+        systems
+    - pattern_id: pt-007
+      line: 32
+      description: model.eval() never called after loading; dropout and batchnorm
+        remain in training mode
+    - pattern_id: pt-006
+      line: 44
+      description: Raw logits thresholded directly without applying torch.sigmoid()
+        first
+    verified: true
+  gen_20260316_175554_PyTorch_neural_network_trainin:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_175554_PyTorch_neural_network_trainin.py
+    expected_patterns:
+      pt-004: 1
+      pt-009: 1
+      rep-004: 1
+    bugs:
+    - pattern_id: pt-004
+      line: 22
+      description: optimizer.zero_grad() is never called; gradients accumulate across
+        batches
+    - pattern_id: pt-009
+      line: 27
+      description: loss tensor accumulated directly into epoch_loss, retaining computation
+        graph
+    - pattern_id: rep-004
+      line: 31
+      description: No random seeds set for torch, numpy, or random before data generation
+        and training
+    verified: true
+  gen_20260316_175557_PyTorch_training_loop_with_val:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_175557_PyTorch_training_loop_with_val.py
+    expected_patterns:
+      pt-004: 1
+      pt-007: 1
+      rep-002: 1
+    bugs:
+    - pattern_id: pt-004
+      line: 30
+      description: optimizer.step() called without optimizer.zero_grad(), so gradients
+        accumulate across batches
+    - pattern_id: pt-007
+      line: 35
+      description: evaluate() never calls model.eval(), leaving dropout active and
+        batchnorm using batch statistics during validation
+    - pattern_id: rep-002
+      line: 6
+      description: Only torch.manual_seed is set; torch.use_deterministic_algorithms(True)
+        and torch.backends.cudnn.benchmark=False are missing
+    verified: true
+  gen_20260316_175603_PyTorch_training_loop_with_gra:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_175603_PyTorch_training_loop_with_gra.py
+    expected_patterns:
+      pt-004: 1
+      pt-009: 1
+      pt-001: 1
+    bugs:
+    - pattern_id: pt-004
+      line: 38
+      description: optimizer.step() called without optimizer.zero_grad() before loss.backward(),
+        causing gradient accumulation across batches
+    - pattern_id: pt-009
+      line: 36
+      description: loss tensor accumulated directly into epoch_loss, keeping computation
+        graphs alive and causing memory leaks
+    - pattern_id: pt-001
+      line: 40
+      description: evaluate() sets model.eval() but train() never calls model.train()
+        afterward, leaving dropout disabled for subsequent training epochs
+    verified: true
+  gen_20260316_175637_PyTorch_binary_classifier_trai:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_175637_PyTorch_binary_classifier_trai.py
+    expected_patterns:
+      pt-020: 1
+      pt-004: 1
+      rep-003: 1
+    bugs:
+    - pattern_id: pt-020
+      line: 15
+      description: softmax applied in forward() before CrossEntropyLoss, causing double
+        normalization
+    - pattern_id: pt-004
+      line: 21
+      description: optimizer.zero_grad() is missing before loss.backward() in the
+        training loop
+    - pattern_id: rep-003
+      line: 33
+      description: 'Hardcoded magic numbers: batch_size=32, lr=0.001, epochs=15, hidden_dim=64,
+        input_dim=20 buried in code'
+    verified: true
+  gen_20260316_175640_PyTorch_model_inference_script:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_175640_PyTorch_model_inference_script.py
+    expected_patterns:
+      pt-015: 1
+      pt-007: 1
+      pt-013: 1
+    bugs:
+    - pattern_id: pt-015
+      line: 47
+      description: torch.load() called without map_location, will fail if checkpoint
+        was saved on GPU and loaded on CPU-only system
+    - pattern_id: pt-007
+      line: 49
+      description: model.eval() never called before inference; dropout remains active
+        and batchnorm uses batch statistics instead of running statistics
+    - pattern_id: pt-013
+      line: 63
+      description: torch.no_grad() used instead of torch.inference_mode(), which is
+        faster and more appropriate for production inference
+    verified: true
+  gen_20260316_175641_ML_classification_preprocessin:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_175641_ML_classification_preprocessin.py
+    expected_patterns:
+      ml-001: 1
+      ml-008: 1
+      rep-004: 1
+    bugs:
+    - pattern_id: ml-001
+      line: 16
+      description: StandardScaler is fit on the full dataset X before cross-validation
+        splits, leaking test set statistics into training.
+    - pattern_id: ml-008
+      line: 18
+      description: KFold used instead of StratifiedKFold on imbalanced data (85/15
+        class ratio), risking skewed fold distributions.
+    - pattern_id: rep-004
+      line: 18
+      description: 'No random seed set for any source of randomness: make_classification
+        (line 8), KFold with shuffle=True (line 18), and LogisticRegression (line
+        20) all lack random_state; results will differ between runs.'
+    verified: true
+  gen_20260316_175641_PyTorch_training_loop_with_val:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_175641_PyTorch_training_loop_with_val.py
+    expected_patterns:
+      pt-004: 1
+      pt-009: 1
+      pt-001: 1
+    bugs:
+    - pattern_id: pt-004
+      line: 36
+      description: optimizer.zero_grad() is never called before loss.backward(), so
+        gradients accumulate across batches
+    - pattern_id: pt-009
+      line: 38
+      description: total_loss += loss accumulates the raw loss tensor, retaining the
+        computation graph each iteration
+    - pattern_id: pt-001
+      line: 33
+      description: model.eval() is called for validation but model.train() is never
+        called before the training loop resumes
+    verified: true
+  gen_20260316_175652_PyTorch_neural_network_trainin:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_175652_PyTorch_neural_network_trainin.py
+    expected_patterns:
+      pt-001: 1
+      pt-004: 1
+      pt-009: 1
+    bugs:
+    - pattern_id: pt-001
+      line: 57
+      description: No model.train() call after the validation block; training resumes
+        with dropout and batchnorm in eval mode
+    - pattern_id: pt-004
+      line: 62
+      description: optimizer.zero_grad() is never called; gradients from previous
+        batches accumulate before loss.backward()
+    - pattern_id: pt-009
+      line: 64
+      description: epoch_loss += loss accumulates the live tensor instead of loss.item(),
+        retaining computation graphs across the entire epoch
+    verified: true
+  gen_20260316_175808_PyTorch_classifier_training_sc:
+    description: Generated scenario with 3 patterns
+    file: scenarios/gen_20260316_175808_PyTorch_classifier_training_sc.py
+    expected_patterns:
+      ml-001: 1
+      pt-004: 1
+      pt-009: 1
+    bugs:
+    - pattern_id: ml-001
+      line: 12
+      description: StandardScaler.fit_transform called on full X before train/test
+        split, leaking test distribution into training preprocessing
+    - pattern_id: pt-004
+      line: 47
+      description: optimizer.zero_grad() is never called; gradients accumulate across
+        batches causing incorrect weight updates
+    - pattern_id: pt-009
+      line: 51
+      description: epoch_loss += loss accumulates the live loss tensor retaining computation
+        graphs; should use loss.item()
+    verified: true
+evaluation:
+  run_all_patterns: true
+  verbose: true
+  stop_on_first_failure: false

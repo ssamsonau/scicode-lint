@@ -13,7 +13,7 @@ class FeedForward(nn.Module):
         return self.net(x)
 
 
-def incorrect_training_order(model, train_loader):
+def train_feedforward(model, train_loader):
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     criterion = nn.CrossEntropyLoss()
 
@@ -21,14 +21,12 @@ def incorrect_training_order(model, train_loader):
         outputs = model(data)
         loss = criterion(outputs, labels)
 
-        # Clear old gradients
         for param in model.parameters():
             if param.grad is not None:
                 param.grad.zero_()
 
         optimizer.step()
 
-        # Computing gradients after parameters already updated
         loss.backward()
 
     return model

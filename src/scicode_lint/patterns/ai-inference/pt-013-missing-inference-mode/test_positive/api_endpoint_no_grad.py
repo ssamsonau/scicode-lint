@@ -1,28 +1,29 @@
 import torch
 import torch.nn as nn
+from torchvision import transforms
 
 
-class TextClassifier(nn.Module):
-    def __init__(self, vocab_size, embed_dim, num_classes):
-        super().__init__()
-        self.embedding = nn.Embedding(vocab_size, embed_dim)
-        self.fc = nn.Linear(embed_dim, num_classes)
+class ImageClassificationService:
+    def __init__(self, model_path):
+        self.model = torch.jit.load(model_path)
+        self.model.eval()
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model.to(self.device)
+        self.preprocess = transforms.Compose([
+            transforms.Resize(224),
+            transforms.CenterCrop(224),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
 
-    def forward(self, x):
-        x = self.embedding(x).mean(dim=1)
-        return self.fc(x)
+    def classify_image(self, image_tensor):
+        processed = self.preprocess(image_tensor).unsqueeze(0).to(self.device)
+        with torch.no_grad():
+            logits = self.model(processed)
+            probs = torch.softmax(logits, dim=-1)
+        return probs.squeeze().cpu()
 
-
-classifier = TextClassifier(10000, 128, 5)
-classifier.eval()
-
-
-def classify_text(token_ids):
-    with torch.no_grad():
-        logits = classifier(token_ids)
-        return torch.softmax(logits, dim=-1)
-
-
-def get_embeddings(token_ids):
-    with torch.no_grad():
-        return classifier.embedding(token_ids)
+    def classify_batch(self, image_tensors):
+        batch = torch.stack([self.preprocess(img) for img in image_tensors]).to(self.device)
+        with torch.no_grad():
+            logits = self.model(batch)
+        return torch.softmax(logits, dim=-1).cpu()

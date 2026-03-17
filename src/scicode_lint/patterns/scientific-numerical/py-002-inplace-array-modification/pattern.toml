@@ -43,7 +43,7 @@ Look for:
 - Operations that mutate the caller's data without .copy()
 
 YES = Bug found: function parameter modified in-place without copy
-NO = Correct: creates copy before modification, or only uses non-mutating operations
+NO = Correct: creates copy before modification, only uses non-mutating operations, or function clearly documents in-place mutation
 """
 
 warning_message = """
@@ -52,7 +52,10 @@ NumPy arrays are passed by reference. Modifying inside a function silently chang
 """
 
 min_confidence = 0.85
-false_positive_risks = []
+false_positive_risks = [
+    "Functions with documented in-place semantics (e.g., sort-like utilities)",
+    "Operations on locally-created arrays within the function",
+]
 
 [tests]
 
@@ -66,6 +69,7 @@ min_confidence = 0.85
 type = "function"
 name = "preprocess_data"
 snippet = "data -= data.mean()"
+lines = [5]
 
 [[tests.positive]]
 file = "test_positive/silent_modification.py"
@@ -77,17 +81,8 @@ min_confidence = 0.85
 type = "function"
 name = "normalize_weights"
 snippet = "weights /= total"
+lines = [6]
 
-[[tests.negative]]
-file = "test_negative/explicit_copy.py"
-description = "Functions that explicitly copy input arrays using .copy() before any modifications, preserving caller's original data"
-
-[[tests.negative]]
-file = "test_negative/nonmutating_ops.py"
-description = "Functions that create new arrays via operations like division, np.where(), np.maximum(), or explicit new array creation"
-
-
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/data_transform.py"
 description = "Functions that modify input arrays in-place using *= and += operators or slice assignment without creating a copy first"
@@ -98,6 +93,15 @@ min_confidence = 0.85
 type = "function"
 name = "apply_transform"
 snippet = "data *= factor"
+lines = [5]
+
+[[tests.negative]]
+file = "test_negative/explicit_copy.py"
+description = "Functions that explicitly copy input arrays using .copy() before any modifications, preserving caller's original data"
+
+[[tests.negative]]
+file = "test_negative/nonmutating_ops.py"
+description = "Functions that create new arrays via operations like division, np.where(), np.maximum(), or explicit new array creation"
 
 [[tests.negative]]
 file = "test_negative/data_transform_copy.py"

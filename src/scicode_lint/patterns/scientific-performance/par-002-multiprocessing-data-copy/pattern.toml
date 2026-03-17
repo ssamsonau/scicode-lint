@@ -22,7 +22,10 @@ Data duplication: multiprocessing copies data to each process. 4 processes on a 
 
 tags = []
 related_patterns = []
-references = []
+references = [
+    "https://docs.python.org/3/library/multiprocessing.shared_memory.html",
+    "https://docs.python.org/3/library/multiprocessing.html#sharing-state-between-processes",
+]
 
 [detection]
 question = """
@@ -63,17 +66,19 @@ min_confidence = 0.85
 type = "function"
 name = "parallel_process_array"
 snippet = "results = pool.map(apply_filter, [large_array] * num_processes)"
+lines = [14]
 
 [[tests.positive]]
 file = "test_positive/processpool_full_data.py"
-description = "ProcessPoolExecutor submitting same large matrix to multiple workers - memory usage multiplies by worker count"
-expected_issue = "Full data matrix submitted to each process without shared memory"
+description = "functools.partial closing over large array - entire dataset copied when partial is pickled for each worker"
+expected_issue = "Large array captured by partial function causes data duplication across workers"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "analyze_in_parallel"
-snippet = "futures = [executor.submit(compute_statistics, data_matrix) for _ in range(4)]"
+name = "parallel_slice_analysis"
+snippet = "worker_func = partial(compute_slice_stats, full_data=data)"
+lines = [16, 18]
 
 [[tests.negative]]
 file = "test_negative/shared_memory_approach.py"
@@ -84,18 +89,18 @@ file = "test_negative/index_passing.py"
 description = "Passes only index ranges to workers instead of full data - efficient memory usage"
 
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/shared_array_copy.py"
-description = "Pool.map duplicates large array to 4 workers and ProcessPoolExecutor submits the same large array to multiple workers without shared memory"
-expected_issue = "Large arrays passed to workers via pool.map([array] * 4) and repeated submissions cause memory duplication"
+description = "ProcessPoolExecutor submitting object containing large array - serializes entire dataset to each worker"
+expected_issue = "Object with large dataset attribute submitted to ProcessPoolExecutor workers"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "parallel_transform"
-snippet = "results = pool.map(transform_fn, [large_array] * 4)"
+name = "run_parallel_analysis"
+snippet = "futures = [executor.submit(processor.analyze, op) for op in operations]"
+lines = [20]
 
 [[tests.negative]]
 file = "test_negative/shared_array_proper.py"
-description = "Uses multiprocessing.shared_memory to create a shared buffer and passes only metadata (name, shape, dtype, indices) to workers, avoiding data duplication"
+description = "Uses numpy memmap for file-based data sharing - workers access shared file without data copying"

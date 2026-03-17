@@ -6,7 +6,7 @@ def compute_log_sum(data):
     return result
 
 
-def safe_log_ratio(numerator, denominator):
+def compute_log_ratio(numerator, denominator):
     eps = 1e-12
     ratio = numerator / (denominator + eps)
     log_ratio = np.log(np.maximum(ratio, eps))

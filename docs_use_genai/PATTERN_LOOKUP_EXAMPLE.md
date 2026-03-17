@@ -76,7 +76,7 @@ def check_and_explain(file_path: str):
         # Basic info from finding
         print(f"Issue: {finding.id}")
         print(f"  Severity: {finding.severity}")
-        print(f"  Location: {finding.location.type} '{finding.location.name}'")
+        print(f"  Location: {finding.location.location_type} '{finding.location.name}'")
         print(f"  Code: {finding.location.snippet}")
         print(f"  Explanation: {finding.explanation}")
 

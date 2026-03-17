@@ -72,6 +72,7 @@ min_confidence = 0.85
 type = "function"
 name = "train"
 snippet = "loss.backward()"
+lines = [30]
 
 [[tests.positive]]
 file = "test_positive/zero_grad_outside_loop.py"
@@ -83,6 +84,7 @@ min_confidence = 0.85
 type = "function"
 name = "training_procedure"
 snippet = "p.grad.zero_()"
+lines = [30]
 
 [[tests.negative]]
 file = "test_negative/correct_zero_grad.py"
@@ -103,6 +105,7 @@ min_confidence = 0.85
 type = "function"
 name = "train_multi_task"
 snippet = "loss_a.backward(retain_graph=True)"
+lines = [10]
 
 [[tests.negative]]
 file = "test_negative/multi_loss_train_correct.py"

@@ -61,7 +61,7 @@
 ### Minor Issues
 
 1. **Default is text output** - Should default to JSON for programmatic use
-   - Current: `scicode-lint check file.py` → text
+   - Current: `scicode-lint lint file.py` → text
    - Better: Detect if stdout is TTY, auto-select format
 
 2. **Documentation hierarchy** - Human docs in README, GenAI docs in subfolder

@@ -1,32 +1,27 @@
-import pandas as pd
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import RidgeClassifier
 
 
-def prepare_data(data: pd.DataFrame):
-    """Prepare train/test from same source using filtering - potential overlap."""
-    # If 'split' column has errors or missing values, data could leak
-    # Same source without using a proper split function
-    train_data = data[data["split"] == "train"]
-    test_data = data[data["split"] == "test"]
+def quality_based_split(df, quality_col="quality_score"):
+    high_quality = df[df[quality_col] > 0.5]
+    low_quality = df[df[quality_col] > 0.3]
 
-    return train_data, test_data
+    X_train = high_quality.drop(columns=["target", quality_col]).values
+    y_train = high_quality["target"].values
+    X_test = low_quality.drop(columns=["target", quality_col]).values
+    y_test = low_quality["target"].values
 
-
-def load_and_train():
-    # Load single dataset
-    data = pd.read_csv("full_dataset.csv")
-
-    # Both train and test come from same loaded DataFrame
-    # If the 'split' column is unreliable, overlap can occur
-    train, test = prepare_data(data)
-
-    X_train = train.drop(["target", "split"], axis=1)
-    y_train = train["target"]
-    X_test = test.drop(["target", "split"], axis=1)
-    y_test = test["target"]
-
-    model = LogisticRegression()
+    model = RidgeClassifier()
     model.fit(X_train, y_train)
+    return model.score(X_test, y_test)
 
-    accuracy = model.score(X_test, y_test)
-    return model, accuracy
+
+def confidence_split(predictions_df):
+    confident = predictions_df[predictions_df["confidence"] >= 0.7]
+    uncertain = predictions_df[predictions_df["confidence"] >= 0.4]
+
+    train_features = confident[["f1", "f2", "f3"]].values
+    train_labels = confident["label"].values
+    test_features = uncertain[["f1", "f2", "f3"]].values
+    test_labels = uncertain["label"].values
+
+    return train_features, test_features, train_labels, test_labels

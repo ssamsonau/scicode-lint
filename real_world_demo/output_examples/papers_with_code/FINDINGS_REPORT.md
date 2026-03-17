@@ -1,23 +1,49 @@
-# Real-World Scientific ML Code Analysis Report (Verified Findings Only)
-
-> **⚠️ Results Pending Re-evaluation**
->
-> This analysis was run with a bug that reduced detection accuracy from ~99% to ~78%.
-> The bug caused `response_format: json_schema` to skip Qwen3's thinking phase.
-> Results are expected to improve after re-running with the fix (commit 39847fa).
-> See `src/scicode_lint/llm/client.py` module docstring for details.
+# Real-World Scientific ML Code Analysis Report
 
 Analysis of Python code from **AI applications to scientific domains**. Papers sourced from PapersWithCode, filtered to include only scientific domains (biology, chemistry, physics, medicine, earth science, astronomy, materials, etc.) where ML/AI is applied to scientific discovery and domain-specific research.
 
 ## Analysis Summary
 
-- **Analysis Date:** 2026-03-12 18:52
-- **Report Generated:** 2026-03-12 23:36
-- **Papers with Findings:** 38 / 38 (100.0%)
-- **Repos with Findings:** 48 / 48 (100.0%)
-- **Files Analyzed:** 884 / 884
-- **Files with Findings:** 530 (60.0%)
-- **Total Findings:** 1,709
+- **Analysis Date:** 2026-03-16 19:47
+- **Report Generated:** 2026-03-16 18:01
+- **scicode-lint Version:** 0.2.1
+- **Papers with Findings:** 27 / 32 (84.4%)
+- **Repos with Findings:** 30 / 35 (85.7%)
+- **Files Analyzed:** 120 / 120
+- **Files with Findings:** 90 (75.0%)
+- **Total Findings:** 219
+
+## Prefilter Summary
+
+Files were classified by LLM as self-contained ML pipelines vs code fragments. Only self-contained files (complete training/inference workflows) were analyzed.
+
+| Classification | Files | % |
+|----------------|-------|---|
+| Self-contained (analyzed) | 120 | 13.6% |
+| Fragment (skipped) | 749 | 84.7% |
+| Error | 15 | 1.7% |
+| **Total** | **884** | |
+
+### Papers/Repos Filtered
+
+- **Papers:** 32 analyzed / 38 original (6 dropped)
+- **Repos:** 35 analyzed / 47 original (12 dropped)
+
+**12 repos dropped** (all files classified as fragments):
+
+- `AstraZeneca__chemicalx`
+- `CompRhys__aviary`
+- `CompRhys__roost`
+- `citrineinformatics-erd-public__piml_glass_forming_ability`
+- `coarse-graining__cgnet`
+- `idea-iitd__greed`
+- `idea-iitd__neurosed`
+- `mtian8__gw_spatiotemporal_gnn`
+- `sheoyon-jhin__contime`
+- `tpospisi__DeepCDE`
+- ... and 2 more
+
+*Prefilter model: qwen3-8b-fp8*
 
 ## Papers by Severity
 
@@ -25,91 +51,91 @@ Papers with at least one finding of each severity level (a paper may appear in m
 
 | Severity | Papers | % of Papers Analyzed |
 |----------|--------|----------------------|
-| Critical | 35 | 92.1% |
-| High | 37 | 97.4% |
-| Medium | 35 | 92.1% |
+| Critical | 12 | 37.5% |
+| High | 25 | 78.1% |
+| Medium | 18 | 56.2% |
 
-*Total papers analyzed: 38*
+*Total papers analyzed: 32*
 
 ## Findings Distribution (per paper)
 
 | Metric | All | Critical | High | Medium | Low |
 |--------|-----|----------|------|--------|-----|
-| Papers | 38 | 35 | 37 | 35 | 0 |
-| Min | 2 | 1 | 1 | 1 | - |
-| Max | 346 | 42 | 186 | 118 | - |
-| Mean | 45.0 | 7.2 | 24.8 | 15.5 | - |
-| Median | 28.0 | 5.0 | 15.0 | 11.0 | - |
-| Std Dev | 64.0 | 8.6 | 36.4 | 20.9 | - |
+| Papers | 27 | 12 | 25 | 18 | 0 |
+| Min | 1 | 1 | 1 | 1 | - |
+| Max | 41 | 4 | 20 | 20 | - |
+| Mean | 8.1 | 2.4 | 5.4 | 3.1 | - |
+| Median | 6.0 | 2.5 | 4.0 | 2.0 | - |
+| Std Dev | 8.9 | 1.2 | 5.0 | 4.4 | - |
 
 ## Verification Summary
 
-**Overall Precision:** 18.1% (309 valid / 1,709 verified)
+**Overall Precision:** 45.2% (99 valid / 219 verified)
 
 | Status | Count | % |
 |--------|-------|---|
-| Valid (confirmed) | 309 | 18.1% |
-| Invalid (false positive) | 1,303 | 76.2% |
-| Uncertain | 97 | 5.7% |
+| Valid (confirmed) | 99 | 45.2% |
+| Invalid (false positive) | 111 | 50.7% |
+| Uncertain | 9 | 4.1% |
 
 ### Verified Findings by Severity
 
 | Severity | Total | Valid | Invalid | Uncertain | Pending | Precision |
 |----------|-------|-------|---------|-----------|---------|-----------|
-| Critical | 251 | 8 | 180 | 63 | 0 | 3% |
-| High | 916 | 157 | 733 | 26 | 0 | 17% |
-| Medium | 542 | 144 | 390 | 8 | 0 | 27% |
+| Critical | 29 | 3 | 24 | 2 | 0 | 10% |
+| High | 135 | 69 | 60 | 6 | 0 | 51% |
+| Medium | 55 | 27 | 27 | 1 | 0 | 49% |
 
 ## Findings by Scientific Domain
 
 | Domain | Files Analyzed | With Findings | Finding Rate | Total Findings |
 |--------|---------------|---------------|--------------|----------------|
-| chemistry | 216 | 169 | 78.2% | 633 |
-| earth_science | 257 | 95 | 37.0% | 257 |
-| none | 50 | 43 | 86.0% | 142 |
-| materials | 53 | 37 | 69.8% | 132 |
-| economics | 94 | 48 | 51.1% | 114 |
-| biology | 54 | 45 | 83.3% | 109 |
-| medicine | 46 | 25 | 54.3% | 97 |
-| engineering | 38 | 23 | 60.5% | 88 |
-| astronomy | 15 | 14 | 93.3% | 55 |
-| physics | 21 | 16 | 76.2% | 49 |
-| neuroscience | 15 | 9 | 60.0% | 20 |
-| social_science | 6 | 4 | 66.7% | 11 |
-| mathematics | 6 | 2 | 33.3% | 2 |
+| chemistry | 45 | 31 | 68.9% | 60 |
+| earth_science | 17 | 16 | 94.1% | 46 |
+| materials | 5 | 5 | 100.0% | 22 |
+| none | 8 | 7 | 87.5% | 19 |
+| economics | 6 | 5 | 83.3% | 19 |
+| biology | 7 | 7 | 100.0% | 14 |
+| engineering | 10 | 6 | 60.0% | 13 |
+| medicine | 8 | 7 | 87.5% | 13 |
+| astronomy | 5 | 3 | 60.0% | 7 |
+| neuroscience | 3 | 2 | 66.7% | 4 |
+| physics | 2 | 1 | 50.0% | 2 |
+| mathematics | 2 | 0 | 0.0% | 0 |
+| social_science | 1 | 0 | 0.0% | 0 |
 
 ## Findings by Category
 
 | Category | Count | Unique Files | Unique Repos |
 |----------|-------|--------------|--------------|
-| scientific-reproducibility | 712 | 389 | 45 |
-| scientific-performance | 379 | 227 | 41 |
-| ai-training | 373 | 261 | 43 |
-| ai-inference | 154 | 121 | 30 |
-| scientific-numerical | 91 | 75 | 28 |
+| scientific-reproducibility | 73 | 56 | 24 |
+| scientific-performance | 55 | 40 | 19 |
+| ai-training | 40 | 29 | 16 |
+| ai-inference | 38 | 35 | 16 |
+| scientific-numerical | 13 | 11 | 7 |
 
 ## Findings by Severity
 
 | Severity | Count | % of Total |
 |----------|-------|------------|
-| Critical | 251 | 14.7% |
-| High | 916 | 53.6% |
-| Medium | 542 | 31.7% |
+| Critical | 29 | 13.2% |
+| High | 135 | 61.6% |
+| Medium | 55 | 25.1% |
 
 ## Most Common Patterns
 
 | Pattern | Category | Count | Files | Repos | Avg Confidence |
 |---------|----------|-------|-------|-------|----------------|
-| rep-002 | scientific-reproducibility | 238 | 238 | 34 | 95% |
-| ml-010 | ai-training | 215 | 215 | 42 | 95% |
-| rep-004 | scientific-reproducibility | 146 | 146 | 34 | 95% |
-| perf-001 | scientific-performance | 130 | 130 | 36 | 95% |
-| rep-003 | scientific-reproducibility | 126 | 126 | 35 | 95% |
-| pt-010 | ai-training | 116 | 116 | 29 | 95% |
-| perf-002 | scientific-performance | 92 | 92 | 29 | 95% |
-| rep-001 | scientific-reproducibility | 73 | 73 | 23 | 95% |
-| rep-010 | scientific-reproducibility | 60 | 60 | 17 | 95% |
-| pt-015 | ai-inference | 58 | 58 | 18 | 95% |
+| rep-002 | scientific-reproducibility | 32 | 32 | 14 | 95% |
+| perf-004 | scientific-performance | 19 | 19 | 11 | 95% |
+| rep-003 | scientific-reproducibility | 17 | 17 | 13 | 95% |
+| pt-015 | ai-inference | 14 | 14 | 6 | 95% |
+| par-005 | scientific-performance | 13 | 13 | 10 | 93% |
+| pt-013 | ai-inference | 11 | 11 | 5 | 95% |
+| rep-004 | scientific-reproducibility | 10 | 10 | 7 | 95% |
+| perf-001 | scientific-performance | 10 | 10 | 7 | 95% |
+| num-005 | scientific-numerical | 8 | 8 | 5 | 95% |
+| ml-009 | ai-training | 8 | 8 | 8 | 95% |
 
 ## Example Findings
 
@@ -117,153 +143,408 @@ Representative findings from each category (with links to source):
 
 ### ai-inference
 
-**pt-013** (medium, 95% confidence)
-
-- **File:** [src/ms_pred/gnn_pred/predict.py](https://github.com/samgoldman97/ms-pred/blob/main/src/ms_pred/gnn_pred/predict.py) in [samgoldman97__ms-pred](https://github.com/samgoldman97/ms-pred)
-- **Paper:** MassFormer: Tandem Mass Spectrum Prediction for Small Molecules using Graph Transformers
-- **Authors:** Adamo Young et al.
-- **Issue:** pt-013: Issue detected
-- **Explanation:** torch.inference_mode() is faster than no_grad() for production inference. Use inference_mode() when gradients will never be needed.
-
-- **Suggestion:** Review the code and fix according to the explanation.
-
-**pt-014** (medium, 95% confidence)
-
-- **File:** [src/ms_pred/gnn_pred/predict.py](https://github.com/samgoldman97/ms-pred/blob/main/src/ms_pred/gnn_pred/predict.py) in [samgoldman97__ms-pred](https://github.com/samgoldman97/ms-pred)
-- **Paper:** MassFormer: Tandem Mass Spectrum Prediction for Small Molecules using Graph Transformers
-- **Authors:** Adamo Young et al.
-- **Issue:** pt-014: Issue detected
-- **Explanation:** CUDA timing without torch.cuda.synchronize() is inaccurate. Call synchronize() before measuring end time to ensure all GPU operations complete.
-
-- **Suggestion:** Review the code and fix according to the explanation.
-
 **pt-015** (high, 95% confidence)
 
-- **File:** [visualization.py](https://github.com/shmily-ld/dynamicdta/blob/main/visualization.py) in [shmily-ld__dynamicdta](https://github.com/shmily-ld/dynamicdta)
-- **Paper:** DynamicDTA: Drug-Target Binding Affinity Prediction Using Dynamic Descriptors and Graph Representation
-- **Authors:** Dan Luo et al.
+- **Repo:** GentleDell__Better-Patch-Stitching (none)
+- **Location:** function `main` (line 114)
+- **Paper:** Better Patch Stitching for Parametric Surface Reconstruction
+- **Authors:** Zhantao Deng et al.
 - **Issue:** pt-015: Issue detected
 - **Explanation:** torch.load() without map_location can fail on CPU-only systems. Always specify map_location='cpu' or map_location=device for portable model loading.
 
 - **Suggestion:** Review the code and fix according to the explanation.
 
+```python
+if args.resume:
+    print("Resuming training")
+    trstate = torch.load(helpers.jn(args.output, 'chkpt.tar'))
+    model.load_state_dict(trstate['weights'])
+    opt.load_state_dict(trstate['optimizer'])
+```
+
+**pt-015** (high, 95% confidence)
+
+- **Repo:** songtaoliu0823__crebm (chemistry)
+- **Location:** module `<module>` (line 67)
+- **Paper:** Preference Optimization for Molecule Synthesis with Conditional Residual Energy-based Models
+- **Authors:** Songtao Liu et al.
+- **Issue:** pt-015: Issue detected
+- **Explanation:** torch.load() without map_location can fail on CPU-only systems. Always specify map_location='cpu' or map_location=device for portable model loading.
+
+- **Suggestion:** Review the code and fix according to the explanation.
+
+```python
+np.random.seed(args.seed)
+random.seed(args.seed)
+
+              
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = ValueMLP(
+        n_layers=args.n_layers,
+```
+
+**pt-007** (high, 95% confidence)
+
+- **Repo:** rose-stl-lab__spherical-dyffusion (earth_science)
+- **Location:** method `validate_one_epoch` (line 318)
+- **Paper:** Probabilistic Emulation of a Global Climate Model with Spherical DYffusion
+- **Authors:** Salva Rühling Cachay et al.
+- **Issue:** pt-007: Issue detected
+- **Explanation:** Missing model.eval() leaves dropout active and batchnorm using batch statistics instead of learned running statistics, producing incorrect inference results.
+
+- **Suggestion:** Review the code and fix according to the explanation.
+
+```python
+def validate_one_epoch(self):
+        aggregator = OneStepAggregator(
+            self.train_data.area_weights.to(fme.get_device()),
+            self.train_data.sigma_coordinates,
+            self.train_data.metadata,
+        )
+
+        with torch.no_grad(), self._validation_context():
+            for batch in self.valid_data.loader:
+                stepped = self.stepper.run_on_batch(
+                    batch.data,
+                    optimization=NullOptimization(),
+                    n_forward_steps=self.config.n_forward_steps,
+                    aggregator=NullAggregator(),
+                )
+                stepped = compute_stepped_derived_quantities(stepped, self.valid_data.sigma_coordinates)
+                aggregator.record_batch(
+                    loss=stepped.metrics["loss"],
+                    target_data=stepped.target_data,
+                    gen_data=stepped.gen_data,
+                    target_data_norm=stepped.target_data_norm,
+                    gen_data_norm=stepped.gen_data_norm,
+                )
+        return aggregator.get_logs(label="val")
+```
+
 ### ai-training
 
-**ml-010** (critical, 95% confidence)
+**ml-005** (critical, 95% confidence)
 
-- **File:** [src/ms_pred/autoregr_gen/hyperopt.py](https://github.com/samgoldman97/ms-pred/blob/main/src/ms_pred/autoregr_gen/hyperopt.py) in [samgoldman97__ms-pred](https://github.com/samgoldman97/ms-pred)
-- **Paper:** MassFormer: Tandem Mass Spectrum Prediction for Small Molecules using Graph Transformers
-- **Authors:** Adamo Young et al.
-- **Issue:** ml-010: Issue detected
-- **Explanation:** Multi-test leakage: No held-out test set. Validation set used for both tuning and final evaluation. Create a separate test set that is never used during model development.
-
-- **Suggestion:** Review the code and fix according to the explanation.
-
-**ml-010** (critical, 95% confidence)
-
-- **File:** [tool/dataset.py](https://github.com/MLRG-CEFET-RJ/stconvs2s/blob/main/tool/dataset.py) in [MLRG-CEFET-RJ__stconvs2s](https://github.com/MLRG-CEFET-RJ/stconvs2s)
-- **Paper:** STConvS2S: Spatiotemporal Convolutional Sequence to Sequence Network for Weather Forecasting
-- **Authors:** Rafaela Castro et al.
-- **Issue:** ml-010: Issue detected
-- **Explanation:** Multi-test leakage: No held-out test set. Validation set used for both tuning and final evaluation. Create a separate test set that is never used during model development.
-
-- **Suggestion:** Review the code and fix according to the explanation.
-
-**pt-010** (high, 95% confidence)
-
-- **File:** [src/ms_pred/gnn_pred/train.py](https://github.com/samgoldman97/ms-pred/blob/main/src/ms_pred/gnn_pred/train.py) in [samgoldman97__ms-pred](https://github.com/samgoldman97/ms-pred)
-- **Paper:** MassFormer: Tandem Mass Spectrum Prediction for Small Molecules using Graph Transformers
-- **Authors:** Adamo Young et al.
-- **Issue:** pt-010: Issue detected
-- **Explanation:** DataLoader with num_workers=0 forces single-process data loading, creating a bottleneck where the GPU idles while waiting for data. Set num_workers to 2-8 (based on CPU cores) to enable multi-process data loading with prefetching, significantly improving training throughput.
+- **Repo:** YukiBear426__AEFIN (economics)
+- **Location:** function `_init_data_loader` (line 279)
+- **Paper:** Non-Stationary Time Series Forecasting Based on Fourier Analysis and Cross Attention Mechanism
+- **Authors:** Yuqi Xiong, Yang Wen
+- **Issue:** ml-005: Issue detected
+- **Explanation:** Temporal leakage: shuffled cross-validation on time-series data trains on future to predict past. Use TimeSeriesSplit.
 
 
 - **Suggestion:** Review the code and fix according to the explanation.
+
+```python
+self.dataset : TimeSeriesDataset = self._parse_type(self.dataset_type)(root=self.data_path)
+        self.scaler = self._parse_type(self.scaler_type)()
+        self.dataloader = ChunkSequenceTimefeatureDataLoader(
+            self.dataset,
+            self.scaler,
+            window=self.windows,
+            horizon=self.horizon,
+```
+
+**pt-004** (critical, 95% confidence)
+
+- **Repo:** PaddlePaddle__PaddleScience (earth_science)
+- **Location:** function `util.train_one_epoch` (line 77)
+- **Paper:** GenCast: Diffusion-based ensemble forecasting for medium-range weather
+- **Authors:** Ilan Price et al.
+- **Issue:** pt-004: Issue detected
+- **Explanation:** Missing optimizer.zero_grad(): Gradients accumulate across batches instead of being reset. This causes incorrect updates, exploding gradients, and NaN losses. Call optimizer.zero_grad() before each backward() in your training loop.
+
+- **Suggestion:** Review the code and fix according to the explanation.
+
+```python
+total_epochs = config["num_epochs"] + 1
+    while epoch < total_epochs:
+        util.train_one_epoch(
+            epoch,
+            model,
+            trainloader,
+```
+
+**pt-004** (critical, 95% confidence)
+
+- **Repo:** rose-stl-lab__spherical-dyffusion (earth_science)
+- **Location:** function `train_one_epoch` (line 240)
+- **Paper:** Probabilistic Emulation of a Global Climate Model with Spherical DYffusion
+- **Authors:** Salva Rühling Cachay et al.
+- **Issue:** pt-004: Issue detected
+- **Explanation:** Missing optimizer.zero_grad(): Gradients accumulate across batches instead of being reset. This causes incorrect updates, exploding gradients, and NaN losses. Call optimizer.zero_grad() before each backward() in your training loop.
+
+- **Suggestion:** Review the code and fix according to the explanation.
+
+```python
+self.config.clean_wandb()
+
+    def train_one_epoch(self):
+        """Train for one epoch and return logs from TrainAggregator."""
+        wandb = WandB.get_instance()
+        aggregator = TrainAggregator()
+        if self.num_batches_seen == 0:
+```
 
 ### scientific-numerical
 
-**num-006** (medium, 95% confidence)
+**py-001** (medium, 95% confidence)
 
-- **File:** [cgnet/tests/test_geometry_features.py](https://github.com/coarse-graining/cgnet/blob/main/cgnet/tests/test_geometry_features.py) in [coarse-graining__cgnet](https://github.com/coarse-graining/cgnet)
-- **Paper:** Coarse Graining Molecular Dynamics with Graph Neural Networks
-- **Authors:** Brooke E. Husic et al.
-- **Issue:** num-006: Issue detected
-- **Explanation:** Use np.testing.assert_allclose(actual, expected, rtol, atol) for float comparisons in tests. Exact equality assertions on floats are unreliable.
-
-
-- **Suggestion:** Review the code and fix according to the explanation.
-
-**num-006** (medium, 95% confidence)
-
-- **File:** [cgnet/tests/test_schnet_features.py](https://github.com/coarse-graining/cgnet/blob/main/cgnet/tests/test_schnet_features.py) in [coarse-graining__cgnet](https://github.com/coarse-graining/cgnet)
-- **Paper:** Coarse Graining Molecular Dynamics with Graph Neural Networks
-- **Authors:** Brooke E. Husic et al.
-- **Issue:** num-006: Issue detected
-- **Explanation:** Use np.testing.assert_allclose(actual, expected, rtol, atol) for float comparisons in tests. Exact equality assertions on floats are unreliable.
+- **Repo:** YukiBear426__AEFIN (economics)
+- **Location:** method `runs` (line 874)
+- **Paper:** Non-Stationary Time Series Forecasting Based on Fourier Analysis and Cross Attention Mechanism
+- **Authors:** Yuqi Xiong, Yang Wen
+- **Issue:** py-001: Issue detected
+- **Explanation:** Mutable default argument: the default object is shared across all calls. Use None as default and create inside the function.
 
 
 - **Suggestion:** Review the code and fix according to the explanation.
 
-**num-003** (high, 95% confidence)
+```python
+def runs(self, seeds: List[int] = [42,233,666,19971203,19980224]):
+        if hasattr(self, "finished") and self.finished is True:
+            print("Experiment finished!!!")
+            return 
+        if self._use_wandb():
+            wandb.config.update({"seeds": seeds})
 
-- **File:** [notebooks/figureS5.ipynb](https://github.com/citrineinformatics-erd-public/piml_glass_forming_ability/blob/main/notebooks/figureS5.ipynb) in [citrineinformatics-erd-public__piml_glass_forming_ability](https://github.com/citrineinformatics-erd-public/piml_glass_forming_ability)
-- **Paper:** Evaluation of GlassNet for physics-informed machine learning of glass stability and glass-forming ability
-- **Authors:** Sarah I. Allec et al.
-- **Issue:** num-003: Issue detected
-- **Explanation:** np.log(0) returns -inf silently and poisons downstream computations. Use np.log1p(x) for log(1+x), or add a guard/clamp.
+        
+        results = []
+        for i, seed in enumerate(seeds):
+            self.current_run = i
+            if self._use_wandb():
+                wandb.run.summary["at_run"] = i
+            result = self.run(seed=seed)
+            results.append(result)
+
+            if self._use_wandb():
+                for name, metric_value in result.items():
+                    wandb.run.summary["test_" + name] = metric_value
+
+        df = pd.DataFrame(results)
+        self.metric_mean_std = df.agg(["mean", "std"]).T
+        print(
+            self.metric_mean_std.apply(
+                lambda x: f"{x['mean']:.4f} ± {x['std']:.4f}", axis=1
+            )
+        )
+        if self._use_wandb():
+            for index, row in self.metric_mean_std.iterrows():
+                wandb.run.summary[f"{index}_mean"] = row["mean"]
+                wandb.run.summary[f"{index}_std"] = row["std"]
+                wandb.run.summary[index] = f"{row['mean']:.4f}±{row['std']:.4f}"
+        wandb.finish()
+```
+
+**num-005** (high, 95% confidence)
+
+- **Repo:** YukiBear426__AEFIN (economics)
+- **Location:** method `_init_data_loader` (line 255)
+- **Paper:** Non-Stationary Time Series Forecasting Based on Fourier Analysis and Cross Attention Mechanism
+- **Authors:** Yuqi Xiong, Yang Wen
+- **Issue:** num-005: Issue detected
+- **Explanation:** Division by zero in normalization: std is 0 for constant features, producing inf or NaN. Check for zero std and handle it.
 
 
 - **Suggestion:** Review the code and fix according to the explanation.
+
+```python
+def _init_data_loader(self):
+        self.dataset : TimeSeriesDataset = self._parse_type(self.dataset_type)(root=self.data_path)
+        self.scaler = self._parse_type(self.scaler_type)()
+        self.dataloader = ChunkSequenceTimefeatureDataLoader(
+            self.dataset,
+            self.scaler,
+            window=self.windows,
+            horizon=self.horizon,
+            steps=self.pred_len,
+            scale_in_train=False,
+            shuffle_train=True,
+            freq="h",
+            batch_size=self.batch_size,
+            train_ratio=0.7,
+            val_ratio=0.2,      
+            num_worker=self.num_worker,
+        )
+        self.train_loader, self.val_loader, self.test_loader = (
+            self.dataloader.train_loader,
+            self.dataloader.val_loader,
+            self.dataloader.test_loader,
+        )
+        self.train_steps = self.dataloader.train_size
+        self.val_steps = self.dataloader.val_size
+        self.test_steps = self.dataloader.test_size
+
+        print(f"train steps: {self.train_steps}")
+        print(f"val steps: {self.val_steps}")
+        print(f"test steps: {self.test_steps}")
+```
+
+**py-001** (medium, 95% confidence)
+
+- **Repo:** YukiBear426__AEFIN (economics)
+- **Location:** function `runs` (line 1050)
+- **Paper:** Non-Stationary Time Series Forecasting Based on Fourier Analysis and Cross Attention Mechanism
+- **Authors:** Yuqi Xiong, Yang Wen
+- **Issue:** py-001: Issue detected
+- **Explanation:** Mutable default argument: the default object is shared across all calls. Use None as default and create inside the function.
+
+
+- **Suggestion:** Review the code and fix according to the explanation.
+
+```python
+return self._test()
+
+    def runs(self, seeds: List[int] = [42,43,44]):
+        if hasattr(self, "finished") and self.finished is True:
+            print("Experiment finished!!!")
+            return
+```
 
 ### scientific-performance
 
-**perf-001** (high, 95% confidence)
+**perf-004** (high, 95% confidence)
 
-- **File:** [cgnet/tests/test_geometry_features.py](https://github.com/coarse-graining/cgnet/blob/main/cgnet/tests/test_geometry_features.py) in [coarse-graining__cgnet](https://github.com/coarse-graining/cgnet)
-- **Paper:** Coarse Graining Molecular Dynamics with Graph Neural Networks
-- **Authors:** Brooke E. Husic et al.
-- **Issue:** perf-001: Issue detected
-- **Explanation:** Python loop over NumPy array: 100-1000x slower than vectorized operation. Use broadcasting, np.where, or fancy indexing.
+- **Repo:** songtaoliu0823__crebm (chemistry)
+- **Location:** function `convert_symbols_to_inputs` (line 178)
+- **Paper:** Preference Optimization for Molecule Synthesis with Conditional Residual Energy-based Models
+- **Authors:** Songtao Liu et al.
+- **Issue:** perf-004: Issue detected
+- **Explanation:** Materializing large intermediate arrays wastes memory. Use np.linalg.norm or in-place operations to avoid temporary allocations.
+
+
+- **Suggestion:** Review the code and fix according to the explanation.
+
+```python
+def convert_symbols_to_inputs(input_list, output_list, max_length):
+    num_samples = len(input_list)
+          
+    input_ids = np.zeros((num_samples, max_length))
+    input_mask = np.zeros((num_samples, max_length))
+
+           
+    output_ids = np.zeros((num_samples, max_length))
+    output_mask = np.zeros((num_samples, max_length))
+
+               
+    token_ids = np.zeros((num_samples, max_length))
+    token_mask = np.zeros((num_samples, max_length))
+
+    for cnt in range(num_samples):
+        input_ = '^' + input_list[cnt] + '$'
+        output_ = '^' + output_list[cnt] + '$'
+        
+        for i, symbol in enumerate(input_):
+            input_ids[cnt, i] = char_to_ix[symbol]
+        input_mask[cnt, :len(input_)] = 1
+
+        for i in range(len(output_)-1):
+            output_ids[cnt, i] = char_to_ix[output_[i]]
+            token_ids[cnt, i] = char_to_ix[output_[i+1]]
+            if i != len(output_)-2:
+                token_mask[cnt, i] = 1
+        output_mask[cnt, :len(output_)-1] = 1
+    return (input_ids, input_mask, output_ids, output_mask, token_ids, token_mask)
+```
+
+**perf-004** (high, 95% confidence)
+
+- **Repo:** YukiBear426__AEFIN (economics)
+- **Location:** function `_process_batch` (line 81)
+- **Paper:** Non-Stationary Time Series Forecasting Based on Fourier Analysis and Cross Attention Mechanism
+- **Authors:** Yuqi Xiong, Yang Wen
+- **Issue:** perf-004: Issue detected
+- **Explanation:** Materializing large intermediate arrays wastes memory. Use np.linalg.norm or in-place operations to avoid temporary allocations.
 
 
 - **Suggestion:** Review the code and fix according to the explanation.
 
-**perf-002** (high, 95% confidence)
+```python
+dec_inp_pred = torch.zeros(
+```
 
-- **File:** [inference.ipynb](https://github.com/lsh0520/3d-molm/blob/main/inference.ipynb) in [lsh0520__3d-molm](https://github.com/lsh0520/3d-molm)
-- **Paper:** Towards 3D Molecule-Text Interpretation in Language Models
-- **Authors:** Sihang Li et al.
-- **Issue:** perf-002: Issue detected
-- **Explanation:** Array allocation in loop: creating arrays inside loops causes repeated malloc/free operations. Pre-allocate the output array before the loop and fill it using indexing.
+**perf-004** (high, 95% confidence)
 
-- **Suggestion:** Review the code and fix according to the explanation.
-
-**perf-001** (high, 95% confidence)
-
-- **File:** [src/ms_pred/gnn_pred/predict.py](https://github.com/samgoldman97/ms-pred/blob/main/src/ms_pred/gnn_pred/predict.py) in [samgoldman97__ms-pred](https://github.com/samgoldman97/ms-pred)
-- **Paper:** MassFormer: Tandem Mass Spectrum Prediction for Small Molecules using Graph Transformers
-- **Authors:** Adamo Young et al.
-- **Issue:** perf-001: Issue detected
-- **Explanation:** Python loop over NumPy array: 100-1000x slower than vectorized operation. Use broadcasting, np.where, or fancy indexing.
+- **Repo:** YukiBear426__AEFIN (economics)
+- **Location:** method `_train` (line 731)
+- **Paper:** Non-Stationary Time Series Forecasting Based on Fourier Analysis and Cross Attention Mechanism
+- **Authors:** Yuqi Xiong, Yang Wen
+- **Issue:** perf-004: Issue detected
+- **Explanation:** Materializing large intermediate arrays wastes memory. Use np.linalg.norm or in-place operations to avoid temporary allocations.
 
 
 - **Suggestion:** Review the code and fix according to the explanation.
+
+```python
+def _sep_train(self):
+        with torch.enable_grad(), tqdm(total=self.train_steps,position=0, leave=True) as progress_bar:
+            self.model.train()
+                                  
+                                        
+            times = []
+            train_loss = []
+            for i, (
+                batch_x,
+                batch_y,
+                origin_y,
+                batch_x_date_enc,
+                batch_y_date_enc,
+            ) in enumerate(self.train_loader):
+                origin_y = origin_y.to(self.device)
+                self.n_model_optim.zero_grad()
+                self.f_model_optim.zero_grad()
+                bs = batch_x.size(0)
+                batch_x = batch_x.to(self.device, dtype=torch.float32)
+                batch_y = batch_y.to(self.device, dtype=torch.float32)
+                batch_x_date_enc = batch_x_date_enc.to(self.device).float()
+                batch_y_date_enc = batch_y_date_enc.to(self.device).float()
+                start = time.time()
+
+                pred, true = self._process_batch(
+                    batch_x, batch_y, batch_x_date_enc, batch_y_date_enc
+                )
+
+                if self.invtrans_loss:
+                    pred = self.scaler.inverse_transform(pred)
+                    true = origin_y
+                
+                loss = self.loss_func(pred, true)
+                lossn = self.model.nm.loss(true)
+
+                
+                loss.backward(retain_graph=True)
+                lossn.backward(retain_graph=True)
+
+                                                 
+                                                                 
+                   
+                progress_bar.update(batch_x.size(0))
+                train_loss.append(loss.item())
+                progress_bar.set_postfix(
+                    loss=loss.item(),
+                    lr=self.f_model_optim.param_groups[0]["lr"],
+                    epoch=self.current_epoch,
+                    refresh=True,
+                )
+
+                self.n_model_optim.step()
+                self.f_model_optim.step()
+                
+                
+                end = time.time()
+                times.append(end-start)
+                
+            print("average iter: {}ms", np.mean(times)*1000)
+                
+            return train_loss
+```
 
 ### scientific-reproducibility
 
-**rep-004** (medium, 100% confidence)
-
-- **File:** [FusionRetro/reward_model.py](https://github.com/songtaoliu0823/crebm/blob/main/FusionRetro/reward_model.py) in [songtaoliu0823__crebm](https://github.com/songtaoliu0823/crebm)
-- **Paper:** Preference Optimization for Molecule Synthesis with Conditional Residual Energy-based Models
-- **Authors:** Songtao Liu et al.
-- **Issue:** rep-004: Issue detected
-- **Explanation:** No random seed set. Results will differ between runs. Set seeds for np.random, torch, and random at the start.
-
-- **Suggestion:** Review the code and fix according to the explanation.
-
 **rep-002** (high, 95% confidence)
 
-- **File:** [src/ms_pred/autoregr_gen/hyperopt.py](https://github.com/samgoldman97/ms-pred/blob/main/src/ms_pred/autoregr_gen/hyperopt.py) in [samgoldman97__ms-pred](https://github.com/samgoldman97/ms-pred)
+- **Repo:** samgoldman97__ms-pred (chemistry)
+- **Location:** function `train_model` (line 80)
 - **Paper:** MassFormer: Tandem Mass Spectrum Prediction for Small Molecules using Graph Transformers
 - **Authors:** Adamo Young et al.
 - **Issue:** rep-002: Issue detected
@@ -272,17 +553,256 @@ Representative findings from each category (with links to source):
 
 - **Suggestion:** Review the code and fix according to the explanation.
 
-**rep-003** (medium, 95% confidence)
+```python
+def train_model():
+    args = get_args()
+    kwargs = args.__dict__
 
-- **File:** [src/ms_pred/autoregr_gen/hyperopt.py](https://github.com/samgoldman97/ms-pred/blob/main/src/ms_pred/autoregr_gen/hyperopt.py) in [samgoldman97__ms-pred](https://github.com/samgoldman97/ms-pred)
-- **Paper:** MassFormer: Tandem Mass Spectrum Prediction for Small Molecules using Graph Transformers
-- **Authors:** Adamo Young et al.
-- **Issue:** rep-003: Issue detected
-- **Explanation:** Hardcoded magic numbers: parameters buried in code can't be tracked or reproduced. Use a config file or argparse for all hyperparameters.
+    save_dir = kwargs["save_dir"]
+    common.setup_logger(save_dir, log_name="dag_inten_train.log", debug=kwargs["debug"])
+    pl.seed_everything(kwargs.get("seed"))
+
+               
+    yaml_args = yaml.dump(kwargs)
+    logging.info(f"\n{yaml_args}")
+    with open(Path(save_dir) / "args.yaml", "w") as fp:
+        fp.write(yaml_args)
+
+                 
+                                                  
+    dataset_name = kwargs["dataset_name"]
+    data_dir = common.get_data_dir(dataset_name)
+    labels = data_dir / kwargs["dataset_labels"]
+    split_file = data_dir / "splits" / kwargs["split_name"]
+
+                               
+    df = pd.read_csv(labels, sep="\t")
+    if kwargs["debug"]:
+        df = df[:100]
+        kwargs["num_workers"] = 0
+
+    spec_names = df["spec"].values
+    if kwargs["debug_overfit"]:
+        kwargs["warmup"] = 0
+        train_inds, val_inds, test_inds = common.get_splits(
+            spec_names, split_file, val_frac=0
+        )
+        train_inds = train_inds[:100]
+    else:
+        train_inds, val_inds, test_inds = common.get_splits(spec_names, split_file)
+    train_df = df.iloc[train_inds]
+    val_df = df.iloc[val_inds]
+    test_df = df.iloc[test_inds]
+
+    num_workers = kwargs.get("num_workers", 0)
+    form_dag_folder = Path(kwargs["formula_folder"])
+    all_json_pths = [Path(i) for i in form_dag_folder.glob("*.json")]
+    name_to_json = {i.stem.replace("pred_", ""): i for i in all_json_pths}
+    graph_featurizer = nn_utils.MolDGLGraph(pe_embed_k=kwargs["pe_embed_k"])
+    atom_feats = graph_featurizer.atom_feats
+    bond_feats = graph_featurizer.bond_feats
+
+                             
+    train_dataset = scarf_data.IntenDataset(
+        train_df,
+        data_dir=data_dir,
+        graph_featurizer=graph_featurizer,
+        form_map=name_to_json,
+        num_workers=num_workers,
+        root_embedder=kwargs["root_embedder"],
+        binned_targs=kwargs["binned_targs"],
+    )
+    val_dataset = scarf_data.IntenDataset(
+        val_df,
+        data_dir=data_dir,
+        graph_featurizer=graph_featurizer,
+        form_map=name_to_json,
+        num_workers=num_workers,
+        root_embedder=kwargs["root_embedder"],
+        binned_targs=kwargs["binned_targs"],
+    )
+
+    test_dataset = scarf_data.IntenDataset(
+        test_df,
+        data_dir=data_dir,
+        graph_featurizer=graph_featurizer,
+        form_map=name_to_json,
+        num_workers=num_workers,
+        root_embedder=kwargs["root_embedder"],
+        binned_targs=kwargs["binned_targs"],
+    )
+    ex = train_dataset[0]
+
+    persistent_workers = kwargs["num_workers"] > 0
+
+                        
+    collate_fn = train_dataset.get_collate_fn()
+    train_loader = DataLoader(
+        train_dataset,
+        num_workers=kwargs["num_workers"],
+        collate_fn=collate_fn,
+        shuffle=True,
+        batch_size=kwargs["batch_size"],
+        persistent_workers=persistent_workers,
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        num_workers=kwargs["num_workers"],
+        collate_fn=collate_fn,
+        shuffle=False,
+        batch_size=kwargs["batch_size"],
+        persistent_workers=persistent_workers,
+    )
+    test_loader = DataLoader(
+        test_dataset,
+        num_workers=kwargs["num_workers"],
+        collate_fn=collate_fn,
+        shuffle=False,
+        batch_size=kwargs["batch_size"],
+        persistent_workers=persistent_workers,
+    )
+
+                  
+    model = scarf_model.ScarfIntenNet(
+        hidden_size=kwargs["hidden_size"],
+        gnn_layers=kwargs["gnn_layers"],
+        mlp_layers=kwargs["mlp_layers"],
+        set_layers=kwargs["set_layers"],
+        form_set_layers=kwargs["form_set_layers"],
+        formula_dim=common.NORM_VEC.shape[0],
+        mpnn_type=kwargs["mpnn_type"],
+        dropout=kwargs["dropout"],
+        learning_rate=kwargs["learning_rate"],
+        weight_decay=kwargs["weight_decay"],
+        atom_feats=atom_feats,
+        bond_feats=bond_feats,
+        pe_embed_k=kwargs["pe_embed_k"],
+        pool_op=kwargs["pool_op"],
+        num_atom_feats=graph_featurizer.num_atom_feats,
+        num_bond_feats=graph_featurizer.num_bond_feats,
+        lr_decay_rate=kwargs["lr_decay_rate"],
+        loss_fn=kwargs["loss_fn"],
+        warmup=kwargs.get("warmup", 1000),
+        info_join=kwargs["info_join"],
+        root_embedder=kwargs["root_embedder"],
+        embedder=kwargs["embedder"],
+        binned_targs=kwargs["binned_targs"],
+        embed_adduct=kwargs["embed_adduct"],
+    )
+
+                                           
+                      
+                                     
+                                         
+                                   
+                                           
+       
+
+                    
+    monitor = "val_loss"
+    if kwargs["debug"]:
+        kwargs["max_epochs"] = 2
+
+    if kwargs["debug_overfit"]:
+        kwargs["min_epochs"] = 1000
+        kwargs["max_epochs"] = kwargs["min_epochs"]
+        kwargs["no_monitor"] = True
+        monitor = "train_loss"
+
+    tb_logger = pl_loggers.TensorBoardLogger(save_dir, name="")
+    console_logger = common.ConsoleLogger()
+
+    tb_path = tb_logger.log_dir
+    checkpoint_callback = ModelCheckpoint(
+        monitor=monitor,
+        dirpath=tb_path,
+        filename="best",                             
+        save_weights_only=False,
+    )
+    earlystop_callback = EarlyStopping(monitor=monitor, patience=20)
+    lr_monitor = LearningRateMonitor(logging_interval="epoch")
+    callbacks = [earlystop_callback, checkpoint_callback, lr_monitor]
+
+    trainer = pl.Trainer(
+        logger=[tb_logger, console_logger],
+        accelerator="gpu" if kwargs["gpu"] else "cpu",
+        devices=1 if kwargs["gpu"] else 0,
+        callbacks=callbacks,
+        gradient_clip_val=5,
+        min_epochs=kwargs["min_epochs"],
+        max_epochs=kwargs["max_epochs"],
+        gradient_clip_algorithm="value",
+    )
+
+    if kwargs["debug_overfit"]:
+        trainer.fit(model, train_loader)
+    else:
+        trainer.fit(model, train_loader, val_loader)
+
+    checkpoint_callback = trainer.checkpoint_callback
+    best_checkpoint = checkpoint_callback.best_model_path
+    best_checkpoint_score = checkpoint_callback.best_model_score.item()
+
+                          
+    model = scarf_model.ScarfIntenNet.load_from_checkpoint(best_checkpoint)
+    logging.info(
+        f"Loaded model with from {best_checkpoint} with val loss of {best_checkpoint_score}"
+    )
+
+    model.eval()
+    trainer.test(dataloaders=test_loader)
+```
+
+**rep-002** (high, 95% confidence)
+
+- **Repo:** YukiBear426__AEFIN (economics)
+- **Location:** method `reproducible` (line 444)
+- **Paper:** Non-Stationary Time Series Forecasting Based on Fourier Analysis and Cross Attention Mechanism
+- **Authors:** Yuqi Xiong, Yang Wen
+- **Issue:** rep-002: Issue detected
+- **Explanation:** CUDA non-determinism: some GPU ops are non-deterministic by default. Set torch.use_deterministic_algorithms(True) and torch.backends.cudnn.benchmark = False.
 
 
 - **Suggestion:** Review the code and fix according to the explanation.
 
+```python
+def reproducible(self, seed):
+                             
+                                                
+        print("torch.get_default_dtype()", torch.get_default_dtype())
+        torch.set_default_tensor_type(torch.FloatTensor)
+        torch.manual_seed(seed)
+        os.environ["PYTHONHASHSEED"] = str(seed)
+        torch.cuda.manual_seed_all(seed)
+        np.random.seed(seed)
+        random.seed(seed)
+                                                  
+        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.determinstic = True
+```
+
+**rep-010** (medium, 95% confidence)
+
+- **Repo:** YukiBear426__AEFIN (economics)
+- **Location:** method `_run_print` (line 159)
+- **Paper:** Non-Stationary Time Series Forecasting Based on Fourier Analysis and Cross Attention Mechanism
+- **Authors:** Yuqi Xiong, Yang Wen
+- **Issue:** rep-010: Issue detected
+- **Explanation:** Naive datetime depends on system timezone. Use datetime.now(timezone.utc) for reproducible timestamps.
+
+- **Suggestion:** Review the code and fix according to the explanation.
+
+```python
+def _run_print(self, *args, **kwargs):
+        time = '['+str(datetime.datetime.utcnow()+
+                   datetime.timedelta(hours=8))[:19]+'] -'
+        
+        print(*args, **kwargs)
+        if hasattr(self, "run_setuped") and getattr(self, "run_setuped") is True:
+            with open(os.path.join(self.run_save_dir, 'output.log'), 'a+') as f:
+                print(time, *args, flush=True, file=f)
+```
+
 ---
 
-*Analysis conducted: 2026-03-12 | Report generated: 2026-03-12 23:36*
+*Analysis conducted: 2026-03-16 | Report generated: 2026-03-16 18:01*

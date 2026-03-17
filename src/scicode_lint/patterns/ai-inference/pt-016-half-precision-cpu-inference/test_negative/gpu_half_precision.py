@@ -24,7 +24,7 @@ class GPUInferenceEngine:
     def __init__(self, model_path, device="cuda"):
         self.device = device
         self.model = torch.load(model_path, map_location=device)
-        self.model.half()  # FP16 on GPU is fast
+        self.model.half()
 
     def predict(self, inputs):
         inputs = inputs.to(self.device, dtype=torch.float16)

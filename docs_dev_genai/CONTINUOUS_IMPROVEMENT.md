@@ -14,11 +14,16 @@ python pattern_verification/deterministic/validate.py --fetch-refs --clean-cache
 python pattern_verification/deterministic/validate.py           # all patterns
 python pattern_verification/deterministic/validate.py --fix     # auto-fix
 
-# Semantic validation (uses LLM)
+# Diversity check (uses Claude CLI)
+python pattern_verification/deterministic/diversity_check.py              # all patterns
+python pattern_verification/deterministic/diversity_check.py ml-001       # single pattern
+python pattern_verification/deterministic/diversity_check.py --category X # category
+
+# Semantic validation (uses Claude CLI)
 python pattern_verification/semantic/semantic_validate.py <id>  # single pattern
 python pattern_verification/semantic/semantic_validate.py --all # all patterns
 
-# Evals (uses LLM)
+# Evals (uses vLLM)
 python evals/run_eval.py                                        # all patterns
 python evals/run_eval.py -p <pattern-name>                      # single pattern
 python evals/run_eval.py -p <name1> -p <name2>                  # multiple patterns
@@ -32,16 +37,20 @@ When a pattern has issues, iterate on **that specific pattern** until it passes:
 flowchart TD
     A[1. Deterministic: validate.py] --> B{Issues?}
     B -->|Yes| C[Fix: validate.py --fix]
-    B -->|No| D[2. Semantic: semantic_validate.py]
+    B -->|No| D[2. Diversity: diversity_check.py]
     C --> A
     D --> E{Issues?}
-    E -->|Yes| F[Fix in Claude Code]
-    E -->|No| G[3. Evals: run_eval.py -p NAME]
+    E -->|Yes| F[Fix test files]
+    E -->|No| G[3. Semantic: semantic_validate.py]
     F --> A
-    G --> H{Pass?}
-    H -->|Yes| I[Done - next pattern]
-    H -->|No| J[4. Debug & Fix]
-    J --> A
+    G --> H{Issues?}
+    H -->|Yes| I[Fix in Claude Code]
+    H -->|No| J[4. Evals: run_eval.py -p NAME]
+    I --> A
+    J --> K{Pass?}
+    K -->|Yes| L[Done - next pattern]
+    K -->|No| M[5. Debug & Fix]
+    M --> A
 ```
 
 ### Commands (for specific pattern)
@@ -54,15 +63,20 @@ python pattern_verification/deterministic/validate.py --fetch-refs --clean-cache
 python pattern_verification/deterministic/validate.py
 python pattern_verification/deterministic/validate.py --fix  # auto-fix if issues
 
-# 2. Semantic validation (uses pattern-reviewer agent - read-only)
+# 2. Diversity check (uses Claude CLI)
+python pattern_verification/deterministic/diversity_check.py pt-007
+# If issues: redundant pairs → delete or diversify one file
+#            non-diverse negatives → rewrite to use different approach
+
+# 3. Semantic validation (uses pattern-reviewer agent - read-only)
 python pattern_verification/semantic/semantic_validate.py pt-007
 # If issues found → fix directly in Claude Code session before proceeding to evals
 
-# 3. Evals (requires vLLM) - note: uses full pattern name
+# 4. Evals (requires vLLM) - note: uses full pattern name
 python evals/run_eval.py -p pt-007-inference-without-eval
 
-# 4. If evals fail: debug and fix
-python -m scicode_lint check <test-file> --pattern pt-007 --verbose
+# 5. If evals fail: debug and fix
+python -m scicode_lint lint <test-file> --pattern pt-007 --verbose
 # Fix issues directly in Claude Code session
 
 # After ANY pattern changes, run deterministic validation immediately:
@@ -70,6 +84,9 @@ python pattern_verification/deterministic/validate.py pt-007
 
 # Repeat from step 1 until all pass
 ```
+
+**Eval validation:** Evals use **name-based matching** as the primary metric. The detected function/class name
+must match `expected_location.name` in pattern.toml. LLM outputs names (not line numbers), AST resolves to lines.
 
 **Note:** `semantic_validate.py` uses the `pattern-reviewer` agent (read-only) to identify issues. Fix issues directly in your Claude Code session.
 
@@ -98,17 +115,21 @@ Work through categories sequentially - complete one fully before moving to next:
 
 ```mermaid
 flowchart TD
-    A[Pick category] --> B[1. Semantic: --category X]
+    A[Pick category] --> B[1. Diversity: --category X]
     B --> C{Issues?}
-    C -->|Yes| D[Fix in Claude Code]
-    C -->|No| E[2. Evals: -c X]
+    C -->|Yes| D[Fix test files]
+    C -->|No| E[2. Semantic: --category X]
     D --> B
-    E --> F{Pass?}
-    F -->|Yes| G{More categories?}
-    F -->|No| H[Per-pattern fix cycle]
-    H --> B
-    G -->|Yes| A
-    G -->|No| I[Full evals + integration]
+    E --> F{Issues?}
+    F -->|Yes| G[Fix in Claude Code]
+    F -->|No| H[3. Evals: -c X]
+    G --> B
+    H --> I{Pass?}
+    I -->|Yes| J{More categories?}
+    I -->|No| K[Per-pattern fix cycle]
+    K --> B
+    J -->|Yes| A
+    J -->|No| L[Full evals + integration]
 ```
 
 **Why this approach:**
@@ -116,6 +137,17 @@ flowchart TD
 - Issues in same category often share patterns
 - Generalizable fixes apply to whole category at once
 - Clear completion milestones
+
+**Parallel execution (recommended):** Run 5 Claude Code terminals simultaneously, one per category. Categories are independent, so all can run in parallel:
+```bash
+# Terminal 1: claude (work on ai-inference)
+# Terminal 2: claude (work on ai-training)
+# Terminal 3: claude (work on scientific-numerical)
+# Terminal 4: claude (work on scientific-performance)
+# Terminal 5: claude (work on scientific-reproducibility)
+```
+
+**Important:** When a step finds issues, fix them before proceeding to the next step. Don't accumulate issues across steps.
 
 ```bash
 # Categories in order
@@ -126,6 +158,9 @@ python pattern_verification/deterministic/validate.py --fetch-refs --clean-cache
 
 # Example: complete ai-inference category
 python pattern_verification/deterministic/validate.py
+python pattern_verification/deterministic/diversity_check.py --category ai-inference  # ~2-3 min
+# Fix diversity issues (redundant pairs, non-diverse negatives)
+
 python pattern_verification/semantic/semantic_validate.py --category ai-inference
 # Fix issues in Claude Code session...
 
@@ -133,17 +168,19 @@ python evals/run_eval.py -c ai-inference
 # Fix any failures, repeat until category passes
 
 # Move to next category
+python pattern_verification/deterministic/diversity_check.py --category ai-training
 python pattern_verification/semantic/semantic_validate.py --category ai-training
 # ... continue
 ```
 
 ## Final Verification
 
-After all categories pass individually, run full validation to catch cross-category issues:
+After all categories pass individually, run full validation:
 
 ```bash
-# Full validation (catches cross-category issues)
+# Full validation
 python pattern_verification/deterministic/validate.py
+python pattern_verification/deterministic/diversity_check.py  # ~5-10 min
 python pattern_verification/semantic/semantic_validate.py --all
 
 # Full evals - get overall accuracy
@@ -153,8 +190,7 @@ python evals/run_eval.py
 # Update README.md with accuracy stats from report
 
 # Integration tests (holdout)
-python evals/integration/run_integration_eval.py
-python evals/integration/dynamic_eval.py
+python evals/integration/integration_eval.py --generate-count 10
 ```
 
 ## Generalizable Fixes
@@ -175,8 +211,14 @@ When fixing a pattern, look for principles that apply broadly:
 Tests generalization - did we overfit to pattern-specific tests?
 
 ```bash
-python evals/integration/run_integration_eval.py     # static integration
-python evals/integration/dynamic_eval.py             # dynamic integration
+# Full pipeline: Generate (Sonnet) → Verify (Sonnet) → Lint (vLLM) → Judge (Sonnet)
+python evals/integration/integration_eval.py --generate-count 10
+
+# Save with ID for regression
+python evals/integration/integration_eval.py --generate-count 10 --save --id baseline_v1
+
+# Re-evaluate saved run
+python evals/integration/integration_eval.py --id baseline_v1
 ```
 
 ## Evaluation Types
@@ -184,9 +226,14 @@ python evals/integration/dynamic_eval.py             # dynamic integration
 | Type | Purpose |
 |------|---------|
 | Pattern-specific | Iterate on individual patterns |
-| Static integration | Holdout - test all patterns on realistic code |
-| Dynamic integration | Holdout - test on fresh LLM-generated code |
+| Integration | Holdout - test on fresh LLM-generated code |
 
 ## Critical Constraint
 
 - **No hints in test files** - pure code only, no comments about bugs (data leakage in evaluation)
+
+---
+
+## See Also
+
+- **[META_IMPROVEMENT_LOOP.md](META_IMPROVEMENT_LOOP.md)** - Real-world validation using Papers with Code corpus + Sonnet verification (~3-4 hours, ~1.5M tokens)

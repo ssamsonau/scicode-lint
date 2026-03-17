@@ -1,34 +1,38 @@
 import numpy as np
 
 
-def preprocess_data(data):
-    result = data.copy()
-    result -= result.mean()
-    result /= result.std() + 1e-8
-    return result
+def create_normalized_version(data):
+    """Create new array via numpy operations - naturally non-mutating."""
+    mean_val = np.mean(data)
+    std_val = np.std(data) + 1e-8
+    return (data - mean_val) / std_val
 
 
-def apply_threshold(image):
-    result = image.copy()
-    result[result < 0.5] = 0
-    result[result >= 0.5] = 1
-    return result
+def binarize_image(image, threshold=0.5):
+    """Use np.where for thresholding - creates new array."""
+    return np.where(image >= threshold, 1.0, 0.0)
 
 
-def smooth_signal(signal):
-    smoothed = signal.copy()
-    for i in range(1, len(smoothed) - 1):
-        smoothed[i] = (signal[i - 1] + signal[i] + signal[i + 1]) / 3
-    return smoothed
+def convolve_signal(signal, kernel):
+    """Signal smoothing via convolution - doesn't modify input."""
+    return np.convolve(signal, kernel, mode="same")
 
 
-def clip_values(array):
-    clipped = np.clip(array, 0, 1)
-    return clipped
+def bounded_values(array, low=0, high=1):
+    """Use np.clip which returns new array."""
+    return np.clip(array, low, high)
+
+
+def cumulative_sum(data):
+    """Cumulative operations return new arrays."""
+    return np.cumsum(data)
+
+
+def element_wise_max(arr1, arr2):
+    """np.maximum returns new array."""
+    return np.maximum(arr1, arr2)
 
 
 original = np.random.rand(100)
-processed = preprocess_data(original)
-
-img = np.random.rand(64, 64)
-binary = apply_threshold(img)
+normalized = create_normalized_version(original)
+assert np.allclose(original.mean(), 0.5, atol=0.2)

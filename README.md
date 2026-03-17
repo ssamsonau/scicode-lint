@@ -15,7 +15,7 @@ pip install scicode-lint                  # Use with remote vLLM server
 # or
 pip install scicode-lint[vllm-server]     # Run vLLM locally (16GB+ GPU)
 
-scicode-lint check train.py               # Scan for issues
+scicode-lint lint train.py               # Check a file for issues
 ```
 
 ---
@@ -34,8 +34,8 @@ And it's getting harder with AI coding tools. These tools are trained on public 
 
 Scans Python scripts and Jupyter notebooks for 66 patterns across five categories:
 
-- **ai-training** (16 patterns): data leakage, PyTorch training modes, gradient management, DataLoader configuration
-- **ai-inference** (13 patterns): missing eval mode, missing no_grad, device mismatches, CUDA timing, JIT tracing
+- **ai-training** (19 patterns): data leakage, PyTorch training modes, gradient management, DataLoader configuration
+- **ai-inference** (12 patterns): missing eval mode, missing no_grad, device mismatches, CUDA timing, JIT tracing
 - **scientific-numerical** (10 patterns): float comparison, dtype overflow, catastrophic cancellation
 - **scientific-performance** (11 patterns): loops vs vectorization, memory inefficiency
 - **scientific-reproducibility** (14 patterns): missing seeds, CUDA non-determinism, unsorted iteration, pickle versioning
@@ -74,7 +74,7 @@ pip install scicode-lint[vllm-server]
 
 # Or with remote vLLM server (e.g., university/institutional server)
 pip install scicode-lint
-scicode-lint check my_code.py --vllm-url https://vllm.your-institution.edu
+scicode-lint lint my_code.py --vllm-url https://vllm.your-institution.edu
 
 # For development
 git clone https://github.com/ssamsonau/scicode-lint.git
@@ -82,24 +82,54 @@ cd scicode-lint
 pip install -e ".[all]"
 ```
 
+### Start vLLM Server
+
+Before running scicode-lint, start the vLLM server (skip if using remote server):
+
+```bash
+# Start vLLM server (auto-detects GPU, validates FP8 support)
+bash src/scicode_lint/vllm/start_vllm.sh
+
+# Or run in background
+nohup bash src/scicode_lint/vllm/start_vllm.sh > /tmp/vllm.log 2>&1 &
+```
+
+The server auto-detects your GPU and configures optimal settings. First run downloads the model (~8GB).
+
 ### Usage
 
 ```bash
-# Check a single file with one pattern
-scicode-lint check my_pipeline.py --pattern ml-001
+# Check a file
+scicode-lint lint train.py
+
+# Check with specific pattern
+scicode-lint lint my_pipeline.py --pattern ml-001
 
 # Check Jupyter notebooks
-scicode-lint check analysis.ipynb --pattern ml-001
+scicode-lint lint analysis.ipynb
 
 # Check by category
-scicode-lint check train.py --category ai-training
-
-# Full scan, all 66 patterns
-scicode-lint check train.py
+scicode-lint lint train.py --category ai-training
 
 # Filter by severity
-scicode-lint check train.py --severity critical,high
+scicode-lint lint train.py --severity critical,high
 ```
+
+### Analyze a Repository
+
+For entire repos, the `analyze` command clones, filters, and lints automatically:
+
+```bash
+# Analyze a GitHub/GitLab repo
+scicode-lint analyze https://github.com/user/ml-project
+
+# Analyze a local repo
+scicode-lint analyze ./my_ml_project
+```
+
+Two-stage filter (runs automatically):
+1. **ML import presence** (instant) - skips files without sklearn/torch/tensorflow/etc.
+2. **LLM classification** - identifies complete workflows vs code fragments
 
 ---
 
@@ -112,17 +142,15 @@ scicode-lint check train.py --severity critical,high
 
 ## Project Status
 
-**Work in Progress** (v0.2.0 alpha)
+**Work in Progress** (v0.2.1 alpha)
 
 | Test Type | Precision | Recall | Description |
 |-----------|-----------|--------|-------------|
-| Controlled tests | 99.5% | 99.5% | Curated positive/negative test files per pattern |
-| Integration static | 84.6% | 89.2% | Pre-generated multi-pattern scenarios |
-| Integration dynamic | 44.4% | 83.3% | Fresh LLM-generated code each run |
-| Labeled Kaggle notebooks | 64% | 89% | Yang et al. ASE'22 dataset, human-labeled ground truth |
-| Published papers | ~18%* | - | 38 AI+science papers; every paper had at least one verified bug |
-
-*Pending re-run; precision expected to improve after bug fix (verified findings remain valid).
+| Controlled tests | 95.6% | 97.0% | Curated positive/negative test files per pattern (438 tests, 66 patterns) |
+| Integration (LLM-generated) | 58.0% | 85.1% | 50 Sonnet-generated scenarios with 148 planted bugs; 27 bonus TPs found |
+| Labeled Kaggle notebooks | 75% | 55% | Yang et al. ASE'22 dataset (`pre` label), human-labeled ground truth |
+| Published papers (iteration) | 45.2% | - | 35 repos analyzed (120 files); used for pattern refinement |
+| Published papers (holdout) | 37.9% | - | 17 repos analyzed (45 files); unseen during development |
 
 Example reports: [`real_world_demo/output_examples/`](real_world_demo/output_examples/)
 
@@ -196,7 +224,10 @@ The script checks prerequisites, builds the package, creates a git tag, and publ
 
 ## Development Approach
 
-GenAI-native development with Claude Code. Patterns are generated and iterated by AI agents within human-designed evaluation frameworks and quality gates. See [Continuous Improvement Loop](docs_dev_genai/CONTINUOUS_IMPROVEMENT.md) for the workflow.
+GenAI-native development with Claude Code. Patterns are generated and iterated by AI agents within human-designed evaluation frameworks and quality gates.
+
+- **Fast loop:** [CONTINUOUS_IMPROVEMENT.md](docs_dev_genai/CONTINUOUS_IMPROVEMENT.md) - Iterate on synthetic test files
+- **Meta loop:** [META_IMPROVEMENT_LOOP.md](docs_dev_genai/META_IMPROVEMENT_LOOP.md) - Validate on real Papers with Code + Claude verification
 
 ---
 

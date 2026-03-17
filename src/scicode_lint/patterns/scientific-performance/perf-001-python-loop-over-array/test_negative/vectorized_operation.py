@@ -1,11 +1,17 @@
 import numpy as np
 
 
-def normalize_array(arr):
-    max_val = np.max(arr)
-    result = np.where(arr > 0, arr / max_val, 0)
-    return result
+def apply_sigmoid(activations):
+    return 1.0 / (1.0 + np.exp(-activations))
 
 
-data = np.random.randn(100000)
-normalized = normalize_array(data)
+def compute_loss(predictions, targets):
+    epsilon = 1e-7
+    clipped = np.clip(predictions, epsilon, 1.0 - epsilon)
+    return -np.mean(targets * np.log(clipped) + (1 - targets) * np.log(1 - clipped))
+
+
+layer_output = np.random.randn(256, 128)
+probabilities = apply_sigmoid(layer_output)
+labels = np.random.randint(0, 2, size=(256, 128)).astype(float)
+loss = compute_loss(probabilities, labels)

@@ -69,6 +69,7 @@ min_confidence = 0.85
 type = "function"
 name = "train_iteration"
 snippet = "loss_disconnected.backward()"
+lines = [26]
 
 [[tests.context_dependent]]
 file = "test_context_dependent/item_then_backward.py"
@@ -76,6 +77,12 @@ description = "Converting loss to float before backward - code works but pattern
 context_notes = "The backward() is called on the original loss tensor, so it works correctly. The float conversion before backward is suspicious but not a bug."
 allow_detection = true
 allow_skip = true
+
+[tests.context_dependent.expected_location]
+type = "function"
+name = "training_step"
+snippet = "scalar_loss = float(loss)"
+lines = [22]
 
 [[tests.negative]]
 file = "test_negative/correct_backward.py"
@@ -96,6 +103,7 @@ min_confidence = 0.85
 type = "function"
 name = "train_with_metric"
 snippet = "loss = torch.tensor(metric, requires_grad=True)"
+lines = [10]
 
 [[tests.positive]]
 file = "test_positive/explicit_detach_backward.py"
@@ -107,6 +115,7 @@ min_confidence = 0.85
 type = "function"
 name = "train_autoencoder"
 snippet = "detached_loss.backward()"
+lines = [36]
 
 [[tests.negative]]
 file = "test_negative/custom_metric_loss_correct.py"

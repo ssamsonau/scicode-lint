@@ -60,6 +60,7 @@ min_confidence = 0.85
 type = "function"
 name = "export_model"
 snippet = "torch.onnx.export"
+lines = [17, 29]
 
 [[tests.negative]]
 file = "test_negative/torchscript_export.py"
@@ -87,17 +88,7 @@ min_confidence = 0.85
 type = "function"
 name = "export_model"
 snippet = "torch.onnx.export"
-
-[[tests.positive]]
-file = "test_positive/onnx_fixed_batch.py"
-description = "ONNX export with minimal parameters, no dynamic_axes specified."
-expected_issue = "torch.onnx.export() missing dynamic_axes parameter"
-min_confidence = 0.85
-
-[tests.positive.expected_location]
-type = "function"
-name = "export_to_onnx"
-snippet = "torch.onnx.export"
+lines = [24]
 
 [[tests.positive]]
 file = "test_positive/onnx_class_exporter_fixed.py"
@@ -109,3 +100,4 @@ min_confidence = 0.85
 type = "method"
 name = "export_for_deployment"
 snippet = "torch.onnx.export"
+lines = [29]

@@ -60,6 +60,7 @@ min_confidence = 0.85
 type = "function"
 name = "serve_prediction"
 snippet = "with torch.no_grad():"
+lines = [19]
 
 [[tests.negative]]
 file = "test_negative/training_validation.py"
@@ -75,22 +76,24 @@ description = "Production inference correctly using torch.inference_mode()"
 
 [[tests.positive]]
 file = "test_positive/api_endpoint_no_grad.py"
-description = "API endpoint for text classification using torch.no_grad() in inference functions"
-expected_issue = "API inference functions using no_grad() instead of inference_mode() for lower memory overhead"
+description = "Image classification service with preprocessing pipeline using torch.no_grad()"
+expected_issue = "Production image classification service using no_grad() instead of inference_mode()"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
-name = "classify_text"
+type = "method"
+name = "classify_image"
 snippet = "with torch.no_grad():"
+lines = [20]
 
 [[tests.positive]]
 file = "test_positive/embedding_service.py"
-description = "Embedding generation service using torch.no_grad() in inference and batch processing functions"
-expected_issue = "Embedding inference using no_grad() where inference_mode() would disable unnecessary view tracking"
+description = "Similarity search engine using torch.no_grad() for query encoding and document indexing"
+expected_issue = "Production similarity search using no_grad() instead of inference_mode() for encoding"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
-name = "get_embedding"
+type = "method"
+name = "find_similar"
 snippet = "with torch.no_grad():"
+lines = [16]

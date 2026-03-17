@@ -1,17 +1,37 @@
-from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.model_selection import KFold, cross_val_score
+import pandas as pd
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import RepeatedKFold
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 
-def cross_validate_timeseries(df, target_col, feature_cols):
-    X = df[feature_cols].values
-    y = df[target_col].values
-    model = GradientBoostingRegressor()
-    kf = KFold(n_splits=5, shuffle=True)
-    scores = cross_val_score(model, X, y, cv=kf)
-    return scores.mean()
+class TimeSeriesValidator:
+    """Validator for time-series stock price prediction."""
+
+    def __init__(self, n_splits=5, n_repeats=3):
+        self.cv = RepeatedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=42)
+        self.pipeline = Pipeline(
+            [("scaler", StandardScaler()), ("model", RandomForestRegressor(n_estimators=50))]
+        )
+
+    def validate(self, df: pd.DataFrame, target: str):
+        X = df.drop(columns=[target, "timestamp"])
+        y = df[target]
+        scores = []
+        for train_idx, test_idx in self.cv.split(X):
+            self.pipeline.fit(X.iloc[train_idx], y.iloc[train_idx])
+            scores.append(self.pipeline.score(X.iloc[test_idx], y.iloc[test_idx]))
+        return scores
 
 
-def evaluate_model(df, features, target):
-    cv = KFold(n_splits=10, shuffle=True, random_state=42)
-    model = GradientBoostingRegressor()
-    return cross_val_score(model, df[features], df[target], cv=cv)
+def evaluate_daily_forecast(sales_df):
+    from sklearn.model_selection import StratifiedKFold
+
+    X = sales_df.drop(columns=["sales", "date"])
+    y = (sales_df["sales"] > sales_df["sales"].median()).astype(int)
+
+    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=0)
+    results = []
+    for train, test in skf.split(X, y):
+        results.append((train.shape[0], test.shape[0]))
+    return results

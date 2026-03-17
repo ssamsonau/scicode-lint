@@ -25,6 +25,7 @@ real_world_demo/
 │
 ├── run_analysis.py                  # Generic analysis (any source)
 ├── verify_findings.py               # Claude verification
+├── analyze_errors.py                # FP analysis (themes + fix recommendations)
 ├── generate_report.py               # Report from database
 ├── database.py                      # SQLite storage
 ├── config.py                        # Shared configuration
@@ -129,9 +130,12 @@ python -m real_world_demo.verify_findings --run-id <RUN_ID>
 
 # 3. Generate verified-only report
 python -m real_world_demo.generate_report --run-id <RUN_ID> --verified-only
+
+# 4. Analyze false positives (extracts themes, recommends detection question fixes)
+python -m real_world_demo.analyze_errors --run-id <RUN_ID>
 ```
 
-**Output:** Findings report + Claude-verified precision metrics. See [Verification with Claude Opus](#verification-with-claude-opus) for details.
+**Output:** Findings report + Claude-verified precision metrics + error analysis. See [Verification with Claude](#verification-with-claude) for details.
 
 ## Pipeline Stages (PapersWithCode)
 
@@ -140,14 +144,77 @@ The pipeline ensures we select papers that are **AI applied to science** (not ML
 | Stage | Module | Description | Output |
 |-------|--------|-------------|--------|
 | filter | `filter_papers.py` | Filter by scientific domain keywords, exclude ML venues (NeurIPS, ICML, etc.) | `data/filtered_papers.json` |
-| abstract_filter | `filter_abstracts.py` | **LLM semantic filter**: Is this AI applied to real science? | `data/ai_science_papers.json` |
+| abstract_filter | `filter_abstracts.py` | **LLM semantic filter**: Is this AI applied to real science? (`--seed` for reproducibility) | `data/ai_science_papers.json` |
 | clone | `clone_repos.py` | Clone GitHub repos from AI+science papers | `cloned_repos/` |
 | files | `filter_files.py` | Find Python files with ML imports | `data/qualifying_files.json` |
-| prefilter | `prefilter_files.py` | LLM pre-filter: Is this ML pipeline code? | `data/pipeline_files.json` |
+| prefilter | `prefilter_files.py` | LLM pre-filter: Is this ML pipeline code? | `data/pipeline_files.json` + DB |
 | manifest | `generate_manifest.py` | Collect files and create manifest | `collected_code/manifest.csv` |
 | analyze | `run_analysis.py` | Run scicode-lint on all files | `data/analysis.db` |
 | report | `generate_report.py` | Generate findings report | `reports/findings_*.md` |
 | verify | `verify_findings.py` | Verify findings with Claude | Updates database |
+| analyze_errors | `analyze_errors.py` | Analyze FP themes, recommend fixes | `reports/error_analysis/` |
+
+### Prefilter Run Tracking
+
+The prefilter stage saves results to DB for reproducibility.
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--sample N` | Sample N **papers** (all their files). Groups by paper, not file. |
+| `--seed S` | Random seed for reproducible sampling (use with `--sample`) |
+| `--reclassify-from-run ID` | Re-classify files from a previous prefilter run with current model |
+| `--from-analysis-run ID` | Use files from repos in a previous analysis run |
+| `--exclude-from-prefilter-run ID [ID ...]` | Exclude papers that appeared in these prefilter runs (prevents data contamination) |
+| `--resume` | Resume the latest incomplete prefilter run |
+| `--max-concurrent N` | Maximum concurrent LLM requests (default: 50) |
+
+```bash
+# Run prefilter (saves to DB incrementally)
+python -m real_world_demo.sources.papers_with_code.prefilter_files --max-concurrent 50
+# Output: "Created prefilter run 52"
+
+# Sample 30 papers (all their files) with reproducible seed
+python -m real_world_demo.sources.papers_with_code.prefilter_files --sample 30 --seed 42
+
+# Check runs
+sqlite3 real_world_demo/data/analysis.db \
+    "SELECT id, self_contained, fragments, status FROM prefilter_runs ORDER BY id DESC LIMIT 5"
+
+# Resume interrupted run
+python -m real_world_demo.sources.papers_with_code.prefilter_files --resume
+
+# Re-classify files from previous run with current model
+python -m real_world_demo.sources.papers_with_code.prefilter_files --reclassify-from-run 43
+
+# Reclassify + sample: take 30 random papers from run 43
+python -m real_world_demo.sources.papers_with_code.prefilter_files --reclassify-from-run 43 --sample 30 --seed 42
+
+# Re-run prefilter on files from repos in a previous analysis run
+python -m real_world_demo.sources.papers_with_code.prefilter_files --from-analysis-run 49
+
+# Exclude papers from previous improvement loop runs (prevents data contamination)
+python -m real_world_demo.sources.papers_with_code.prefilter_files \
+    --sample 30 --seed 42 --exclude-from-prefilter-run 4
+
+# Exclude papers from multiple runs
+python -m real_world_demo.sources.papers_with_code.prefilter_files \
+    --reclassify-from-run 43 --exclude-from-prefilter-run 4 5
+```
+
+### Analysis from Prefilter Run
+
+Run analysis using files from a specific prefilter run (instead of manifest.csv):
+
+```bash
+# Analyze self-contained files from prefilter run 52
+python -m real_world_demo.run_analysis --from-prefilter-run 52
+
+# Compare results across model versions
+python -m real_world_demo.run_analysis --from-prefilter-run 43  # old model
+python -m real_world_demo.run_analysis --from-prefilter-run 52  # new model
+```
 
 ### Paper Selection Flow
 
@@ -181,6 +248,43 @@ python -m real_world_demo.generate_report --list-runs --data-source leakage_pape
 # Query directly
 sqlite3 real_world_demo/data/analysis.db \
     "SELECT id, data_source, total_files, total_findings FROM analysis_runs ORDER BY id DESC LIMIT 5"
+```
+
+### Database Schema
+
+| Table | Description |
+|-------|-------------|
+| `repos` | Repository metadata |
+| `files` | File metadata and classification |
+| `analysis_runs` | Analysis run tracking (linked to `prefilter_run_id`) |
+| `file_analyses` | Per-file analysis results |
+| `findings` | Detected issues |
+| `pattern_runs` | Per-pattern execution status |
+| `finding_verifications` | Claude verification results |
+| `prefilter_runs` | **NEW:** Prefilter run tracking (status, counts, seed, config) |
+| `prefilter_file_results` | **NEW:** Per-file classification results |
+
+### Prefilter Run Queries
+
+```bash
+# List prefilter runs
+sqlite3 real_world_demo/data/analysis.db "
+SELECT id, status, self_contained, fragments, seed, model_name
+FROM prefilter_runs ORDER BY id DESC LIMIT 5"
+
+# Files from a prefilter run
+sqlite3 real_world_demo/data/analysis.db "
+SELECT f.file_path, pfr.classification, pfr.confidence
+FROM prefilter_file_results pfr
+JOIN files f ON f.id = pfr.file_id
+WHERE pfr.prefilter_run_id = 52
+ORDER BY pfr.confidence DESC LIMIT 10"
+
+# Analysis runs linked to prefilter runs
+sqlite3 real_world_demo/data/analysis.db "
+SELECT ar.id, ar.prefilter_run_id, ar.total_files, ar.total_findings
+FROM analysis_runs ar
+WHERE ar.prefilter_run_id IS NOT NULL"
 ```
 
 ### Pattern-Level Results
@@ -239,10 +343,12 @@ real_world_demo/
 │   │   ├── FINDINGS_REPORT.md
 │   │   └── VALID_FINDINGS_SAMPLE.md
 │   └── leakage_paper/             # Ground truth dataset
-│       ├── FINDINGS_REPORT.md
-│       └── GROUND_TRUTH_COMPARISON.md
+│       └── FINDINGS_REPORT.md     # Includes ground truth comparison
 └── reports/                       # Generated reports (gitignored)
-    └── FINDINGS_REPORT_YYYY-MM-DD_HHMM.md
+    ├── leakage_paper/             # Leakage paper reports
+    │   └── FINDINGS_REPORT_YYYY-MM-DD_HHMM.md
+    └── papers_with_code/          # PapersWithCode reports
+        └── FINDINGS_REPORT_YYYY-MM-DD_HHMM.md
 ```
 
 ## Output Examples
@@ -251,42 +357,36 @@ real_world_demo/
 
 | Directory | Files | Description |
 |-----------|-------|-------------|
-| `papers_with_code/` | `FINDINGS_REPORT.md`, `VALID_FINDINGS_SAMPLE.md` | PapersWithCode analysis |
-| `leakage_paper/` | `FINDINGS_REPORT.md`, `GROUND_TRUTH_COMPARISON.md` | Ground truth dataset (Yang et al. ASE'22) |
+| `papers_with_code/` | `FINDINGS_REPORT.md`, `VALID_FINDINGS_SAMPLE.md` | PapersWithCode analysis with Claude verification |
+| `leakage_paper/` | `FINDINGS_REPORT.md` | Ground truth dataset (Yang et al. ASE'22), includes precision/recall/F1 comparison |
 
 ### Updating Output Examples
 
 After running analysis and generating reports, copy to `output_examples/` for tracking.
 
-**Generated files** (in `reports/<source>/`, gitignored):
-| Script | Generated File |
-|--------|----------------|
-| `generate_report` | `findings_YYYY-MM-DD_HHMM.md` |
-| `generate_report --verified-only` | `valid_findings_YYYY-MM-DD_HHMM.md` |
-| `compare_ground_truth` | (stdout) |
+Reports are generated per data source into `reports/<source>/`. The `generate_report` command automatically:
+- Saves to `reports/<source>/FINDINGS_REPORT_<date>.md`
+- Includes ground truth comparison for `leakage_paper` source (precision/recall/F1)
 
 **Target files** (in `output_examples/<source>/`, tracked):
-| Source | File | From |
-|--------|------|------|
-| `leakage_paper/` | `GROUND_TRUTH_COMPARISON.md` | `compare_ground_truth` stdout |
-| `leakage_paper/` | `FINDINGS_REPORT.md` | `findings_*.md` |
-| `papers_with_code/` | `FINDINGS_REPORT.md` | `findings_*.md` |
-| `papers_with_code/` | `VALID_FINDINGS_SAMPLE.md` | `valid_findings_*.md` |
+| Source | File | Description |
+|--------|------|-------------|
+| `leakage_paper/` | `FINDINGS_REPORT.md` | Findings + ground truth comparison |
+| `papers_with_code/` | `FINDINGS_REPORT.md` | Findings report |
+| `papers_with_code/` | `VALID_FINDINGS_SAMPLE.md` | Claude-verified findings |
 
 ```bash
-# Leakage paper
-python -m real_world_demo.sources.leakage_paper.compare_ground_truth \
-    > output_examples/leakage_paper/GROUND_TRUTH_COMPARISON.md
-python -m real_world_demo.generate_report --run-id <RUN_ID> --data-source leakage_paper
-cp reports/leakage_paper/findings_YYYY-MM-DD_HHMM.md \
+# Leakage paper (ground truth comparison included in report automatically)
+python -m real_world_demo.generate_report --run-id <RUN_ID>
+cp reports/leakage_paper/FINDINGS_REPORT_*.md \
     output_examples/leakage_paper/FINDINGS_REPORT.md
 
 # PapersWithCode
 python -m real_world_demo.generate_report --run-id <RUN_ID>
-cp reports/papers_with_code/findings_YYYY-MM-DD_HHMM.md \
+cp reports/papers_with_code/FINDINGS_REPORT_*.md \
     output_examples/papers_with_code/FINDINGS_REPORT.md
 python -m real_world_demo.generate_report --run-id <RUN_ID> --verified-only
-cp reports/papers_with_code/valid_findings_YYYY-MM-DD_HHMM.md \
+cp reports/papers_with_code/VALID_FINDINGS_SAMPLE_*.md \
     output_examples/papers_with_code/VALID_FINDINGS_SAMPLE.md
 ```
 
@@ -309,52 +409,72 @@ Papers are filtered by task keywords:
 
 ### Leakage Paper (Yang et al. ASE'22)
 
-Comparison against ground truth labels from the paper. See [output_examples/leakage_paper/GROUND_TRUTH_COMPARISON.md](output_examples/leakage_paper/GROUND_TRUTH_COMPARISON.md) for full output.
+Comparison against ground truth labels from the paper. Ground truth metrics (precision, recall, F1) are included automatically in `FINDINGS_REPORT.md` for leakage paper runs. See [output_examples/leakage_paper/FINDINGS_REPORT.md](output_examples/leakage_paper/FINDINGS_REPORT.md).
 
-Run `python -m real_world_demo.sources.leakage_paper.compare_ground_truth` for latest results.
+For standalone comparison: `python -m real_world_demo.sources.leakage_paper.compare_ground_truth`
+
+**Aggregate:** Precision 67%, Recall 18%, F1 29%, Accuracy 78% (12 notebooks excluded due to timeouts)
 
 | Label | Patterns | Precision | Recall | F1 |
 |-------|----------|-----------|--------|-----|
-| `pre` | ml-001, ml-007 | 68.0% | 100.0% | 81.0% |
-| `overlap` | ml-009 | 25.0% | 33.3% | 28.6% |
-| `multi` | ml-010 | 52.9% | 31.0% | 39.1% |
+| `pre` | ml-001, ml-007 | 75.0% | 54.5% | 63.2% |
+| `overlap` | ml-009 | 0.0% | 0.0% | 0.0% |
+| `multi` | ml-010 | 0.0% | 0.0% | 0.0% |
 
-**Notable:** Preprocessing leakage (`pre`) achieves **100% recall** - all 17 ground truth cases detected. These patterns catch `fit_transform` on full data before `train_test_split`.
+**Notable:** Preprocessing leakage (`pre`) has highest detection quality. These patterns catch `fit_transform` on full data before `train_test_split`. Overlap and multi patterns need improvement.
 
-### PapersWithCode
+### PapersWithCode (Meta Loop Set — used for pattern refinement)
 
-> **Note:** Detection pending re-run due to a bug that reduced accuracy (~99%→78%).
-> Verified findings remain valid (Opus verification unaffected). Precision expected to improve.
-
-**Pipeline:** 45 papers → 61 repos → 884 files collected.
-
-Quick test on 15 files (full analysis pending):
+**Pipeline:** 38 papers → 47 repos → 884 qualifying files → 120 self-contained files (prefilter).
 
 | Metric | Value |
 |--------|-------|
-| Files with findings | 53.3% (8/15) |
-| Total findings | 19 |
-| **Verified precision** | **15.8%** (3/19 valid) |
+| Papers with self-contained files | 32/38 |
+| Files analyzed | 120 |
+| Files with findings | 75.0% (90/120) |
+| Total findings | 219 |
+| **Verified precision** | **45.2%** (99/219 valid) |
+| Papers with verified real bugs | 75% (24/32) |
 
-**Valid patterns:**
+**Top patterns by precision:**
 | Pattern | Issue | Valid | Total | Precision |
 |---------|-------|-------|-------|-----------|
-| pt-003 | In-place gradient ops | 1 | 1 | 100% |
-| rep-002 | CUDA non-determinism | 2 | 5 | 40% |
+| pt-015 | Deprecated PyTorch APIs | 14 | 14 | 100% |
+| rep-002 | CUDA non-determinism | 28 | 32 | 87.5% |
+| pt-013 | Training mode issues | 9 | 11 | 81.8% |
+| pt-007 | Gradient-related bugs | 4 | 5 | 80.0% |
 
-**Known issues affecting precision:**
-- Empty code snippets in some detections (bug)
-- Missing cross-file context (seeds set elsewhere)
-- Some patterns too broad (rep-003 hardcoded params)
+### PapersWithCode (Holdout Set — unseen during development)
 
-## Verification with Claude Opus
+**Pipeline:** 35 papers → 31 repos with qualifying files → 562 qualifying files → 45 self-contained files.
 
-The verification stage uses Claude Opus to evaluate whether detected findings are real issues or false positives. This provides ground truth for measuring detection precision.
+| Metric | Value |
+|--------|-------|
+| Papers with self-contained files | 17/35 |
+| Files analyzed | 45 |
+| Files with findings | 82% (37/45) |
+| Total findings | 103 |
+| **Verified precision** | **37.9%** (39/103 valid) |
+| Papers with verified real bugs | 71% (12/17) |
+
+Paper set details: [`paper_sets/`](paper_sets/)
+| rep-006 | Reproducibility gaps | 3 | 4 | 75.0% |
+
+**Known FP sources (being addressed via meta improvement loop):**
+- perf-004: fires on any array code, not specifically wasteful intermediates
+- par-005: flags DataLoader without verifying actual forking occurs
+- rep-003: flags configurable params (argparse defaults, hyperopt configs)
+
+## Verification with Claude
+
+The verification stage uses Claude Sonnet to evaluate whether detected findings are real issues or false positives. This provides ground truth for measuring detection precision.
+
+**See also:** [META_IMPROVEMENT_LOOP.md](../docs_dev_genai/META_IMPROVEMENT_LOOP.md) - Using verification results to systematically improve pattern detection questions.
 
 ### How It Works
 
 1. **Detection** (vLLM/Qwen3 local): Fast bulk scanning → findings stored in `findings` table
-2. **Verification** (Claude Opus): Reviews each finding with full code context
+2. **Verification** (Claude Sonnet): Reviews each finding with full code context
 3. **Verdict**: `VALID` (real issue), `INVALID` (false positive), or `UNCERTAIN`
 4. **Storage**: Verdicts + reasoning → `finding_verifications` table
 

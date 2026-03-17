@@ -1,17 +1,31 @@
+from math import factorial
+
 import numpy as np
 
 
-def compute_factorial(n):
-    result = np.int64(1)
-    for i in range(2, n + 1):
-        result *= np.int64(i)
-    return result
+def compute_factorial_python(n):
+    """Use Python's arbitrary precision integers for factorial."""
+    return factorial(n)
 
 
-def sum_large_array(arr):
-    return np.array(arr, dtype=np.int64).sum()
+def count_occurrences(labels):
+    """Count label occurrences - small integers, no overflow risk."""
+    unique, counts = np.unique(labels, return_counts=True)
+    return dict(zip(unique, counts))
 
 
-def matrix_product_sum(A, B):
-    product = np.dot(A.astype(np.int64), B.astype(np.int64))
-    return product.sum()
+def boolean_aggregation(flags_matrix):
+    """Aggregate boolean flags - result is always small."""
+    row_any = np.any(flags_matrix, axis=1)
+    col_all = np.all(flags_matrix, axis=0)
+    return row_any.sum(), col_all.sum()
+
+
+def argmax_indices(scores):
+    """Find indices of maximum values - indices stay small."""
+    max_idx = np.argmax(scores, axis=1)
+    return max_idx
+
+
+labels = np.random.randint(0, 100, size=10000)
+counts = count_occurrences(labels)

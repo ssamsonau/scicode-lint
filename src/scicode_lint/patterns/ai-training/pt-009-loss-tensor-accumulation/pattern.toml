@@ -61,17 +61,19 @@ min_confidence = 0.85
 type = "function"
 name = "train_with_tensor_accumulation"
 snippet = "epoch_loss = epoch_loss + loss"
+lines = [41]
 
 [[tests.positive]]
 file = "test_positive/loss_list_accumulation.py"
-description = "Appending loss tensors to a list (loss_history.append(loss)) - memory leak from retained graphs"
+description = "Appending loss tensors to a list (batch_losses.append(loss)) - memory leak from retained graphs"
 expected_issue = "Loss tensors stored in list without detaching"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "train_sequence_model"
-snippet = "loss_history.append(loss)"
+name = "train_with_amp_logging"
+snippet = "batch_losses.append(loss)"
+lines = [42, 60]
 
 [[tests.negative]]
 file = "test_negative/accumulate_scalar.py"
@@ -92,6 +94,12 @@ The accumulated loss should still be divided by accumulation_steps and backward(
 However, accumulating the loss tensor itself (not just gradients) still causes memory issues - should accumulate loss.item() for logging.
 """
 
+[tests.context_dependent.expected_location]
+type = "function"
+name = "train_with_gradient_accumulation"
+snippet = "accumulated_loss += loss"
+lines = [37]
+
 
 [[tests.positive]]
 file = "test_positive/epoch_loss_track.py"
@@ -103,6 +111,7 @@ min_confidence = 0.85
 type = "function"
 name = "train_epoch"
 snippet = "total_loss += loss"
+lines = [13, 26]
 
 [[tests.negative]]
 file = "test_negative/epoch_loss_track_correct.py"

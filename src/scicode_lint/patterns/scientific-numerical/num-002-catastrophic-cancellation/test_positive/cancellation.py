@@ -8,11 +8,6 @@ def compute_variance_naive(data):
     return variance
 
 
-def quadratic_discriminant(a, b, c):
-    discriminant = b**2 - 4 * a * c
-    return discriminant
-
-
 def relative_difference(value1, value2):
     diff = value1 - value2
     rel_diff = diff / value2

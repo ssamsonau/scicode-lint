@@ -65,6 +65,7 @@ min_confidence = 0.85
 type = "class"
 name = "NeuralNet"
 snippet = "self.dropout = nn.Dropout(0.3)"
+lines = [12]
 
 [[tests.positive]]
 file = "test_positive/magic_paths_and_values.py"
@@ -76,6 +77,7 @@ min_confidence = 0.85
 type = "function"
 name = "load_data"
 snippet = "with open(\"/data/experiments/trial_042/results.json\") as f:"
+lines = [7]
 
 [[tests.negative]]
 file = "test_negative/config_based.py"
@@ -97,6 +99,7 @@ min_confidence = 0.85
 type = "function"
 name = "create_model"
 snippet = "model = nn.Sequential("
+lines = [6]
 
 [[tests.negative]]
 file = "test_negative/dataclass_config.py"

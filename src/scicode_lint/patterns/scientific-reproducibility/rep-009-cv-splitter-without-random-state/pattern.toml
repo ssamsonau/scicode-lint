@@ -53,17 +53,6 @@ false_positive_risks = []
 
 [tests]
 
-[[tests.positive]]
-file = "test_positive/cv_no_state.py"
-description = "CV splitters with shuffle but no random_state"
-expected_issue = "KFold(shuffle=True) without random_state"
-min_confidence = 0.85
-
-[tests.positive.expected_location]
-type = "function"
-name = "cross_validate_model"
-snippet = "shuffle=True"
-
 [[tests.negative]]
 file = "test_negative/no_shuffle_cv.py"
 description = "CV with shuffle=False (no randomness)"
@@ -76,7 +65,6 @@ description = "Using predefined train/test splits"
 file = "test_negative/seeded_cv.py"
 description = "CV splitters with random_state parameter"
 
-# === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/cv_no_seed.py"
 description = "Multiple shuffled CV splitters (KFold, StratifiedKFold, ShuffleSplit) without random_state"
@@ -87,14 +75,28 @@ min_confidence = 0.85
 type = "function"
 name = "cross_validate_model"
 snippet = "kfold = KFold(n_splits=5, shuffle=True)"
+lines = [10]
 
 [[tests.positive]]
 file = "test_positive/kfold_shuffle.py"
-description = "Shuffled CV splitters (KFold, StratifiedKFold, ShuffleSplit) returned without random_state"
-expected_issue = "KFold(n_splits=n_splits, shuffle=True) missing random_state"
+description = "Nested CV hyperparameter search class with KFold and ShuffleSplit missing random_state"
+expected_issue = "KFold(shuffle=True) and ShuffleSplit() without random_state in nested CV"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "method"
+name = "__init__"
+snippet = "KFold(n_splits=5, shuffle=True)"
+lines = [11, 12]
+
+[[tests.positive]]
+file = "test_positive/group_shuffle_split.py"
+description = "GroupShuffleSplit and RepeatedStratifiedKFold without random_state"
+expected_issue = "GroupShuffleSplit and RepeatedStratifiedKFold missing random_state"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
-name = "get_cv_splitter"
-snippet = "return KFold(n_splits=n_splits, shuffle=True)"
+name = "get_group_splitter"
+snippet = "GroupShuffleSplit(n_splits"
+lines = [8, 13, 18]

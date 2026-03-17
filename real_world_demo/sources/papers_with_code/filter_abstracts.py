@@ -60,11 +60,11 @@ EXCLUDE (is_ai_science: false) if the PRIMARY goal is:
 ABSTRACT:
 {abstract}
 
-Respond with:
+Respond as JSON with these fields:
 - is_ai_science: true/false
 - confidence: 0.0-1.0 (how certain you are)
-- science_domain: biology, chemistry, medicine, physics, materials, neuroscience, earth_science, astronomy, economics, social_science, engineering, or 'none'
-- application_type: prediction, analysis, discovery, simulation, diagnosis, or 'methodology'
+- science_domain: biology, chemistry, medicine, physics, materials, neuroscience, earth_science, astronomy, economics, social_science, engineering, or "none"
+- application_type: prediction, analysis, discovery, simulation, diagnosis, or "methodology"
 - explanation: brief reason"""
 
 
@@ -364,6 +364,30 @@ def main() -> None:
         default=0.7,
         help="Minimum confidence threshold for sampling (default: 0.7)",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        help="Random seed for reproducible sampling",
+    )
+    parser.add_argument(
+        "--exclude-from-prefilter-run",
+        type=int,
+        nargs="+",
+        metavar="RUN_ID",
+        help="Exclude papers already used in these prefilter runs (prevents data contamination)",
+    )
+    parser.add_argument(
+        "--exclude-from-paper-set",
+        type=Path,
+        nargs="+",
+        metavar="JSON_FILE",
+        help="Exclude papers listed in these paper set JSON files",
+    )
+    parser.add_argument(
+        "--no-auto-exclude",
+        action="store_true",
+        help="Disable automatic exclusion of all paper sets in real_world_demo/paper_sets/",
+    )
     args = parser.parse_args()
 
     # Check if output already exists
@@ -384,6 +408,54 @@ def main() -> None:
         logger.warning("No papers to filter!")
         return
 
+    # Collect paper URLs to exclude from all sources
+    excluded_urls: set[str] = set()
+
+    # Auto-exclude all paper sets in real_world_demo/paper_sets/ (unless --no-auto-exclude)
+    if not args.no_auto_exclude:
+        paper_sets_dir = Path(__file__).resolve().parent.parent.parent / "paper_sets"
+        if paper_sets_dir.exists():
+            for json_file in sorted(paper_sets_dir.glob("*.json")):
+                with open(json_file) as f:
+                    paper_set = json.load(f)
+                urls = {p.get("paper_url") for p in paper_set if p.get("paper_url")}
+                excluded_urls.update(urls)
+                logger.info(f"Auto-excluding {len(urls)} papers from {json_file.name}")
+
+    # Exclude from explicit paper set files
+    if args.exclude_from_paper_set:
+        for json_file in args.exclude_from_paper_set:
+            if not json_file.exists():
+                logger.warning(f"Paper set file not found: {json_file}")
+                continue
+            with open(json_file) as f:
+                paper_set = json.load(f)
+            urls = {p.get("paper_url") for p in paper_set if p.get("paper_url")}
+            excluded_urls.update(urls)
+            logger.info(f"Excluding {len(urls)} papers from {json_file.name}")
+
+    # Exclude from prefilter runs (DB lookup)
+    if args.exclude_from_prefilter_run:
+        from real_world_demo.database import get_paper_urls_from_prefilter_runs, init_db
+
+        conn = init_db()
+        run_urls = get_paper_urls_from_prefilter_runs(conn, args.exclude_from_prefilter_run)
+        conn.close()
+        excluded_urls.update(run_urls)
+        logger.info(
+            f"Excluding {len(run_urls)} papers from prefilter runs "
+            f"{args.exclude_from_prefilter_run}"
+        )
+
+    # Apply exclusion
+    if excluded_urls:
+        before = len(papers)
+        papers = [p for p in papers if p.get("paper_url") not in excluded_urls]
+        logger.info(
+            f"Excluded {before - len(papers)} papers total "
+            f"({len(excluded_urls)} unique URLs), {len(papers)} remaining"
+        )
+
     # Create LLM client using scicode_lint infrastructure
     llm_client = create_client(llm_config)
     logger.info(f"Using LLM: {llm_config.base_url} (model: {llm_config.model_served_name})")
@@ -400,9 +472,21 @@ def main() -> None:
     # Save all filtered results
     save_results(ai_science_papers, excluded_papers, args.output_dir)
 
+    # Handle seed warnings
+    if args.seed is not None and args.sample == 0:
+        logger.warning("--seed has no effect without --sample")
+    elif args.sample > 0 and args.seed is None:
+        logger.warning("--sample without --seed: results will not be reproducible")
+
     # Sample if requested
     final_papers = ai_science_papers
     if args.sample > 0:
+        # Set random seed for reproducibility
+        if args.seed is not None:
+            import random
+
+            random.seed(args.seed)
+            logger.info(f"Random seed set to {args.seed}")
         logger.info(f"Sampling {args.sample} papers balanced by domain...")
         final_papers = sample_by_domain(
             ai_science_papers,

@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-03-16
+
+### Added
+- **`analyze` command** - Lint any git repository in one step: clones the repo, finds self-contained ML files, runs all detection patterns
+- **`filter-repo` command** - Find self-contained ML files in a repository without running detection
+- **Comment stripping** - Strips `#` comments before LLM analysis (prevents intention leakage, reduces tokens)
+- **Name-based location detection** - LLM identifies function/class names, AST resolves to lines (stable across runs)
+- **One finding per pattern** - Each pattern produces at most one finding per file
+- **Meta improvement loop** - Real-world validation workflow (`docs_dev_genai/META_IMPROVEMENT_LOOP.md`)
+- **Diversity check** - Semantic similarity check for pattern test files, detects redundant or non-diverse tests
+- **Concurrency flags** - `--filter-concurrency`, `--lint-concurrency` for tuning parallel LLM calls
+- **`--save-to-db`** - Optional database storage for scan results
+
+### Changed
+- **Renamed `check` → `lint`**, **`scan-repo` → `filter-repo`**
+- **SOTA model policy** - Opus 4.6 for interactive dev, Sonnet 4.6 for automated tasks
+- **All 66 patterns reviewed** through full improvement loop
+- Unified Claude CLI wrapper, disk streaming for verification tools (dev tooling)
+
+### Removed
+- **Line overlap validation** - Replaced by name-based location matching
+
+### Fixed
+- Line numbers correctly stored in findings DB
+- LLM retry with correction when detection has no location
+- Pattern accuracy fixes across all 5 categories
+
+### Other
+- Unified Claude CLI wrapper (`dev_lib/claude_cli.py`) with rate limiting and logging
+- Intent hints validation — detects test files that accidentally reveal the expected answer via names or docstrings
+
 ## [0.2.0] - 2026-03-13
 
 **First PyPI release** (alpha)
@@ -179,6 +210,7 @@ Initial public release.
 - Evaluation framework with precision/recall metrics
 - Designed for both human developers and AI coding agents
 
+[0.2.1]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.2.1
 [0.2.0]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.2.0
 [0.1.6]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.1.6
 [0.1.5]: https://github.com/ssamsonau/scicode-lint/releases/tag/v0.1.5

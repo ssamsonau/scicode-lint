@@ -1,33 +1,47 @@
+from pathlib import Path
+
 import torch
 import torch.nn as nn
 
 
-class SimpleModel(nn.Module):
-    def __init__(self):
+class TransformerBlock(nn.Module):
+    def __init__(self, d_model, n_heads):
         super().__init__()
-        self.fc = nn.Linear(100, 10)
+        self.attention = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
+        self.norm1 = nn.LayerNorm(d_model)
+        self.ffn = nn.Sequential(
+            nn.Linear(d_model, d_model * 4),
+            nn.GELU(),
+            nn.Linear(d_model * 4, d_model),
+        )
+        self.norm2 = nn.LayerNorm(d_model)
 
     def forward(self, x):
-        return self.fc(x)
+        attn_out, _ = self.attention(x, x, x)
+        x = self.norm1(x + attn_out)
+        x = self.norm2(x + self.ffn(x))
+        return x
 
 
-def load_model_portable(path, device="cpu"):
-    """Load model with map_location for portable deployment."""
-    model = SimpleModel()
-    state_dict = torch.load(path, map_location=device)
-    model.load_state_dict(state_dict)
-    return model.to(device)
+class ModelRegistry:
+    def __init__(self, model_dir, device="cpu"):
+        self.model_dir = Path(model_dir)
+        self.target_device = torch.device(device)
+        self._cache = {}
 
+    def get_model(self, name, model_class):
+        if name in self._cache:
+            return self._cache[name]
 
-def load_checkpoint_to_cpu(checkpoint_path):
-    checkpoint = torch.load(checkpoint_path, map_location="cpu")
-    model = SimpleModel()
-    model.load_state_dict(checkpoint["model_state_dict"])
-    return model, checkpoint["epoch"]
+        path = self.model_dir / f"{name}.pt"
+        weights = torch.load(path, map_location=self.target_device)
+        model = model_class()
+        model.load_state_dict(weights)
+        model.to(self.target_device)
+        model.eval()
+        self._cache[name] = model
+        return model
 
-
-def load_to_available_device(path):
-    """Load model to GPU if available, otherwise CPU."""
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    state_dict = torch.load(path, map_location=device)
-    return state_dict
+    def preload_all(self, model_configs):
+        for name, config in model_configs.items():
+            self.get_model(name, config["class"])

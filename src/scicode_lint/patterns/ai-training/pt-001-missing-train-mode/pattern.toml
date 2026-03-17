@@ -54,28 +54,31 @@ min_confidence = 0.85
 type = "function"
 name = "train_model"
 snippet = "for batch_data, batch_labels in train_loader:"
+lines = [25, 37]
 
 [[tests.positive]]
 file = "test_positive/no_train_after_eval.py"
-description = "Training resumes after validation without calling model.train() - model remains in eval mode"
+description = "Meta-learning trainer sets feature_extractor and classifier to eval mode but never restores train mode before backward"
 expected_issue = "Training continues after model.eval() without calling model.train()"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
-name = "training_loop"
-snippet = "for inputs, labels in train_loader:"
+type = "class"
+name = "MetaLearner"
+snippet = "self.feature_extractor.eval()"
+lines = [18, 19]
 
 [[tests.positive]]
 file = "test_positive/multi_phase_training.py"
-description = "Multi-phase training with validation and test evaluation phases that never restore train mode"
-expected_issue = "Training continues after model.eval() for validation and test phases without model.train()"
+description = "GAN trainer sets discriminator to eval mode but never restores train mode before next training step"
+expected_issue = "Training continues after disc.eval() without disc.train()"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
-name = "train_with_warmup"
-snippet = "for batch_x, batch_y in train_loader:"
+type = "class"
+name = "GANTrainer"
+snippet = "self.disc.eval()"
+lines = [33]
 
 [[tests.negative]]
 file = "test_negative/correct_train_mode.py"
@@ -88,7 +91,7 @@ description = "Correct usage: model.train() is called after each validation bloc
 
 [[tests.negative]]
 file = "test_negative/resume_training.py"
-description = "No model.eval() call before training - detection question specifically looks for eval→training without train()"
+description = "Knowledge distillation: teacher correctly stays in eval mode, student correctly in train mode"
 
 [[tests.negative]]
 file = "test_negative/resume_training_correct.py"

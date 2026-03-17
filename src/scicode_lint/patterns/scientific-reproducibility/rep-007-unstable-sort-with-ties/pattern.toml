@@ -26,19 +26,26 @@ references = [
 question = """
 Analyze sorting for stable tie-breaking.
 
-NumPy's default sort (quicksort) does not guarantee stable ordering of equal elements. When sorting data with potential ties (rankings, scores, probabilities), the relative order of ties varies between runs.
+NumPy's default sort (quicksort) does not guarantee stable ordering of equal elements.
+This matters when data has REALISTIC ties (integers, discrete categories, binned values).
 
-Correct approach: Use kind='stable' for reproducible tie-breaking.
-
-Does this code sort data with potential ties without stable sort?
+Does this code sort INTEGER or DISCRETE data with potential ties without stable sort?
 
 Look for:
-- np.sort() or np.argsort() without kind='stable'
-- Sorting scores, rankings, or data that may have duplicates
-- Order-dependent operations after sorting
+- np.argsort() without kind='stable' on integer scores, rankings, categories
+- Sorting discrete data (counts, labels, binned values) where ties are common
 
-YES = Bug found: sorting without kind='stable' on data with potential ties
-NO = Correct: kind='stable' used, or data is guaranteed unique
+NOT a bug (answer NO) - ties are practically impossible or already handled:
+- Continuous float outputs from neural networks (softmax, log_probs, embeddings)
+- Random floating-point values (np.random.randn)
+- Computed distances, similarities, or other continuous metrics
+- Top-k selection on continuous scores (tie-breaking order doesn't matter if no ties)
+- kind='stable' already specified
+- np.lexsort() (always uses mergesort/stable internally)
+- pandas sort_values() with kind='mergesort' or explicit tiebreaker column
+
+YES = Bug: Unstable sort on INTEGER/DISCRETE data with likely ties
+NO = Clean: Continuous ML outputs (ties impractical), kind='stable' used, or data is unique
 """
 
 warning_message = """
@@ -52,14 +59,15 @@ false_positive_risks = []
 
 [[tests.positive]]
 file = "test_positive/unstable_sort.py"
-description = "Sorting without stable kind on data with ties"
-expected_issue = "np.argsort() without kind='stable'"
+description = "Genomics pipeline sorting discretized expression levels, integer ages, variant counts without stable sort"
+expected_issue = "np.argsort() and np.sort() without kind='stable' on discrete genomics data"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
 type = "function"
 name = "rank_predictions"
-snippet = "argsort"
+snippet = "np.argsort(levels)"
+lines = [9, 15, 20, 25]
 
 [[tests.negative]]
 file = "test_negative/unique_values.py"
@@ -73,17 +81,22 @@ description = "Using pandas rank with tiebreaker method"
 file = "test_negative/stable_sort.py"
 description = "Using kind='stable' for reproducible tie-breaking"
 
+[[tests.negative]]
+file = "test_negative/continuous_ml_outputs.py"
+description = "Continuous float ML outputs (softmax, similarities, distances) - ties are practically impossible"
+
 # === Auto-generated entries (review and update) ===
 [[tests.positive]]
 file = "test_positive/argsort_default.py"
-description = "Multiple functions using np.argsort() without kind='stable' on ranking data with potential ties."
-expected_issue = "np.argsort() without kind='stable' parameter"
+description = "Survey analyzer class using np.argsort() on Likert-scale integer totals, rounded variances, and hash values without kind='stable'."
+expected_issue = "np.argsort() without kind='stable' on integer survey scores with many ties"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
+type = "method"
 name = "get_ranking"
-snippet = "return np.argsort(scores)"
+snippet = "np.argsort(totals)"
+lines = [16, 21, 26]
 
 [[tests.positive]]
 file = "test_positive/quicksort_ranking.py"
@@ -95,3 +108,4 @@ min_confidence = 0.85
 type = "function"
 name = "rank_candidates"
 snippet = "order = np.argsort(-scores)"
+lines = [5]

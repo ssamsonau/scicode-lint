@@ -1,39 +1,71 @@
+import torch
 import torch.nn as nn
-import torch.optim as optim
+from torch.cuda.amp import GradScaler, autocast
 
 
-class SequenceModel(nn.Module):
-    def __init__(self, vocab_size, embed_size, hidden_size):
-        super().__init__()
-        self.embedding = nn.Embedding(vocab_size, embed_size)
-        self.lstm = nn.LSTM(embed_size, hidden_size, batch_first=True)
-        self.fc = nn.Linear(hidden_size, vocab_size)
+class AverageMeter:
+    """Tracks running average of loss values."""
 
-    def forward(self, x):
-        embedded = self.embedding(x)
-        lstm_out, _ = self.lstm(embedded)
-        return self.fc(lstm_out)
+    def __init__(self):
+        self.values = []
+        self.sum = torch.tensor(0.0)
+        self.count = 0
+
+    def update(self, loss: torch.Tensor, n: int = 1):
+        self.values.append(loss)
+        self.sum += loss * n
+        self.count += n
+
+    @property
+    def avg(self):
+        return self.sum / self.count if self.count > 0 else 0
 
 
-def train_sequence_model(model, train_data, num_epochs):
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+def train_with_amp_logging(
+    model: nn.Module, loader, optimizer, scaler: GradScaler, log_every: int = 10
+):
+    """AMP training with periodic loss logging."""
     criterion = nn.CrossEntropyLoss()
+    batch_losses = []
 
-    for epoch in range(num_epochs):
-        loss_history = []
+    for batch_idx, (inputs, targets) in enumerate(loader):
+        optimizer.zero_grad()
 
-        for batch_sequences, batch_targets in train_data:
-            optimizer.zero_grad()
+        with autocast():
+            outputs = model(inputs)
+            loss = criterion(outputs, targets)
 
-            predictions = model(batch_sequences)
-            loss = criterion(predictions.view(-1, predictions.size(-1)), batch_targets.view(-1))
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
 
-            loss.backward()
-            optimizer.step()
+        batch_losses.append(loss)
 
-            loss_history.append(loss)
+        if (batch_idx + 1) % log_every == 0:
+            recent_avg = torch.stack(batch_losses[-log_every:]).mean()
+            print(f"Step {batch_idx}: loss = {recent_avg:.4f}")
 
-        # Computing statistics from retained tensors
-        _mean_loss = sum(loss_history) / len(loss_history)
+    return batch_losses
 
-    return model
+
+class GradientMonitor:
+    """Monitors gradient norms during training."""
+
+    def __init__(self, model: nn.Module):
+        self.model = model
+        self.loss_history = []
+        self.grad_norms = []
+
+    def step(self, loss: torch.Tensor, optimizer):
+        self.loss_history.append(loss)
+
+        loss.backward()
+
+        total_norm = 0.0
+        for p in self.model.parameters():
+            if p.grad is not None:
+                total_norm += p.grad.data.norm(2).item() ** 2
+        self.grad_norms.append(total_norm**0.5)
+
+        optimizer.step()
+        optimizer.zero_grad()

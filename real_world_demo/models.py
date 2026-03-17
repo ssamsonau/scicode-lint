@@ -50,6 +50,15 @@ class RunStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
+class FileClassification(StrEnum):
+    """Self-contained file classification."""
+
+    SELF_CONTAINED = "self_contained"
+    FRAGMENT = "fragment"
+    UNCERTAIN = "uncertain"
+    SKIPPED = "skipped"  # No ML indicators
+
+
 # ============================================================================
 # Core domain models
 # ============================================================================
@@ -100,7 +109,10 @@ class FileRecord(BaseModel):
 class FindingLocation(BaseModel):
     """Location of a finding in source code."""
 
-    lines: list[int] = Field(default_factory=list, description="Line numbers")
+    name: str | None = Field(default=None, description="Function/class/method name")
+    location_type: str | None = Field(default=None, description="function, method, class, module")
+    lines: list[int] = Field(default_factory=list, description="Line numbers (full range)")
+    focus_line: int | None = Field(default=None, description="Specific line with the issue")
     snippet: str = Field(default="", description="Code snippet")
 
 
@@ -147,6 +159,68 @@ class AnalysisRun(BaseModel):
     )
     git_commit: str = Field(default="", description="Git commit of scicode-lint")
     model_name: str = Field(default="", description="LLM model used")
+
+
+class RepoScan(BaseModel):
+    """A repository scan run for finding self-contained ML files."""
+
+    scan_id: int = Field(description="Auto-generated scan ID")
+    repo_id: int = Field(description="Repository being scanned")
+    started_at: datetime = Field(default_factory=datetime.now)
+    completed_at: datetime | None = Field(default=None)
+    status: RunStatus = Field(default=RunStatus.RUNNING)
+    total_files: int = Field(default=0, description="Total Python files found")
+    passed_ml_import_filter: int = Field(default=0, description="Files with ML imports")
+    self_contained: int = Field(default=0, description="Files classified as self-contained")
+    fragments: int = Field(default=0, description="Files classified as fragments")
+    uncertain: int = Field(default=0, description="Files with uncertain classification")
+    skipped: int = Field(default=0, description="Files skipped (no ML indicators)")
+    duration_seconds: float = Field(default=0, description="Scan duration")
+    model_name: str = Field(default="", description="LLM model used for classification")
+
+
+class ScanStats(BaseModel):
+    """Aggregated scan statistics."""
+
+    total_scans: int = 0
+    total_repos_scanned: int = 0
+    total_files_scanned: int = 0
+    total_self_contained: int = 0
+    total_fragments: int = 0
+    total_skipped: int = 0
+    avg_self_contained_per_repo: float = 0
+    avg_scan_duration: float = 0
+
+
+class PrefilterRun(BaseModel):
+    """A prefilter run for classifying files as self-contained vs fragments."""
+
+    run_id: int = Field(description="Auto-generated run ID")
+    started_at: datetime = Field(default_factory=datetime.now)
+    completed_at: datetime | None = Field(default=None)
+    status: RunStatus = Field(default=RunStatus.RUNNING)
+    data_source: str = Field(default="papers_with_code", description="Data source identifier")
+    total_files: int = Field(default=0, description="Total files to classify")
+    self_contained: int = Field(default=0, description="Files classified as self-contained")
+    fragments: int = Field(default=0, description="Files classified as fragments")
+    uncertain: int = Field(default=0, description="Files with uncertain classification")
+    errors: int = Field(default=0, description="Files that errored during classification")
+    seed: int | None = Field(default=None, description="Random seed for reproducibility")
+    config: dict[str, Any] = Field(default_factory=dict, description="Run configuration")
+    model_name: str = Field(default="", description="LLM model used for classification")
+    git_commit: str = Field(default="", description="Git commit of scicode-lint")
+    parent_run_id: int | None = Field(default=None, description="ID of parent run if reusing files")
+
+
+class PrefilterFileResult(BaseModel):
+    """Classification result for a single file in a prefilter run."""
+
+    file_id: int = Field(description="File ID in files table")
+    file_path: str = Field(description="Path to the file")
+    repo_id: int | None = Field(default=None, description="Repository ID")
+    classification: str = Field(description="Classification: self_contained, fragment, uncertain")
+    confidence: float | None = Field(default=None, description="Classification confidence")
+    reasoning: str | None = Field(default=None, description="LLM reasoning for classification")
 
 
 # ============================================================================

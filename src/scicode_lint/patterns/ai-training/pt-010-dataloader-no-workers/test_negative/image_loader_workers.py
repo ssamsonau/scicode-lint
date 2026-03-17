@@ -1,43 +1,62 @@
+import os
+from collections.abc import Iterator
+
 import torch
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, IterableDataset
 
 
-class ImageDataset(Dataset):
-    def __init__(self, image_paths, transform=None):
-        self.paths = image_paths
+class StreamingImageDataset(IterableDataset):
+    """Memory-efficient streaming dataset for large image collections."""
+
+    def __init__(self, root_dir: str, transform=None):
+        self.root_dir = root_dir
         self.transform = transform
 
-    def __len__(self):
-        return len(self.paths)
-
-    def __getitem__(self, idx):
+    def __iter__(self) -> Iterator:
         from PIL import Image
 
-        img = Image.open(self.paths[idx])
-        if self.transform:
-            img = self.transform(img)
-        return img, 0
+        for fname in os.listdir(self.root_dir):
+            if fname.endswith((".jpg", ".png")):
+                img = Image.open(os.path.join(self.root_dir, fname))
+                if self.transform:
+                    img = self.transform(img)
+                yield img, 0
 
 
-def get_training_loader(train_data, batch_size=64, num_workers=4):
+def create_optimized_loader(
+    dataset, batch_size: int = 32, num_workers: int = 4, prefetch_factor: int = 2
+) -> DataLoader:
+    """Create DataLoader with optimal worker configuration."""
     return DataLoader(
-        train_data, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=num_workers
+        dataset,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        pin_memory=torch.cuda.is_available(),
+        prefetch_factor=prefetch_factor if num_workers > 0 else None,
+        persistent_workers=num_workers > 0,
     )
 
 
-def train_model(model, train_paths, epochs=10):
-    dataset = ImageDataset(train_paths)
-    loader = get_training_loader(dataset, batch_size=32, num_workers=4)
+class DataLoaderFactory:
+    """Factory for creating DataLoaders with proper worker settings."""
 
-    model = model.cuda()
-    optimizer = torch.optim.Adam(model.parameters())
+    @staticmethod
+    def for_training(dataset, batch_size=64) -> DataLoader:
+        workers = min(8, os.cpu_count() or 4)
+        return DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=workers,
+            pin_memory=True,
+        )
 
-    for epoch in range(epochs):
-        for images, labels in loader:
-            images = images.cuda()
-            labels = labels.cuda()
-            optimizer.zero_grad()
-            outputs = model(images)
-            loss = torch.nn.functional.cross_entropy(outputs, labels)
-            loss.backward()
-            optimizer.step()
+    @staticmethod
+    def for_validation(dataset, batch_size=128) -> DataLoader:
+        workers = min(4, os.cpu_count() or 2)
+        return DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=workers,
+        )

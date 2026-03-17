@@ -62,7 +62,7 @@ class RegistryBuilder:
 
         lines = [
             "# Pattern Registry - Auto-generated",
-            f"# Generated: {datetime.datetime.now().isoformat()}",
+            f"# Generated: {datetime.datetime.now(datetime.UTC).isoformat()}",
             f"# Total patterns: {len(patterns)}",
             "",
             'version = "1.0"',

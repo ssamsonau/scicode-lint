@@ -1,15 +1,27 @@
 import numpy as np
 
 
-def compute_variance(data):
-    n = len(data)
-    sum_sq = sum(x**2 for x in data)
-    sum_x = sum(data)
-    return (sum_sq - sum_x**2 / n) / (n - 1)
+def exp_nearly_equal_diff(a, b):
+    """Subtracting exp of nearly-equal values causes catastrophic cancellation.
+
+    When a ≈ b, exp(a) ≈ exp(b) and nearly all precision is lost in the subtraction.
+    """
+    result = np.exp(a) - np.exp(b)
+    return result
 
 
-def quadratic_formula(a, b, c):
-    discriminant = b**2 - 4 * a * c
-    x1 = (-b + np.sqrt(discriminant)) / (2 * a)
-    x2 = (-b - np.sqrt(discriminant)) / (2 * a)
-    return x1, x2
+def derivative_centered_diff(f, x, h=1e-10):
+    """Centered difference with tiny h causes cancellation.
+
+    f(x+h) and f(x-h) are nearly equal, their difference loses precision.
+    """
+    return (f(x + h) - f(x - h)) / (2 * h)
+
+
+def covariance_two_pass(x, y):
+    """Two-pass covariance formula prone to cancellation with large means."""
+    n = len(x)
+    mean_x = sum(x) / n
+    mean_y = sum(y) / n
+    cov = sum(x[i] * y[i] for i in range(n)) / n - mean_x * mean_y
+    return cov

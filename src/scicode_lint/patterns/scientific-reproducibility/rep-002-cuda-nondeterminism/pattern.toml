@@ -29,21 +29,28 @@ references = [
 
 [detection]
 question = """
-Analyze CUDA usage for reproducibility.
+Analyze CUDA TRAINING code for reproducibility.
 
-PyTorch CUDA operations are non-deterministic by default. Results may vary between runs even with the same random seed. Some GPU algorithms choose different execution paths for performance.
+CUDA non-determinism matters during TRAINING because:
+- Gradient computation uses non-deterministic algorithms
+- Some ops like atomicAdd have race conditions during backward pass
 
-Correct approach: Set torch.use_deterministic_algorithms(True) and torch.backends.cudnn.benchmark = False.
+IMPORTANT: Inference-only code does NOT need deterministic flags.
 
-Does this CUDA code lack deterministic flags?
+Does this CUDA TRAINING code lack deterministic flags?
 
-Look for:
-- .cuda() or .to(device) usage without deterministic algorithm flags
-- Missing torch.use_deterministic_algorithms(True)
-- Missing torch.backends.cudnn.benchmark = False
+Only flag if ALL of these are present:
+1. CUDA usage: .cuda() or .to(device)
+2. TRAINING indicators: model.train(), optimizer.step(), or loss.backward()
+3. Missing: torch.use_deterministic_algorithms(True) or torch.backends.cudnn.benchmark = False
 
-YES = Bug found: CUDA used without deterministic flags
-NO = Correct: both deterministic flags set, or no CUDA usage
+NOT a bug (answer NO):
+- Inference-only code: model.eval(), torch.no_grad(), no loss.backward()
+- Both deterministic flags are set
+- No CUDA usage
+
+YES = Bug: CUDA training code without deterministic flags
+NO = Correct: Inference-only, or deterministic flags set, or no CUDA
 """
 
 warning_message = """
@@ -58,14 +65,15 @@ false_positive_risks = []
 
 [[tests.positive]]
 file = "test_positive/cuda_without_deterministic.py"
-description = "CNN model moved to CUDA device without setting deterministic algorithms or disabling cudnn benchmark."
-expected_issue = "Code uses CUDA/GPU but doesn't set torch.use_deterministic_algorithms(True) or torch.backends.cudnn.benchmark = False"
+description = "CNN model training on CUDA without setting deterministic algorithms or disabling cudnn benchmark."
+expected_issue = "CUDA training code lacks torch.use_deterministic_algorithms(True) or torch.backends.cudnn.benchmark = False"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "class"
-name = "ConvNet"
-snippet = "model = ConvNet().to(device)"
+type = "function"
+name = "train_model"
+snippet = "loss.backward()"
+lines = [36]
 
 [[tests.positive]]
 file = "test_positive/gpu_training_no_flags.py"
@@ -77,6 +85,7 @@ min_confidence = 0.85
 type = "function"
 name = "train_on_gpu"
 snippet = "device = torch.device(\"cuda\")"
+lines = [10]
 
 [[tests.negative]]
 file = "test_negative/deterministic_cuda.py"
@@ -98,7 +107,12 @@ min_confidence = 0.85
 type = "function"
 name = "train_cnn"
 snippet = "inputs.cuda()"
+lines = [8]
 
 [[tests.negative]]
 file = "test_negative/cudnn_deterministic.py"
 description = "Properly configured CUDA training with a set_deterministic() helper that establishes torch.backends.cudnn.deterministic, torch.backends.cudnn.benchmark, and torch.use_deterministic_algorithms(True) before all CUDA operations."
+
+[[tests.negative]]
+file = "test_negative/inference_only.py"
+description = "Inference-only code with CUDA - deterministic flags not needed because non-determinism only affects training (gradient computation)"

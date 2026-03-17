@@ -1,14 +1,24 @@
+import random
+
+import numpy as np
+import torch
 from sklearn.model_selection import train_test_split
 
 
-def prepare_data_correctly(X, y):
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    return X_train, X_test, y_train, y_test
+def set_all_seeds(seed: int = 42):
+    """Set seeds for all random number generators."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
 
-def reproducible_split(data, labels):
-    SEED = 123
-    train_x, test_x, train_y, test_y = train_test_split(
-        data, labels, test_size=0.3, random_state=SEED
-    )
-    return train_x, test_x, train_y, test_y
+def load_and_split_data(filepath: str, seed: int = 42):
+    """Load data and split with complete seed coverage."""
+    set_all_seeds(seed)
+
+    data = np.random.randn(1000, 10)
+    labels = np.random.randint(0, 2, 1000)
+
+    return train_test_split(data, labels, test_size=0.2, random_state=seed)

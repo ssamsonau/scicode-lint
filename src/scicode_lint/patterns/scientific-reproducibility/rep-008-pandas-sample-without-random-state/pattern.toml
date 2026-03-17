@@ -52,14 +52,15 @@ false_positive_risks = []
 
 [[tests.positive]]
 file = "test_positive/sample_no_state.py"
-description = "Pandas sampling without random_state"
-expected_issue = "df.sample() without random_state"
+description = "Feature engineering class with sampling for subsampling, stats, and stratified downsample without random_state"
+expected_issue = "self.df.sample() in multiple methods without random_state"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "function"
+type = "method"
 name = "subsample_data"
-snippet = ".sample("
+snippet = "self.df.sample(n=n)"
+lines = [14, 18, 24]
 
 [[tests.negative]]
 file = "test_negative/sklearn_split.py"
@@ -73,18 +74,6 @@ description = "Processing all data without sampling"
 file = "test_negative/seeded_sample.py"
 description = "Pandas sample with random_state for reproducibility"
 
-# === Auto-generated entries (review and update) ===
-[[tests.positive]]
-file = "test_positive/df_sample.py"
-description = "Multiple sampling operations without random_state including fractional, bootstrap, and stratified sampling"
-expected_issue = "df.sample() with frac parameter without random_state"
-min_confidence = 0.85
-
-[tests.positive.expected_location]
-type = "function"
-name = "sample_data"
-snippet = "return df.sample(frac=frac)"
-
 [[tests.positive]]
 file = "test_positive/sample_no_seed.py"
 description = "Sampling operations without random_state for fixed counts, balanced sampling, and train-test splits"
@@ -94,4 +83,17 @@ min_confidence = 0.85
 [tests.positive.expected_location]
 type = "function"
 name = "subsample_data"
-snippet = "subset = df.sample(n=1000)"
+snippet = "df.sample(n=1000)"
+lines = [5, 13, 19]
+
+[[tests.positive]]
+file = "test_positive/augmentation_sample.py"
+description = "Data augmentation class using sample without random_state"
+expected_issue = "df.sample() in oversample and bootstrap methods without random_state"
+min_confidence = 0.85
+
+[tests.positive.expected_location]
+type = "method"
+name = "oversample_minority"
+snippet = ".sample(n=target_count"
+lines = [15]

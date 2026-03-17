@@ -1,27 +1,26 @@
+"""Operations using ordered collections - no set iteration."""
+
 import numpy as np
+from collections import Counter
 
 
-def select_features(X, feature_list):
-    selected = []
-    for feature in feature_list:
-        selected.append(X[:, feature])
-    return np.column_stack(selected)
+def rank_by_frequency(words: list[str]) -> list[tuple[str, int]]:
+    """Rank words by frequency using Counter (dict-based, insertion-ordered)."""
+    counts = Counter(words)
+    return counts.most_common()
 
 
-def get_unique_labels(labels):
-    seen = []
-    for label in labels:
-        if label not in seen:
-            seen.append(label)
-    return seen
-
-
-def process_ordered_items(items):
-    results = []
+def deduplicate_preserving_order(items: list[str]) -> list[str]:
+    """Remove duplicates while preserving original list order."""
+    seen = {}
+    result = []
     for item in items:
-        results.append(process(item))
-    return results
+        if item not in seen:
+            seen[item] = True
+            result.append(item)
+    return result
 
 
-def process(item):
-    return item * 2
+def aggregate_metrics(metric_names: list[str], values: np.ndarray) -> dict[str, float]:
+    """Aggregate metrics using zip with two ordered lists."""
+    return {name: float(val) for name, val in zip(metric_names, values.mean(axis=0))}

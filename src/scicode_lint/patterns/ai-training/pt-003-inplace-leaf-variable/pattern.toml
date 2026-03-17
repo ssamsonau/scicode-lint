@@ -37,8 +37,8 @@ Look for:
 - In-place operators (+=, -=, *=, /=) on tensors with requires_grad=True
 - In-place methods (add_(), sub_(), mul_(), div_()) on leaf variables or forward() inputs
 
-YES = Bug found: in-place operation on tensor that requires gradients
-NO = Correct: only non-in-place operations, or in-place only on detached tensors
+YES = Bug found: in-place operation on tensor that requires gradients during forward/backward
+NO = Correct: only non-in-place operations, in-place on detached tensors, or in-place inside torch.no_grad() context
 """
 
 warning_message = """
@@ -60,6 +60,7 @@ min_confidence = 0.85
 type = "method"
 name = "forward"
 snippet = "self.weight +="
+lines = [11]
 
 [[tests.positive]]
 file = "test_positive/inplace_input_modification.py"
@@ -71,6 +72,7 @@ min_confidence = 0.85
 type = "method"
 name = "forward"
 snippet = "x -= mean_val"
+lines = [13]
 
 [[tests.negative]]
 file = "test_negative/correct_gradient_computation.py"
@@ -88,9 +90,10 @@ expected_issue = "In-place operations on parameters that require gradients"
 min_confidence = 0.85
 
 [tests.positive.expected_location]
-type = "class"
-name = "WeightNormalizedLayer"
-snippet = "class WeightNormalizedLayer"
+type = "method"
+name = "forward"
+snippet = "self.weight.div_(self.weight.norm(dim=1, keepdim=True))"
+lines = [12, 18]
 
 [[tests.negative]]
 file = "test_negative/weight_normalize_correct.py"

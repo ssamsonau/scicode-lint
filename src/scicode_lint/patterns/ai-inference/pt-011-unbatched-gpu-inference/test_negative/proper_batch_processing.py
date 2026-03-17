@@ -3,71 +3,30 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
 
-class VGGNet(nn.Module):
-    def __init__(self, num_classes):
+class TimeSeriesForecaster(nn.Module):
+    def __init__(self, input_dim, hidden_dim, forecast_steps):
         super().__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(3, 64, 3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(64, 64, 3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2, 2),
-            nn.Conv2d(64, 128, 3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(128, 128, 3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2, 2),
-        )
-        self.classifier = nn.Sequential(
-            nn.Linear(128 * 8 * 8, 512),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(512, num_classes),
-        )
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers=2, batch_first=True)
+        self.fc = nn.Linear(hidden_dim, forecast_steps)
 
     def forward(self, x):
-        x = self.features(x)
-        x = x.view(x.size(0), -1)
-        x = self.classifier(x)
-        return x
+        _, (h, _) = self.lstm(x)
+        return self.fc(h[-1])
 
 
-def test_model(model, test_loader):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+def forecast_batch(model, historical_data, batch_size=64):
+    device = torch.device("cuda")
     model.to(device)
     model.eval()
 
-    correct = 0
-    total = 0
+    dataset = TensorDataset(historical_data)
+    loader = DataLoader(dataset, batch_size=batch_size, pin_memory=True)
 
-    with torch.no_grad():
-        for X_batch, y_batch in test_loader:
-            X_batch = X_batch.to(device)
-            y_batch = y_batch.to(device)
-            logits = model(X_batch)
-            predictions = logits.argmax(dim=1)
-            correct += (predictions == y_batch).sum().item()
-            total += y_batch.size(0)
-
-    accuracy = correct / total
-    return accuracy
-
-
-def predict_all(model, test_data, batch_size=32):
-    device = torch.device("cuda:0")
-    model.to(device)
-    model.eval()
-
-    test_tensor = torch.from_numpy(test_data).float()
-    dataset = TensorDataset(test_tensor)
-    loader = DataLoader(dataset, batch_size=batch_size)
-
-    predictions = []
-
+    forecasts = []
     with torch.no_grad():
         for (batch,) in loader:
-            batch = batch.to(device)
-            batch_preds = model(batch)
-            predictions.append(batch_preds.cpu())
+            batch = batch.to(device, non_blocking=True)
+            pred = model(batch)
+            forecasts.append(pred.cpu())
 
-    return torch.cat(predictions, dim=0)
+    return torch.cat(forecasts, dim=0)

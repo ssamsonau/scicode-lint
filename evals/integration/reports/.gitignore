@@ -1,0 +1,5 @@
+# Ignore all generated reports
+*
+
+# Keep this .gitignore
+!.gitignore

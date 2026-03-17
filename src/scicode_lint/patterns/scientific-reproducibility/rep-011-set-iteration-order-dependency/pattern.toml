@@ -57,6 +57,7 @@ min_confidence = 0.85
 type = "function"
 name = "process_unique_items"
 snippet = "for item in unique_items"
+lines = [8]
 
 [[tests.negative]]
 file = "test_negative/list_operations.py"
@@ -85,6 +86,7 @@ min_confidence = 0.85
 type = "function"
 name = "process_unique_items"
 snippet = "for item in unique"
+lines = [4]
 
 [[tests.positive]]
 file = "test_positive/unsorted_set_iteration.py"
@@ -96,3 +98,4 @@ min_confidence = 0.85
 type = "function"
 name = "select_features"
 snippet = "for feature in feature_set"
+lines = [6]

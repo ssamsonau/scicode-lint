@@ -720,7 +720,9 @@ def main() -> None:
 
     # Validate that all files exist on disk before starting analysis
     missing_files = [
-        str(entry["file_path"]) for entry in manifest if not Path(str(entry["file_path"])).exists()
+        str(entry["file_path"])
+        for entry in manifest
+        if not (args.base_dir / str(entry["file_path"])).exists()
     ]
     if missing_files:
         logger.error(

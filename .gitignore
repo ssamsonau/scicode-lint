@@ -68,6 +68,9 @@ benchmark_results.txt
 benchmark_test.py
 benchmark_test_file.py
 
+# Benchmark reports (regenerated on each run, only summaries tracked)
+benchmarks/reports/**/*.json
+
 # Evaluation reports (volatile, regenerated on each run)
 evals/reports/
 evals/eval_run.log

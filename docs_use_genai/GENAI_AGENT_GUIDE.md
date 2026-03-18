@@ -351,7 +351,7 @@ config = LinterConfig(
     enabled_patterns={"ml-001"},  # Only this pattern
 )
 linter = SciCodeLinter(config)
-result = linter.check_file(Path("pipeline.py"))  # ~50 seconds
+result = linter.check_file(Path("pipeline.py"))  # ~15s for small files
 
 # Example 2: GenAI fixing PyTorch training loop - check only pt-001, pt-002, pt-003
 config = LinterConfig(
@@ -365,7 +365,7 @@ config = LinterConfig(
     enabled_categories={"ai-training"},  # 19 patterns
 )
 linter = SciCodeLinter(config)
-result = linter.check_file(Path("ml_pipeline.py"))  # ~60 seconds
+result = linter.check_file(Path("ml_pipeline.py"))  # ~60s for small files
 ```
 
 **CLI equivalent:**
@@ -539,18 +539,33 @@ except Exception as e:
 
 ## Performance
 
-**Speed (per file):**
-- Single pattern: ~50 seconds
-- Category (8 patterns): ~60 seconds
-- Full scan (66 patterns): ~90 seconds
+**Full scan (all 66 patterns) — time varies by file size:**
+
+| File size | Typical time | Notes |
+|-----------|-------------|-------|
+| Small (<100 lines) | ~50-60s | ~15% of input token budget used |
+| Medium (~200 lines) | ~90s | ~30% of budget |
+| Large (~500 lines) | ~115s | ~50% of budget |
+| Max (~1000 lines) | ~170s | ~90% of budget, higher variance |
+
+**Single pattern — per-pattern cost:**
+
+| File size | Typical time |
+|-----------|-------------|
+| Small (<100 lines) | ~15s |
+| Medium (~200 lines) | ~24s |
+| Large (~500 lines) | ~30s |
+| Max (~1000 lines) | ~44s |
+
+Full scan is NOT 66× single pattern — vLLM prefix caching means the code is cached after the first pattern, so adding patterns is cheap. Scaling is sub-linear: 31× more lines ≈ 3× more time.
 
 **Optimization:**
 - vLLM's prefix caching reuses code analysis across patterns for significant speedup
 - Filter by `--severity critical` for faster checks
-- Filter by `--category` for targeted analysis
+- Filter by `--category` or `--pattern` for targeted analysis
 
 **Hardware:**
-- Tested on NVIDIA RTX 4000 Ada (20GB VRAM) with Qwen3-8B-FP8 @ 20K context
+- Benchmarked on NVIDIA RTX 4000 Ada (20GB VRAM) with Qwen3-8B-FP8 @ 20K context
 - Minimum: 16GB VRAM with native FP8 support (compute capability >= 8.9)
 
 ---
@@ -587,13 +602,14 @@ enabled_severities = ["critical", "high"]
    - Use `location.name` for identification, `location.focus_line` for specific line
 3. **False positives possible**: Always review findings
 4. **Requires LLM**: Needs vLLM server running
-5. **Speed**: Full scan takes ~90 seconds per file
-6. **File size limit**: ~1,500 lines max (16K token context)
+5. **Speed**: Full scan takes ~50s (small files) to ~170s (1000-line files). See Performance section for details.
+6. **File size limit**: ~1,400 lines max (16K input token budget)
    - 16K chosen based on analysis of 10M+ GitHub repositories
    - Covers 90-95th percentile of Python files in the wild
    - Median Python file: 258 lines (~2,600 tokens)
    - Mean Python file: 879 lines (~8,800 tokens)
-   - With ~500 token prompt overhead, 16K handles up to ~1,500 lines
+   - With ~2,000 token prompt overhead (system prompt ~1,450 + detection question ~575 mean), 16K handles up to ~1,400 lines
+   - Thinking tokens are output tokens, not input — they don't reduce available code space
 
 ---
 

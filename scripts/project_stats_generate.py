@@ -43,6 +43,7 @@ EXCLUDE_DIRS = [
     "real_world_demo/collected_code",
     "pattern_verification/semantic/reports",
     "pattern_verification/deterministic/doc_cache",
+    "benchmarks/fixtures",
 ]
 
 

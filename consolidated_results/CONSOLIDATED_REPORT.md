@@ -1,8 +1,8 @@
 # Consolidated Performance Report
 
-- **Generated:** 2026-03-18 02:55 UTC
+- **Generated:** 2026-03-18 13:28 UTC
 - **scicode-lint version:** 0.2.2
-- **Git commit:** `aa3f173`
+- **Git commit:** `3e75260`
 
 Every number in the paper should trace to a row in this report.
 
@@ -21,9 +21,9 @@ Every number in the paper should trace to a row in this report.
 
 **WARNING: DB runs were generated at different commits:**
 
-- Kaggle (run 57): `3a93f57`
-- Feedback (run 56): `f2a15fc`
-- Holdout (run 60): `f2a15fc`
+- Kaggle (run 67): `3e75260`
+- Feedback (run 65): `f2a15fc`
+- Holdout (run 66): `f2a15fc`
 
 ## 1. Controlled Tests (LLM-as-Judge)
 
@@ -61,17 +61,17 @@ Source: `evals/integration/reports/20260316_172513_generate_50/report.json` + `e
 
 ## 3. Kaggle Labeled Notebooks (Yang et al. ASE'22)
 
-Source: `analysis.db run_id=57`
+Source: `analysis.db run_id=67`
 
-- Files analyzed: 82
-- Files with findings: 11
-- Excluded (timeouts): 12
+- Files analyzed: 97
+- Files with findings: 35
+- Excluded (timeouts): 16
 
 | Label | TP | FP | FN | TN | Precision | Recall | F1 |
 |-------|---:|---:|---:|---:|----------:|-------:|---:|
-| pre | 6 | 2 | 5 | 25 | 75.0% | 54.5% | 63.2% |
-| overlap | 0 | 1 | 2 | 44 | 0.0% | 0.0% | 0.0% |
-| multi | 0 | 0 | 20 | 30 | 0.0% | 0.0% | 0.0% |
+| pre | 13 | 7 | 0 | 32 | 65.0% | 100.0% | 78.8% |
+| overlap | 0 | 0 | 3 | 43 | 0.0% | 0.0% | 0.0% |
+| multi | 4 | 1 | 18 | 27 | 80.0% | 18.2% | 29.6% |
 
 ## 4. PapersWithCode — Feedback Set
 
@@ -161,11 +161,11 @@ Sources:
 |-------|-----------|--------|------------|
 | Controlled tests | — | — | 452 tests, 66 patterns, 97.7% overall accuracy |
 | Integration (n=50) | 58.0% | 85.1% | 148 intended bugs, 27 bonus TPs |
-| Kaggle labeled (`pre`) | 75.0% | 54.5% | Human ground truth (Yang et al. ASE'22) |
+| Kaggle labeled (`pre`) | 65.0% | 100.0% | Human ground truth (Yang et al. ASE'22) |
 | PapersWithCode (feedback) | 62.0% | — | 38 papers, 119 files |
 | PapersWithCode (holdout) | 54.1% | — | 35 papers, 45 files |
 
 ## Warnings
 
-- DB runs were generated at different git commits (3a93f57, f2a15fc)
+- DB runs were generated at different git commits (3e75260, f2a15fc)
 

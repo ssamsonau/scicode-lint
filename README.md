@@ -142,13 +142,13 @@ Two-stage filter (runs automatically):
 
 ## Project Status
 
-**Work in Progress** (v0.2.2 alpha)
+**Work in Progress** (v0.2.3 alpha)
 
 | Test Type | Precision | Recall | Description |
 |-----------|-----------|--------|-------------|
 | Controlled tests | 97.7% | 97.0% | Curated positive/negative test files per pattern (452 tests, 66 patterns) |
 | Integration (LLM-generated) | 58.0% | 85.1% | 50 Sonnet-generated scenarios with 148 planted bugs; 27 bonus TPs found |
-| Labeled Kaggle notebooks | 75% | 55% | Yang et al. ASE'22 dataset (`pre` label), human-labeled ground truth |
+| Labeled Kaggle notebooks | 65% | 100% | Yang et al. ASE'22 dataset (`pre` label), human-labeled ground truth |
 | Published papers (iteration) | 62.0% | - | 32 repos analyzed (120 files); used for pattern refinement |
 | Published papers (holdout) | 54.1% | - | 17 repos analyzed (45 files); unseen during development |
 
@@ -184,7 +184,7 @@ Traditional linters use grep-style pattern matching - fast but misses context. C
 - 🔬 [evals/integration/README.md](evals/integration/README.md): integration tests
 - 📈 [docs_dev_genai/CONTINUOUS_IMPROVEMENT.md](docs_dev_genai/CONTINUOUS_IMPROVEMENT.md): pattern quality improvement workflow
 - 📊 [docs_use_human/performance/VLLM_MONITORING.md](docs_use_human/performance/VLLM_MONITORING.md): vLLM monitoring dashboard
-- 🌐 [real_world_demo/README.md](real_world_demo/README.md): real-world validation on scientific ML code from PapersWithCode repos and Yang et al. ASE'22 leakage paper (74% F1 on preprocessing leakage detection)
+- 🌐 [real_world_demo/README.md](real_world_demo/README.md): real-world validation on scientific ML code from PapersWithCode repos and Yang et al. ASE'22 leakage paper (79% F1 on preprocessing leakage detection)
 
 ---
 

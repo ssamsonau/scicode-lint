@@ -28,6 +28,27 @@ Measures vLLM server performance during eval:
 
 Output: `reports/speed/BENCHMARK_SUMMARY.md`
 
+### File Size Benchmark
+
+```bash
+python benchmarks/file_size_benchmark.py                    # full scan, 2 runs per file
+python benchmarks/file_size_benchmark.py --runs 3 --warmup  # 3 runs with warmup
+python benchmarks/file_size_benchmark.py --single-pattern ml-001  # single pattern mode
+```
+
+Measures scan time vs file size using synthetic fixture files (32, 211, 496, 1001 lines).
+
+| Metric | Description |
+|--------|-------------|
+| `mean_seconds` | Average scan time per file |
+| `min_seconds` / `max_seconds` | Timing range |
+| `spread_seconds` | Max - min (variance indicator) |
+| `findings` | Number of issues detected |
+
+Fixtures in `fixtures/`: realistic scientific Python code at each size bracket.
+
+Output: `reports/file_size/BENCHMARK_SUMMARY.md`
+
 ### Max Tokens Experiment
 
 ```bash
@@ -72,6 +93,35 @@ Output: `reports/max_tokens/BENCHMARK_SUMMARY.md`
 **vLLM Dashboard:**
 
 ![vLLM Monitoring Dashboard](reports/speed/vllm_dashboard.png)
+
+### File Size Benchmark (2026-03-18)
+
+**Environment:** RTX 4000 Ada (20GB), WSL2, Qwen3-8B-FP8, 3 runs per file
+
+**Full scan (all 66 patterns):**
+
+| File | Lines | Findings | Mean (s) | Min (s) | Max (s) |
+|------|------:|--------:|---------:|--------:|--------:|
+| small_30_lines.py | 32 | 5 | 60.7 | 51.8 | 77.3 |
+| medium_200_lines.py | 211 | 7 | 92.1 | 81.5 | 108.0 |
+| large_500_lines.py | 496 | 10 | 114.7 | 106.9 | 122.7 |
+| xlarge_1000_lines.py | 1001 | 5 | 171.6 | 144.7 | 216.6 |
+
+**Single pattern (ml-001):**
+
+| File | Lines | Mean (s) | Min (s) | Max (s) | Spread (s) |
+|------|------:|---------:|--------:|--------:|-----------:|
+| small_30_lines.py | 32 | 14.7 | 13.5 | 15.8 | 2.2 |
+| medium_200_lines.py | 211 | 23.5 | 16.6 | 32.0 | 15.4 |
+| large_500_lines.py | 496 | 29.9 | 22.4 | 42.7 | 20.2 |
+| xlarge_1000_lines.py | 1001 | 44.0 | 34.8 | 52.9 | 18.1 |
+
+**Key findings:**
+- Scaling is sub-linear: 31x more lines ≈ 3x more time (prefix caching)
+- Full scan is NOT 66x single pattern — code is cached after first pattern
+- Prompt overhead: ~2,000 tokens (12.6% of 16K budget), leaving ~14K for code
+- Variance increases with file size (2s spread for small, 18-20s for large)
+- 1000-line files use ~91% of input token budget
 
 ### Max Tokens Experiment (2026-03-09)
 

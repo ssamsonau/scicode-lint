@@ -43,7 +43,7 @@ INTEGRATION_SCENARIOS_DIR = ROOT / _INTEG_DIR / "scenarios"
 ANALYSIS_DB = ROOT / "real_world_demo/data/analysis.db"
 
 # Run IDs for paper results
-KAGGLE_RUN_ID = 57  # leakage_paper dataset
+KAGGLE_RUN_ID = 67  # leakage_paper dataset
 FEEDBACK_RUN_ID = 65  # PapersWithCode feedback set
 HOLDOUT_RUN_ID = 66  # PapersWithCode holdout set
 
@@ -526,9 +526,9 @@ def generate_report() -> str:
     if db_available:
         assert conn is not None
         for label, run_id in [
-            ("Kaggle (run 57)", KAGGLE_RUN_ID),
-            ("Feedback (run 56)", FEEDBACK_RUN_ID),
-            ("Holdout (run 60)", HOLDOUT_RUN_ID),
+            (f"Kaggle (run {KAGGLE_RUN_ID})", KAGGLE_RUN_ID),
+            (f"Feedback (run {FEEDBACK_RUN_ID})", FEEDBACK_RUN_ID),
+            (f"Holdout (run {HOLDOUT_RUN_ID})", HOLDOUT_RUN_ID),
         ]:
             row = conn.execute(
                 "SELECT git_commit FROM analysis_runs WHERE id = ?",

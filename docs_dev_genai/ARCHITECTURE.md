@@ -694,16 +694,15 @@ Based on [Ben Boyter's analysis of ~10 million GitHub/Bitbucket/GitLab repositor
 **Coverage targets:**
 - Median: 258 lines → 2,600 tokens (✓ 6.2x margin)
 - Mean: 879 lines → 8,800 tokens (✓ 1.8x margin)
-- 90th percentile: ~1,500 lines → ~15,000 tokens (✓ covered)
+- 90th percentile: ~1,500 lines → ~15,000 tokens (exceeds ~1,400 line effective limit after ~2,000 token prompt overhead)
 
 **Breakdown of 16K tokens:**
 - vLLM context window: 16,000 tokens (total)
 - Reserved buffer: 400 tokens (output + estimation safety)
 - Maximum input: 15,600 tokens
-  - System prompt: ~100 tokens
-  - Detection prompt: ~300 tokens
-  - Structured output overhead: ~200 tokens
-  - **Available for code: ~15,000 tokens (~1,500 lines)**
+  - System prompt: ~1,450 tokens
+  - Detection question template: ~350–1,050 tokens (mean ~575)
+  - **Available for code: ~14,000 tokens (~1,400 lines)**
 
 **Why 400 token buffer?**
 - Output tokens: ~200 for JSON response
@@ -733,7 +732,7 @@ This makes 16K "free" for typical files while still supporting large files when 
 ### File Size Recommendations
 
 **Supported (< 16K tokens):**
-- ✅ Single module files (~1,500 lines)
+- ✅ Single module files (~1,400 lines)
 - ✅ Typical scientific scripts (median: 258 lines)
 - ✅ Training scripts (mean: 879 lines)
 - ✅ Data processing pipelines

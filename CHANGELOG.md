@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2026-03-18
+
+### Added
+- **File size benchmark** — scan time vs code size, sub-linear scaling (31x lines ~ 3x time) on RTX 4000 Ada
+
+### Changed
+- **Kaggle notebook eval re-run** with updated patterns — `pre` label: precision 65%, recall 100%, F1 79%
+- Corrected max processable file size in docs: ~1,400 lines (was ~1,500)
+
+### Fixed
+- `run_analysis` file existence validation now correctly uses `base_dir` for path resolution
+
 ## [0.2.2] - 2026-03-17
 
 ### Added

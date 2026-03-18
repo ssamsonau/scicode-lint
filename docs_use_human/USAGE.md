@@ -404,7 +404,7 @@ See the `patterns/` directory for complete list.
 2. **Speed**: Checking 66 patterns takes time (varies by file size and GPU)
 3. **False positives possible**: Review all findings - the linter is conservative but not perfect
 4. **Function/class level only**: Findings report function/class names, not exact line numbers
-5. **Context length limits**: Files must fit within model's input context (16K tokens = ~1,500 lines)
+5. **Context length limits**: Files must fit within model's input context (16K input tokens, ~1,400 lines after ~2,000 token prompt overhead)
    - Files that are too large will be skipped with a clear error message
    - See "File too large" error below for solutions
 
@@ -454,7 +454,7 @@ Suggestions:
    src/evaluation.py     (2000 tokens)
    ```
 
-2. **Adjust context limit**: The default 20K context (16K input + 4K response) supports ~1,500 line files (90-95th percentile):
+2. **Adjust context limit**: The default 20K context (16K input + 4K response) supports ~1,400 line files after ~2,000 token prompt overhead:
    ```bash
    # Standard: 20K total tokens (16K input + 4K response)
    vllm serve RedHatAI/Qwen3-8B-FP8-dynamic --max-model-len 20000
@@ -467,7 +467,7 @@ Suggestions:
    ```
 
 **Context window:**
-- Standard: 20K tokens total (16K input + 4K response, 16GB VRAM, covers ~1,500 lines)
+- Standard: 20K tokens total (16K input + 4K response, 16GB VRAM, covers ~1,400 lines)
 
 **Estimate tokens before checking:**
 ```python

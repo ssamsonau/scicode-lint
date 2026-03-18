@@ -34,7 +34,7 @@ If requirements aren't met, the script exits with clear error messages and hardw
 **Specs (from config.toml):**
 - Model size: ~9GB
 - Context: 20,000 tokens (16K input + 4K response)
-- Max input: ~1,500 lines (90-95th percentile)
+- Max input: ~1,400 lines (after ~2,000 token prompt overhead)
 - VRAM usage: ~13GB total (fits comfortably on 16GB GPU)
 
 **Memory breakdown:**
@@ -74,8 +74,9 @@ All configurations use **20K total context** (16K input + 4K response):
 - vLLM context window: 20,000 tokens (total)
 - Reserved for response: 4,096 tokens (thinking mode reasoning)
 - Maximum input: ~16,000 tokens
-  - System/detection prompts: ~500 tokens
-  - Code content: ~15,500 tokens (~1,550 lines)
+  - System prompt: ~1,450 tokens
+  - Detection question template: ~350–1,050 tokens (mean ~575)
+  - Code content: ~14,000 tokens (~1,400 lines)
 
 **Why 4K response tokens?**
 Benchmarked for optimal accuracy (see `benchmarks/reports/max_tokens/`). 4K achieves best accuracy; higher values show diminishing returns.
@@ -117,4 +118,4 @@ See **[MODEL_SELECTION.md](MODEL_SELECTION.md)** for:
 - Examples: RTX 4060 Ti 16GB, RTX 4070+, RTX 4090, RTX 4000 Ada, L4, L40, A10
 
 **Default Model:** RedHatAI/Qwen3-8B-FP8-dynamic
-**Context:** 20K tokens (16K input + 4K response, supports ~1,500 line files)
+**Context:** 20K tokens (16K input + 4K response, supports ~1,400 line files)
